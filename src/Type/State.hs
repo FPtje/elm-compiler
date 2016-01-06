@@ -87,6 +87,9 @@ getEnv :: Solver Env
 getEnv =
     State.gets sEnv
 
+getError :: Solver [A.Located Error.Error]
+getError =
+    State.gets sError
 
 saveLocalEnv :: Solver ()
 saveLocalEnv =
