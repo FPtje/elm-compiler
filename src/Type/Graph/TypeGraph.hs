@@ -4,6 +4,9 @@ module Type.Graph.TypeGraph where
 
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.EQGroup as EG
+import qualified Type.Graph.Clique as CLQ
+import qualified AST.Variable as Var
+import qualified Type.Type as T
 import qualified Data.Map as M
 import Data.List (nub)
 
@@ -35,7 +38,7 @@ addPossibleInconsistentGroup vid stg = stg { possibleErrors = vid : possibleErro
 
 -- | All VertexIds that are in the given vertex' group.
 -- Includes the given vertex
-verticesInGroupOf :: BS.VertexId -> TypeGraph info -> [(BS.VertexId, BS.VertexKind)]
+verticesInGroupOf :: BS.VertexId -> TypeGraph info -> [(BS.VertexId, BS.VertexInfo)]
 verticesInGroupOf i =
       EG.vertices . fromMaybe (error $ "verticesInGroupOf: vertexId does not exist: " ++ show i) . getGroupOf i
 
@@ -126,3 +129,45 @@ splitEQGroups vid grph =
             | otherwise = grph
     in
         (results, newGraph)
+
+addTermGraph :: Int -> T.Type -> TypeGraph info -> IO (TypeGraph info)
+addTermGraph unique (T.AliasN name _ realtype) grph = doAddTermGraph unique realtype grph (Just name)
+addTermGraph unique tp grph = doAddTermGraph unique tp grph Nothing
+
+-- TODO
+doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (TypeGraph info)
+doAddTermGraph _ (T.PlaceHolder _) _ _ = error "what is a PlaceHolder even"
+doAddTermGraph unique (T.VarN uc) grph mName = undefined
+
+addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
+addVertex v info =
+      createGroup (EG.insertVertex v info EG.empty)
+
+-- | addClique in TOP
+insertClique :: CLQ.Clique -> TypeGraph info -> TypeGraph info
+insertClique clq =
+    updateGroupOf (CLQ.representative clq) (EG.insertClique clq) . combineEQGroups (CLQ.children clq)
+
+propagateEquality :: BS.VertexId -> TypeGraph info -> TypeGraph info
+propagateEquality vid stg =
+   let (listLeft, listRight) = childrenInGroupOf vid stg
+       left  = map (flip representativeInGroupOf stg . CLQ.child) listLeft
+       right = map (flip representativeInGroupOf stg . CLQ.child) listRight
+   in (if length (nub right) > 1
+         then propagateEquality (head right)
+         else id)
+    . (if length (nub left) > 1
+         then propagateEquality (head left)
+         else id)
+    . (if length listLeft > 1
+         then insertClique (CLQ.makeClique listRight) . insertClique (CLQ.makeClique listLeft)
+         else id)
+    $ stg
+
+childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])
+childrenInGroupOf i graph =
+      unzip [ ( CLQ.ParentChild { CLQ.parent=p, CLQ.child = t1, CLQ.childSide=CLQ.LeftChild  }
+              , CLQ.ParentChild { CLQ.parent=p, CLQ.child = t2, CLQ.childSide=CLQ.RightChild }
+              )
+            | (p, (BS.VApp t1 t2, _)) <- verticesInGroupOf i graph
+            ]

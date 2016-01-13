@@ -2,11 +2,14 @@
 
 module Type.Graph.Basics where
 
+import qualified AST.Variable as Var
+
 -- | Identifies vertices in the type graph
 newtype VertexId =
     VertexId Int
     deriving (Eq, Ord, Show)
 
+type VertexInfo = (VertexKind, Maybe Var.Canonical)
 
 -- | The types that a vertex can contain
 -- A simplification of the actual types

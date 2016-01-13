@@ -3,7 +3,7 @@
 module Type.Graph.Clique where
 
 import qualified Type.Graph.Basics as BS
-import Data.List (partition)
+import Data.List (partition, sort)
 
 -- | Indicates whether a child is the left or right child of a parent
 data ChildSide =
@@ -32,8 +32,24 @@ newtype Clique =
     deriving (Eq, Ord, Show)
 
 
+-- | Make a Clique from ParentChild values
+makeClique :: [ParentChild] -> Clique
+makeClique list
+   | length set < 2 = error "makeClique: incorrect clique"
+   | otherwise      = Clique set
+ where
+   set = sort list
+
 children :: Clique -> [BS.VertexId]
 children = map child . unclique
+
+-- | The representative VertexId of a clique
+representative :: Clique -> BS.VertexId
+representative (Clique xs) =
+   case xs of
+      []  -> error "cliqueRepresentative: A clique cannot be empty"
+      x:_ -> child x
+
 
 -- | Returns true when the first clique is a subset of the second
 isSubsetClique :: Clique -> Clique -> Bool
@@ -81,3 +97,4 @@ combine (x:xs) ys =
         (disjoint, overlapping) = partition (isDisjoint x) ys
     in
         merge (x : overlapping) : combine xs disjoint
+

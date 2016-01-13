@@ -9,11 +9,10 @@ import Data.List (partition)
 
 -- | Equivalence groups, TODO
 data EquivalenceGroup info = EQGroup
-    { vertices                  :: [(BS.VertexId, BS.VertexKind)]     -- ^ Vertices in this equivalence group
+    { vertices                  :: [(BS.VertexId, BS.VertexInfo)]     -- ^ Vertices in this equivalence group
     , edges                     :: [(BS.EdgeId, info)]             -- ^ (Initial) edges in this equivalence group
     , cliques                   :: [CLQ.Clique]                 -- ^ (Implied) cliques in this equivalence group
     }
-    deriving (Show)
 
 
 -- | Empty equivalence group
@@ -53,7 +52,7 @@ split grp =
         foldr addEdge (foldr addClique eqcs cs) es
 
 -- | Inserts a vertex into an equivalence group
-insertVertex :: BS.VertexId -> BS.VertexKind -> EquivalenceGroup info -> EquivalenceGroup info
+insertVertex :: BS.VertexId -> BS.VertexInfo -> EquivalenceGroup info -> EquivalenceGroup info
 insertVertex vid vk grp =
     grp { vertices = (vid, vk) : vertices grp }
 
@@ -86,3 +85,5 @@ insertClique cl grp =
 removeClique :: CLQ.Clique -> EquivalenceGroup info -> EquivalenceGroup info
 removeClique cl grp =
     grp { cliques = filter (not . (`CLQ.isSubsetClique` cl)) (cliques grp) }
+
+
