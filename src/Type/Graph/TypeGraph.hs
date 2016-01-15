@@ -139,15 +139,32 @@ doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (
 doAddTermGraph _ (T.PlaceHolder _) _ _ = error "what is a PlaceHolder even"
 doAddTermGraph unique (T.VarN uc) grph mName = undefined
 
+-- | Add a vertex to the type graph
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
 addVertex v info =
       createGroup (EG.insertVertex v info EG.empty)
+
+-- | Add an edge to the type graph
+addEdge :: BS.EdgeId -> info -> TypeGraph info -> TypeGraph info
+addEdge edge@(BS.EdgeId v1 v2) info =
+ propagateEquality v1 . updateGroupOf v1 (EG.insertEdge edge info) . combineEQGroups [v1, v2]
+
+-- | Adds an edge to the type graph based on vertices
+addNewEdge :: (BS.VertexId, BS.VertexId) -> info -> TypeGraph info -> TypeGraph info
+addNewEdge (v1, v2) info stg =
+ {-let cnr = makeEdgeNr (constraintNumber stg)
+ in -}addEdge (BS.EdgeId v1 v2 {-cnr-}) info (stg { constraintNumber = constraintNumber stg + 1})
+
+--deleteEdge edge@(BS.EdgeId v1 _ _) =
+-- propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
 
 -- | addClique in TOP
 insertClique :: CLQ.Clique -> TypeGraph info -> TypeGraph info
 insertClique clq =
     updateGroupOf (CLQ.representative clq) (EG.insertClique clq) . combineEQGroups (CLQ.children clq)
 
+-- | When an equality edge is inserted, the equality trickles down to subtypes
+-- that's what this function applies
 propagateEquality :: BS.VertexId -> TypeGraph info -> TypeGraph info
 propagateEquality vid stg =
    let (listLeft, listRight) = childrenInGroupOf vid stg
@@ -164,10 +181,11 @@ propagateEquality vid stg =
          else id)
     $ stg
 
+-- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])
 childrenInGroupOf i graph =
-      unzip [ ( CLQ.ParentChild { CLQ.parent=p, CLQ.child = t1, CLQ.childSide=CLQ.LeftChild  }
-              , CLQ.ParentChild { CLQ.parent=p, CLQ.child = t2, CLQ.childSide=CLQ.RightChild }
+      unzip [ ( CLQ.ParentChild { CLQ.parent = p, CLQ.child = t1, CLQ.childSide = CLQ.LeftChild  }
+              , CLQ.ParentChild { CLQ.parent = p, CLQ.child = t2, CLQ.childSide = CLQ.RightChild }
               )
             | (p, (BS.VApp t1 t2, _)) <- verticesInGroupOf i graph
             ]
