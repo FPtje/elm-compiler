@@ -242,6 +242,11 @@ insertClique :: CLQ.Clique -> TypeGraph info -> TypeGraph info
 insertClique clq =
     updateGroupOf (CLQ.representative clq) (EG.insertClique clq) . combineEQGroups (CLQ.children clq)
 
+-- | deleteClique in TOP
+removeClique :: CLQ.Clique -> TypeGraph info -> TypeGraph info
+removeClique clique =
+   updateGroupOf (CLQ.representative clique) (EG.removeClique clique)
+
 -- | When an equality edge is inserted, the equality trickles down to subtypes
 -- that's what this function applies
 propagateEquality :: BS.VertexId -> TypeGraph info -> TypeGraph info
@@ -259,6 +264,27 @@ propagateEquality vid stg =
          then insertClique (CLQ.makeClique listRight) . insertClique (CLQ.makeClique listLeft)
          else id)
     $ stg
+
+propagateRemoval :: BS.VertexId -> TypeGraph info -> TypeGraph info
+propagateRemoval i stg =
+    let
+        (is, new) = splitEQGroups i stg
+        ts = map (`childrenInGroupOf` new) is
+
+        (leftList, rightList) = unzip ts
+        cliqueLeft  = CLQ.makeClique (concat leftList)
+        cliqueRight = CLQ.makeClique (concat rightList)
+        newCliques  = [ CLQ.makeClique list | list <- leftList ++ rightList, length list > 1 ]
+        children    = [ CLQ.child pc | pc:_ <- leftList ++ rightList ]
+    in
+        if length (filter (not . null) leftList) > 1 then
+            flip (foldr propagateRemoval) children
+            . flip (foldr insertClique) newCliques
+            . removeClique cliqueRight
+            . removeClique cliqueLeft
+            $ new
+        else
+            new
 
 -- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])
