@@ -206,6 +206,15 @@ doAddTermGraph unique (T.TermN T.EmptyRecord1) grph mName = do
 doAddTermGraph unique (T.TermN (T.Record1 subtypes emptyrecordType)) grph mName = undefined
 
 
+-- | Unify two types in the type graph
+-- i.e. state that two types must be equal
+unifyTypes :: info -> T.Type -> T.Type -> TypeGraph info -> IO (Int, TypeGraph info)
+unifyTypes info tl tr grph = do
+    (uql, vidl, grphl)  <- addTermGraph 0 tl grph
+    (uqr, vidr, grphr)  <- addTermGraph uql tr grphl
+
+    return (uqr, addNewEdge (vidl, vidr) info grphr)
+
 -- | Add a vertex to the type graph
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
 addVertex v info =
