@@ -150,11 +150,36 @@ doAddTermGraph unique (T.TermN (T.App1 l r)) grph mName = do
     return (uqr + 1, BS.VertexId uqr, updGrph)
 
 -- Lambda function (con + app)
-doAddTermGraph unique (T.TermN (T.Fun1 l r)) grph mName = undefined
+doAddTermGraph unique (T.TermN (T.Fun1 l r)) grph mName = do
+    -- Add the function constructor to the graph
+    let vid = BS.VertexId unique
+    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", mName) grph)
+
+    -- Add the left type's subgraph
+    (uql, vidl, gphl) <- addTermGraph uq' l grph'
+
+    -- Add the application of the function to the left's type
+    let appLVid = BS.VertexId uql
+    let updGrphL = addVertex appLVid (BS.VApp vid' vidl, Nothing) gphl -- (Is it right to set the alias to Nothing?)
+    let (uqAppL, vidAppL) = (uql + 1, BS.VertexId uql)
+
+    -- Add the right type's subgraph
+    (uqr, vidr, gphr) <- addTermGraph uqAppL r updGrphL
+
+    -- Add the application of (VApp function l) to the right's type
+    let appRVid = BS.VertexId uqr
+    let updGrphR = addVertex appRVid (BS.VApp vidAppL vidr, Nothing) gphr -- (Is it right to set the alias to Nothing?)
+
+    return (uqr + 1, BS.VertexId uqr, updGrphR)
+
 -- Empty record (con)
-doAddTermGraph unique (T.TermN T.EmptyRecord1) grph mName = undefined
--- Empty record, (con + app)
+doAddTermGraph unique (T.TermN T.EmptyRecord1) grph mName = do
+    let vid = BS.VertexId unique
+    return (unique + 1, vid, addVertex vid (BS.VCon "EmptyRecord", mName) grph)
+
+-- Non-empty record, (con + app)
 doAddTermGraph unique (T.TermN (T.Record1 subtypes emptyrecordType)) grph mName = undefined
+
 
 -- | Add a vertex to the type graph
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
