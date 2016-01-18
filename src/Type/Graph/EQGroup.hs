@@ -44,7 +44,7 @@ split grp =
                 (gs1, gs2) = partition (any ((`elem` is) . fst) . vertices) groups
             in insertClique clique (foldr combine empty gs1) : gs2
 
-        addEdge (edge@(BS.EdgeId v1 v2), info) groups =
+        addEdge (edge@(BS.EdgeId v1 v2 _), info) groups =
             let is         = [v1, v2]
                 (gs1, gs2) = partition (any ((`elem` is) . fst) . vertices) groups
             in insertEdge edge info (foldr combine empty gs1) : gs2

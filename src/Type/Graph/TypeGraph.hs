@@ -130,30 +130,50 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
-addTermGraph :: Int -> T.Type -> TypeGraph info -> IO (TypeGraph info)
+addTermGraph :: Int -> T.Type -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
 addTermGraph unique (T.AliasN name _ realtype) grph = doAddTermGraph unique realtype grph (Just name)
 addTermGraph unique tp grph = doAddTermGraph unique tp grph Nothing
 
 -- TODO
-doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (TypeGraph info)
-doAddTermGraph _ (T.PlaceHolder _) _ _ = error "what is a PlaceHolder even"
+doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (Int, BS.VertexId, TypeGraph info)
+doAddTermGraph _ (T.PlaceHolder _) _ _ = error "doAddTermGraph PlaceHolder should have been flattened by now."
+-- Type Variables, also contain atoms (var or con)
 doAddTermGraph unique (T.VarN uc) grph mName = undefined
+-- Type application (app)
+doAddTermGraph unique (T.TermN (T.App1 l r)) grph mName = do
+    (uql, vidl, gphl) <- addTermGraph unique l grph
+    (uqr, vidr, gphr) <- addTermGraph uql r gphl
+
+    let vid = BS.VertexId uqr
+    let updGrph = addVertex vid (BS.VApp vidl vidr, mName) gphr
+
+    return (uqr + 1, BS.VertexId uqr, updGrph)
+
+-- Lambda function (con + app)
+doAddTermGraph unique (T.TermN (T.Fun1 l r)) grph mName = undefined
+-- Empty record (con)
+doAddTermGraph unique (T.TermN T.EmptyRecord1) grph mName = undefined
+-- Empty record, (con + app)
+doAddTermGraph unique (T.TermN (T.Record1 subtypes emptyrecordType)) grph mName = undefined
 
 -- | Add a vertex to the type graph
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
 addVertex v info =
       createGroup (EG.insertVertex v info EG.empty)
 
+
 -- | Add an edge to the type graph
 addEdge :: BS.EdgeId -> info -> TypeGraph info -> TypeGraph info
-addEdge edge@(BS.EdgeId v1 v2) info =
+addEdge edge@(BS.EdgeId v1 v2 _) info =
  propagateEquality v1 . updateGroupOf v1 (EG.insertEdge edge info) . combineEQGroups [v1, v2]
 
 -- | Adds an edge to the type graph based on vertices
 addNewEdge :: (BS.VertexId, BS.VertexId) -> info -> TypeGraph info -> TypeGraph info
 addNewEdge (v1, v2) info stg =
- {-let cnr = makeEdgeNr (constraintNumber stg)
- in -}addEdge (BS.EdgeId v1 v2 {-cnr-}) info (stg { constraintNumber = constraintNumber stg + 1})
+ let
+    cnr = constraintNumber stg
+ in
+    addEdge (BS.EdgeId v1 v2 cnr) info (stg { constraintNumber = cnr + 1})
 
 --deleteEdge edge@(BS.EdgeId v1 _ _) =
 -- propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
