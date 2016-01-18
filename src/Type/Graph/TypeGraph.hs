@@ -8,6 +8,7 @@ import qualified Type.Graph.Clique as CLQ
 import qualified AST.Variable as Var
 import qualified Type.Type as T
 import qualified Data.Map as M
+import qualified Data.UnionFind.IO as UF
 import Data.List (nub)
 
 import Data.Maybe (fromMaybe, maybeToList)
@@ -20,6 +21,7 @@ data TypeGraph info = TypeGraph
    , equivalenceGroupCounter    :: Int
    , possibleErrors             :: [BS.VertexId]
    , constraintNumber           :: Int
+   , varNumber                  :: Int
    }
 
 -- | Empty type graph
@@ -30,6 +32,7 @@ empty = TypeGraph
     , equivalenceGroupCounter = 0
     , possibleErrors          = []
     , constraintNumber        = 0
+    , varNumber               = 0
     }
 
 -- | Adds the given vertex to the list of possible errors.
@@ -138,7 +141,29 @@ addTermGraph unique tp grph = doAddTermGraph unique tp grph Nothing
 doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (Int, BS.VertexId, TypeGraph info)
 doAddTermGraph _ (T.PlaceHolder _) _ _ = error "doAddTermGraph PlaceHolder should have been flattened by now."
 -- Type Variables, also contain atoms (var or con)
-doAddTermGraph unique (T.VarN uc) grph mName = undefined
+doAddTermGraph unique (T.VarN uc) grph mName = do
+    desc <- UF.descriptor uc
+
+    case T._content desc of
+        T.Structure _ -> error "doAddTermGraph: Structure should not appear here"
+        T.Alias {} -> error "doAddTermGraph: Alias should not appear here"
+        T.Error -> error "doAddTermGraph: Error should not appear here. That's the constructor 'Type.Type.Error', not this actual error message."
+        T.Atom name -> do -- Add con here
+            let vid = BS.VertexId unique
+            return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), mName) grph)
+
+        -- TODO: Check for existing variables?
+        -- TODO: Super constraints (Number, Appendable, Comparable, CompAppend)
+        T.Var {} -> do -- Add var here
+            let idf = varNumber grph
+            let vid = BS.VertexId idf
+            let updGrph = grph {
+                varNumber = idf + 1
+            }
+            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, mName) updGrph)
+
+
+
 -- Type application (app)
 doAddTermGraph unique (T.TermN (T.App1 l r)) grph mName = do
     (uql, vidl, gphl) <- addTermGraph unique l grph
