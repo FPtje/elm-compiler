@@ -208,12 +208,34 @@ doAddTermGraph unique (T.TermN (T.Record1 subtypes emptyrecordType)) grph mName 
 
 -- | Unify two types in the type graph
 -- i.e. state that two types must be equal
-unifyTypes :: info -> T.Type -> T.Type -> TypeGraph info -> IO (Int, TypeGraph info)
-unifyTypes info tl tr grph = do
-    (uql, vidl, grphl)  <- addTermGraph 0 tl grph
+unifyTypes :: info -> T.Type -> T.Type -> Int -> TypeGraph info -> IO (Int, TypeGraph info)
+unifyTypes info tl tr i grph = do
+    (uql, vidl, grphl)  <- addTermGraph i tl grph
     (uqr, vidr, grphr)  <- addTermGraph uql tr grphl
 
     return (uqr, addNewEdge (vidl, vidr) info grphr)
+
+-- | Generate a type graph from a constraint
+-- TODO: Is the TypeConstraint the right information to store in a type graph?
+fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> IO (Int, TypeGraph T.TypeConstraint)
+fromConstraint T.CTrue i grph = return (i, grph)
+fromConstraint T.CSaveEnv i grph = return (i, grph)
+fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes constr l r i grph
+fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
+    where
+        helper [] i' grph' = return (i', grph')
+        helper (c : cs) i' grph' = do
+            (i'', grph'') <- fromConstraint c i' grph'
+            helper cs i'' grph''
+fromConstraint (T.CLet schemes constr) i grph = do
+    -- TODO: Somehow pass type scheme vars and links
+    fromConstraint constr i grph
+
+fromConstraint (T.CInstance _ name tp) = do
+    -- TODO: get right type variables from passed type schemes
+    -- and use them to find equalities in type graphs
+    undefined
+
 
 -- | Add a vertex to the type graph
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
