@@ -133,52 +133,44 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
-addTermGraph :: Int -> T.Type -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
-addTermGraph unique (T.AliasN name _ realtype) grph = doAddTermGraph unique realtype grph (Just name)
-addTermGraph unique tp grph = doAddTermGraph unique tp grph Nothing
 
--- TODO
-doAddTermGraph :: Int -> T.Type -> TypeGraph info -> Maybe Var.Canonical -> IO (Int, BS.VertexId, TypeGraph info)
-doAddTermGraph _ (T.PlaceHolder _) _ _ = error "doAddTermGraph PlaceHolder should have been flattened by now."
--- Type Variables, also contain atoms (var or con)
-doAddTermGraph unique (T.VarN uc) grph mName = do
-    desc <- UF.descriptor uc
+addTermGraph :: Int -> T.Variable -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraph unique var grph = do
+    desc <- UF.descriptor var
+    let content = T._content desc
 
-    case T._content desc of
-        T.Structure _ -> error "doAddTermGraph: Structure should not appear here"
-        T.Alias {} -> error "doAddTermGraph: Alias should not appear here"
-        T.Error -> error "doAddTermGraph: Error should not appear here. That's the constructor 'Type.Type.Error', not this actual error message."
-        T.Atom name -> do -- Add con here
-            let vid = BS.VertexId unique
-            return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), mName) grph)
+    case content of
+        T.Structure t -> addTermGraphStructure unique t grph
+        T.Atom name ->
+            do -- Add con here
+                let vid = BS.VertexId unique
+                return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), Nothing) grph) -- Todo: alias support in Nothing value
 
-        -- TODO: Check for existing variables?
-        -- TODO: Super constraints (Number, Appendable, Comparable, CompAppend)
-        T.Var {} -> do -- Add var here
+        T.Var flex msuper mname -> do -- TODO: use Descriptor._mark for var identification?
             let idf = varNumber grph
             let vid = BS.VertexId idf
             let updGrph = grph {
                 varNumber = idf + 1
             }
-            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, mName) updGrph)
+            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, Nothing) updGrph) -- Todo: alias support in Nothing value
+        T.Alias _ _ realtype -> addTermGraph unique realtype grph -- TODO: deal with aliases
+        T.Error -> error "Error constructor in addTermGraph"
 
-
-
--- Type application (app)
-doAddTermGraph unique (T.TermN (T.App1 l r)) grph mName = do
+-- | Add a recursive structure type to the type graph
+addTermGraphStructure :: Int -> T.Term1 T.Variable -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraphStructure unique (T.App1 l r) grph = do
     (uql, vidl, gphl) <- addTermGraph unique l grph
     (uqr, vidr, gphr) <- addTermGraph uql r gphl
 
     let vid = BS.VertexId uqr
-    let updGrph = addVertex vid (BS.VApp vidl vidr, mName) gphr
+    let updGrph = addVertex vid (BS.VApp vidl vidr, Nothing) gphr -- Todo: alias support in Nothing value
 
     return (uqr + 1, BS.VertexId uqr, updGrph)
 
--- Lambda function (con + app)
-doAddTermGraph unique (T.TermN (T.Fun1 l r)) grph mName = do
+addTermGraphStructure unique (T.Fun1 l r) grph = do
     -- Add the function constructor to the graph
     let vid = BS.VertexId unique
-    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", mName) grph)
+    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", Nothing) grph) -- Todo: alias support in Nothing value
 
     -- Add the left type's subgraph
     (uql, vidl, gphl) <- addTermGraph uq' l grph'
@@ -197,23 +189,20 @@ doAddTermGraph unique (T.TermN (T.Fun1 l r)) grph mName = do
 
     return (uqr + 1, BS.VertexId uqr, updGrphR)
 
--- Empty record (con)
-doAddTermGraph unique (T.TermN T.EmptyRecord1) grph mName = do
-    let vid = BS.VertexId unique
-    return (unique + 1, vid, addVertex vid (BS.VCon "EmptyRecord", mName) grph)
-
--- Non-empty record, (con + app)
-doAddTermGraph unique (T.TermN (T.Record1 subtypes emptyrecordType)) grph mName = undefined
+addTermGraphStructure unique T.EmptyRecord1 grph = error "Records not implemented"
+addTermGraphStructure unique T.Record1 {} grph = error "Records not implemented"
 
 
 -- | Unify two types in the type graph
 -- i.e. state that two types must be equal
 unifyTypes :: info -> T.Type -> T.Type -> Int -> TypeGraph info -> IO (Int, TypeGraph info)
 unifyTypes info tl tr i grph = do
-    (uql, vidl, grphl)  <- addTermGraph i tl grph
+    undefined
+    -- TODO: Flatten, solve type schemes, environments and shit, add term graphs of left and right type
+    {-(uql, vidl, grphl)  <- addTermGraph i tl grph
     (uqr, vidr, grphr)  <- addTermGraph uql tr grphl
 
-    return (uqr, addNewEdge (vidl, vidr) info grphr)
+    return (uqr, addNewEdge (vidl, vidr) info grphr)-}
 
 -- | Generate a type graph from a constraint
 -- TODO: Is the TypeConstraint the right information to store in a type graph?
@@ -231,7 +220,7 @@ fromConstraint (T.CLet schemes constr) i grph = do
     -- TODO: Somehow pass type scheme vars and links
     fromConstraint constr i grph
 
-fromConstraint (T.CInstance _ name tp) = do
+fromConstraint (T.CInstance _ name tp) i grph = do
     -- TODO: get right type variables from passed type schemes
     -- and use them to find equalities in type graphs
     undefined
