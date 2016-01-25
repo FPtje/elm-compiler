@@ -10,6 +10,8 @@ import qualified Type.Type as T
 import qualified Type.State as TS
 import qualified Data.Map as M
 import qualified Data.UnionFind.IO as UF
+import qualified Data.List as List
+import qualified Reporting.Annotation as A
 import Control.Monad.State (liftIO)
 import Data.List (nub)
 
@@ -203,8 +205,15 @@ unifyTypes info terml termr i grph = do
     tl <- TS.flatten terml
     tr <- TS.flatten termr
 
-    (uql, vidl, grphl)  <- addTermGraph i tl Nothing grph
-    (uqr, vidr, grphr)  <- addTermGraph uql tr Nothing grphl
+    unifyTypeVars info tl tr i grph
+
+
+-- | Unify two types in the type graph
+-- i.e. state that two types must be equal
+unifyTypeVars :: info -> T.Variable -> T.Variable -> Int -> TypeGraph info -> TS.Solver (Int, TypeGraph info)
+unifyTypeVars info terml termr i grph = do
+    (uql, vidl, grphl)  <- addTermGraph i terml Nothing grph
+    (uqr, vidr, grphr)  <- addTermGraph uql termr Nothing grphl
 
     return (uqr, addNewEdge (vidl, vidr) info grphr)
 
@@ -224,10 +233,24 @@ fromConstraint (T.CLet schemes constr) i grph = do
     -- TODO: Somehow pass type scheme vars and links
     fromConstraint constr i grph
 
-fromConstraint (T.CInstance _ name tp) i grph = do
-    -- TODO: get right type variables from passed type schemes
-    -- and use them to find equalities in type graphs
-    undefined
+fromConstraint constr@(T.CInstance _ name term) i grph = do
+    env <- TS.getEnv
+
+    -- Get the type of the thing of which the term is an instance
+    freshCopy <-
+        case M.lookup name env of
+          Just (A.A _ tipe) ->
+              TS.makeInstance tipe
+
+          Nothing ->
+              if "Native." `List.isPrefixOf` name then
+                  liftIO (T.mkVar Nothing)
+
+              else
+                  error ("Could not find `" ++ name ++ "` when solving type constraints.")
+
+    t <- TS.flatten term
+    unifyTypeVars constr freshCopy t i grph
 
 
 -- | Add a vertex to the type graph

@@ -11,6 +11,7 @@ import qualified Data.UnionFind.IO as UF
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
+import qualified Type.Graph.TypeGraph as TG
 import Type.Type as Type
 import Type.Unify
 
