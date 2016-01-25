@@ -188,8 +188,8 @@ actuallySolve constraint =
             errsAfter <- TS.getError
 
             when (length errsAfter > length errsBefore) $ do
-                graph <- return 1 -- TG.fromConstraint constraint' 0 TG.empty
-                trace ("CLET EMPTY\n\n" ++ show (TG.empty :: TG.TypeGraph Int)) $ return ()
+                graph <-  TG.fromConstraint constraint' 0 TG.empty
+                trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
 
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -203,9 +203,9 @@ actuallySolve constraint =
             errsAfter <- TS.getError
 
 
-            {-when (length errsAfter > length errsBefore) $ do
+            when (length errsAfter > length errsBefore) $ do
                 graph <- TG.fromConstraint constraint' 0 TG.empty
-                trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()-}
+                trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
 
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
@@ -241,9 +241,9 @@ solveScheme scheme =
             actuallySolve constraint
             errsAfter <- TS.getError
 
-            {-when (length errsAfter > length errsBefore) $ do
+            when (length errsAfter > length errsBefore) $ do
                 graph <- TG.fromConstraint constraint 0 TG.empty
-                trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()-}
+                trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             T.traverse flatten header
 
@@ -262,9 +262,9 @@ solveScheme scheme =
             actuallySolve constraint
             errsAfter <- TS.getError
 
-            {-when (length errsAfter > length errsBefore) $ do
+            when (length errsAfter > length errsBefore) $ do
                 graph <- TG.fromConstraint constraint 0 TG.empty
-                trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()-}
+                trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             allDistinct rigidQuantifiers
             youngPool <- TS.getPool

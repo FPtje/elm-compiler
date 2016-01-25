@@ -124,6 +124,10 @@ Library
         Type.State,
         Type.Type,
         Type.Unify,
+        Type.Graph.TypeGraph,
+        Type.Graph.Basics,
+        Type.Graph.Clique,
+        Type.Graph.EQGroup,
         Validate,
         Paths_elm_compiler
 
