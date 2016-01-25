@@ -11,7 +11,7 @@ import qualified Data.Map as M
 import qualified Data.UnionFind.IO as UF
 import Data.List (nub)
 
-import Data.Maybe (fromMaybe, maybeToList)
+import Data.Maybe (fromMaybe, maybeToList, isJust)
 
 
 -- | Representation of a type graph
@@ -138,6 +138,7 @@ addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> IO
 addTermGraph unique var alias grph = do
     desc <- UF.descriptor var
     let content = T._content desc
+    let mark = T._mark desc
 
     case content of
         T.Structure t -> addTermGraphStructure unique t alias grph
@@ -146,13 +147,13 @@ addTermGraph unique var alias grph = do
                 let vid = BS.VertexId unique
                 return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), alias) grph)
 
-        T.Var flex msuper mname -> do -- TODO: use Descriptor._mark for var identification?
-            let idf = varNumber grph
-            let vid = BS.VertexId idf
-            let updGrph = grph {
-                varNumber = idf + 1
-            }
-            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, alias) updGrph)
+        T.Var flex msuper mname -> do -- TODO: check mark for duplicate/zeroes/-1 values
+            --let idf = varNumber grph
+            let vid = BS.VertexId mark
+            --let updGrph = grph {
+            --    varNumber = mark + 1
+            --}
+            return (unique, vid, if vertexExists vid grph then grph else addVertex vid (BS.VVar, alias) grph)
         T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
         T.Error -> error "Error constructor in addTermGraph"
 
@@ -205,7 +206,6 @@ unifyTypes info tl tr i grph = do
     return (uqr, addNewEdge (vidl, vidr) info grphr)-}
 
 -- | Generate a type graph from a constraint
--- TODO: Is the TypeConstraint the right information to store in a type graph?
 fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> IO (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
@@ -230,6 +230,10 @@ fromConstraint (T.CInstance _ name tp) i grph = do
 addVertex :: BS.VertexId -> BS.VertexInfo -> TypeGraph info -> TypeGraph info
 addVertex v info =
       createGroup (EG.insertVertex v info EG.empty)
+
+-- | Whether a vertex exists in the type graph
+vertexExists :: BS.VertexId -> TypeGraph info -> Bool
+vertexExists vid = isJust . M.lookup vid . referenceMap
 
 
 -- | Add an edge to the type graph
