@@ -134,17 +134,17 @@ splitEQGroups vid grph =
         (results, newGraph)
 
 
-addTermGraph :: Int -> T.Variable -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
-addTermGraph unique var grph = do
+addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraph unique var alias grph = do
     desc <- UF.descriptor var
     let content = T._content desc
 
     case content of
-        T.Structure t -> addTermGraphStructure unique t grph
+        T.Structure t -> addTermGraphStructure unique t alias grph
         T.Atom name ->
             do -- Add con here
                 let vid = BS.VertexId unique
-                return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), Nothing) grph) -- Todo: alias support in Nothing value
+                return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), alias) grph)
 
         T.Var flex msuper mname -> do -- TODO: use Descriptor._mark for var identification?
             let idf = varNumber grph
@@ -152,45 +152,45 @@ addTermGraph unique var grph = do
             let updGrph = grph {
                 varNumber = idf + 1
             }
-            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, Nothing) updGrph) -- Todo: alias support in Nothing value
-        T.Alias _ _ realtype -> addTermGraph unique realtype grph -- TODO: deal with aliases
+            return (unique, vid, {-if vertexExists vid stg then stg else-} addVertex vid (BS.VVar, alias) updGrph)
+        T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
         T.Error -> error "Error constructor in addTermGraph"
 
 -- | Add a recursive structure type to the type graph
-addTermGraphStructure :: Int -> T.Term1 T.Variable -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
-addTermGraphStructure unique (T.App1 l r) grph = do
-    (uql, vidl, gphl) <- addTermGraph unique l grph
-    (uqr, vidr, gphr) <- addTermGraph uql r gphl
+addTermGraphStructure :: Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraphStructure unique (T.App1 l r) alias grph = do
+    (uql, vidl, gphl) <- addTermGraph unique l Nothing grph
+    (uqr, vidr, gphr) <- addTermGraph uql r Nothing gphl
 
     let vid = BS.VertexId uqr
-    let updGrph = addVertex vid (BS.VApp vidl vidr, Nothing) gphr -- Todo: alias support in Nothing value
+    let updGrph = addVertex vid (BS.VApp vidl vidr, alias) gphr
 
     return (uqr + 1, BS.VertexId uqr, updGrph)
 
-addTermGraphStructure unique (T.Fun1 l r) grph = do
+addTermGraphStructure unique (T.Fun1 l r) alias grph = do
     -- Add the function constructor to the graph
     let vid = BS.VertexId unique
-    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", Nothing) grph) -- Todo: alias support in Nothing value
+    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", Nothing) grph)
 
     -- Add the left type's subgraph
-    (uql, vidl, gphl) <- addTermGraph uq' l grph'
+    (uql, vidl, gphl) <- addTermGraph uq' l Nothing grph'
 
     -- Add the application of the function to the left's type
     let appLVid = BS.VertexId uql
-    let updGrphL = addVertex appLVid (BS.VApp vid' vidl, Nothing) gphl -- (Is it right to set the alias to Nothing?)
+    let updGrphL = addVertex appLVid (BS.VApp vid' vidl, Nothing) gphl
     let (uqAppL, vidAppL) = (uql + 1, BS.VertexId uql)
 
     -- Add the right type's subgraph
-    (uqr, vidr, gphr) <- addTermGraph uqAppL r updGrphL
+    (uqr, vidr, gphr) <- addTermGraph uqAppL r Nothing updGrphL
 
     -- Add the application of (VApp function l) to the right's type
     let appRVid = BS.VertexId uqr
-    let updGrphR = addVertex appRVid (BS.VApp vidAppL vidr, Nothing) gphr -- (Is it right to set the alias to Nothing?)
+    let updGrphR = addVertex appRVid (BS.VApp vidAppL vidr, alias) gphr
 
     return (uqr + 1, BS.VertexId uqr, updGrphR)
 
-addTermGraphStructure unique T.EmptyRecord1 grph = error "Records not implemented"
-addTermGraphStructure unique T.Record1 {} grph = error "Records not implemented"
+addTermGraphStructure unique T.EmptyRecord1 alias grph = error "Records not implemented"
+addTermGraphStructure unique T.Record1 {} alias grph = error "Records not implemented"
 
 
 -- | Unify two types in the type graph
