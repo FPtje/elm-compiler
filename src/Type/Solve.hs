@@ -15,6 +15,8 @@ import qualified Type.Graph.TypeGraph as TG
 import Type.Type as Type
 import Type.Unify
 
+import Debug.Trace
+
 
 
 {-| Every variable has rank less than or equal to the maxRank of the pool.
@@ -180,14 +182,31 @@ actuallySolve constraint =
     CLet [Scheme [] fqs constraint' _] CTrue ->
         do  oldEnv <- TS.getEnv
             mapM TS.introduce fqs
+
+            errsBefore <- TS.getError
             actuallySolve constraint'
+            errsAfter <- TS.getError
+
+            when (length errsAfter > length errsBefore) $ do
+                graph <- return 1 -- TG.fromConstraint constraint' 0 TG.empty
+                trace ("CLET EMPTY\n\n" ++ show (TG.empty :: TG.TypeGraph Int)) $ return ()
+
             TS.modifyEnv (\_ -> oldEnv)
 
     CLet schemes constraint' ->
         do  oldEnv <- TS.getEnv
             headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
+
+            errsBefore <- TS.getError
             actuallySolve constraint'
+            errsAfter <- TS.getError
+
+
+            {-when (length errsAfter > length errsBefore) $ do
+                graph <- TG.fromConstraint constraint' 0 TG.empty
+                trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()-}
+
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -217,7 +236,15 @@ solveScheme scheme =
   in
   case scheme of
     Scheme [] [] constraint header ->
-        do  actuallySolve constraint
+        do
+            errsBefore <- TS.getError
+            actuallySolve constraint
+            errsAfter <- TS.getError
+
+            {-when (length errsAfter > length errsBefore) $ do
+                graph <- TG.fromConstraint constraint 0 TG.empty
+                trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()-}
+
             T.traverse flatten header
 
     Scheme rigidQuantifiers flexibleQuantifiers constraint header ->
@@ -229,7 +256,15 @@ solveScheme scheme =
             TS.switchToPool freshPool
             mapM TS.introduce quantifiers
             header' <- T.traverse flatten header
+
+
+            errsBefore <- TS.getError
             actuallySolve constraint
+            errsAfter <- TS.getError
+
+            {-when (length errsAfter > length errsBefore) $ do
+                graph <- TG.fromConstraint constraint 0 TG.empty
+                trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()-}
 
             allDistinct rigidQuantifiers
             youngPool <- TS.getPool

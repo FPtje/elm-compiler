@@ -4,6 +4,7 @@ module Type.Graph.EQGroup where
 
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
+import qualified AST.Variable as Var
 import Data.List (partition)
 
 
@@ -13,6 +14,22 @@ data EquivalenceGroup info = EQGroup
     , edges                     :: [(BS.EdgeId, info)]             -- ^ (Initial) edges in this equivalence group
     , cliques                   :: [CLQ.Clique]                 -- ^ (Implied) cliques in this equivalence group
     }
+
+
+showMVar :: BS.VertexInfo -> String
+showMVar (vid, Nothing) = "(" ++ show vid ++ ", " ++ "Nothing)"
+showMVar (vid, Just x) = "(" ++ show vid ++ ", " ++ Var.name x ++ ")"
+
+instance Show info => Show (EquivalenceGroup info) where
+
+    show eg =
+        showString "EquivalenceGroup { " .
+        showString "Vertices: " . shows (map (\(vid, inf) -> (vid, showMVar inf)) (vertices eg)) .
+        showString "Edges: " . shows (edges eg) . showString ", " .
+        showString "cliques: " . shows (cliques eg) .
+        showString "}"
+        $
+        ""
 
 
 -- | Empty equivalence group

@@ -27,6 +27,7 @@ data TypeGraph info = TypeGraph
    , constraintNumber           :: Int
    , varNumber                  :: Int
    }
+   deriving (Show)
 
 -- | Empty type graph
 empty :: TypeGraph info
@@ -219,10 +220,10 @@ unifyTypeVars info terml termr i grph = do
 
 -- | Generate a type graph from a constraint
 -- TODO: solve type schemes, environments and shit
-fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
+fromConstraint :: T.TypeConstraint -> Int -> TypeGraph Int{-T.TypeConstraint-} -> TS.Solver (Int, TypeGraph Int{-T.TypeConstraint-})
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
-fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes constr l r i grph
+fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes 0{-constr-} l r i grph
 fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
     where
         helper [] i' grph' = return (i', grph')
@@ -250,7 +251,7 @@ fromConstraint constr@(T.CInstance _ name term) i grph = do
                   error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
     t <- TS.flatten term
-    unifyTypeVars constr freshCopy t i grph
+    unifyTypeVars 0{-constr-} freshCopy t i grph
 
 
 -- | Add a vertex to the type graph
