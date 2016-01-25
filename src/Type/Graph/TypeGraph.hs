@@ -7,8 +7,10 @@ import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
 import qualified AST.Variable as Var
 import qualified Type.Type as T
+import qualified Type.State as TS
 import qualified Data.Map as M
 import qualified Data.UnionFind.IO as UF
+import Control.Monad.State (liftIO)
 import Data.List (nub)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
@@ -134,9 +136,9 @@ splitEQGroups vid grph =
         (results, newGraph)
 
 
-addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
 addTermGraph unique var alias grph = do
-    desc <- UF.descriptor var
+    desc <- liftIO $ UF.descriptor var
     let content = T._content desc
     let mark = T._mark desc
 
@@ -158,7 +160,7 @@ addTermGraph unique var alias grph = do
         T.Error -> error "Error constructor in addTermGraph"
 
 -- | Add a recursive structure type to the type graph
-addTermGraphStructure :: Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> IO (Int, BS.VertexId, TypeGraph info)
+addTermGraphStructure :: Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
 addTermGraphStructure unique (T.App1 l r) alias grph = do
     (uql, vidl, gphl) <- addTermGraph unique l Nothing grph
     (uqr, vidr, gphr) <- addTermGraph uql r Nothing gphl
@@ -196,17 +198,19 @@ addTermGraphStructure unique T.Record1 {} alias grph = error "Records not implem
 
 -- | Unify two types in the type graph
 -- i.e. state that two types must be equal
-unifyTypes :: info -> T.Type -> T.Type -> Int -> TypeGraph info -> IO (Int, TypeGraph info)
-unifyTypes info tl tr i grph = do
-    undefined
-    -- TODO: Flatten, solve type schemes, environments and shit, add term graphs of left and right type
-    {-(uql, vidl, grphl)  <- addTermGraph i tl grph
-    (uqr, vidr, grphr)  <- addTermGraph uql tr grphl
+unifyTypes :: info -> T.Type -> T.Type -> Int -> TypeGraph info -> TS.Solver (Int, TypeGraph info)
+unifyTypes info terml termr i grph = do
+    tl <- TS.flatten terml
+    tr <- TS.flatten termr
 
-    return (uqr, addNewEdge (vidl, vidr) info grphr)-}
+    (uql, vidl, grphl)  <- addTermGraph i tl Nothing grph
+    (uqr, vidr, grphr)  <- addTermGraph uql tr Nothing grphl
+
+    return (uqr, addNewEdge (vidl, vidr) info grphr)
 
 -- | Generate a type graph from a constraint
-fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> IO (Int, TypeGraph T.TypeConstraint)
+-- TODO: solve type schemes, environments and shit
+fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
 fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes constr l r i grph
