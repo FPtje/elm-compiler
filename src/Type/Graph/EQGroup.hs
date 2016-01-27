@@ -104,15 +104,15 @@ removeClique cl grp =
     grp { cliques = filter (not . (`CLQ.isSubsetClique` cl)) (cliques grp) }
 
 -- | Returns the type of a group in the form in which it is stored
-typeOfGroup :: EquivalenceGroup info -> Maybe BS.VertexInfo
+typeOfGroup :: EquivalenceGroup info -> Maybe (BS.VertexId, BS.VertexInfo)
 typeOfGroup eqgroup
     | length allConstants > 1                           =  Nothing
     | not (null allConstants) && not (null allApplies)  =  Nothing
 
     | not (null allConstants)  =  Just . head $ allConstants
     | not (null allApplies)    =  Just . head $ allApplies
-    | otherwise                =  Just . snd . head . vertices $ eqgroup
+    | otherwise                =  Just . head . vertices $ eqgroup
 
     where
-        allConstants  =  nub  [ c       |  (_, c@(BS.VCon _, _))    <- vertices eqgroup  ]
-        allApplies    =       [ a       |  (_, a@(BS.VApp {}, _))   <- vertices eqgroup  ]
+        allConstants  =  nub  [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
+        allApplies    =       [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]

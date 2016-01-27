@@ -12,8 +12,9 @@ import qualified Data.Map as M
 import qualified Data.UnionFind.IO as UF
 import qualified Data.List as List
 import qualified Reporting.Annotation as A
+import qualified Data.Set as S
 import Control.Monad.State (liftIO)
-import Data.List (nub)
+import Data.List (nub, lookup)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
@@ -106,6 +107,7 @@ fromGroup :: EG.EquivalenceGroup info -> TypeGraph info
 fromGroup = flip createGroup empty
 
 -- | Gets the equivalence group that contains the given VertexId
+-- equivalenceGroupOf in TOP
 getGroupOf :: BS.VertexId -> TypeGraph info -> Maybe (EG.EquivalenceGroup info)
 getGroupOf vid grph =
     do
@@ -265,6 +267,14 @@ vertexExists :: BS.VertexId -> TypeGraph info -> Bool
 vertexExists vid = isJust . M.lookup vid . referenceMap
 
 
+-- Receives a vertex from the type graph
+getVertex :: BS.VertexId -> TypeGraph info -> Maybe BS.VertexInfo
+getVertex vid grph =
+    do
+        grpId <- M.lookup vid (referenceMap grph)
+        eg <- M.lookup grpId (equivalenceGroupMap grph)
+        lookup vid (EG.vertices eg)
+
 -- | Add an edge to the type graph
 addEdge :: BS.EdgeId -> info -> TypeGraph info -> TypeGraph info
 addEdge edge@(BS.EdgeId v1 v2 _) info =
@@ -339,3 +349,28 @@ childrenInGroupOf i graph =
               )
             | (p, (BS.VApp t1 t2, _)) <- verticesInGroupOf i graph
             ]
+
+-- | Gives the type graph inferred type of a vertex
+substituteVariable :: BS.VertexId -> TypeGraph info -> Maybe BS.VertexInfo
+substituteVariable vid grph =
+    let
+        -- Recursive variable substitution
+        -- Keeps track of which type variables have been seen before (occurs check)
+        rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Maybe BS.VertexInfo
+        rec history vi (BS.VVar, _)
+            | vi `S.member` history = Nothing
+            | otherwise =
+                do
+                    eg <- getGroupOf vi grph
+                    grpType <- EG.typeOfGroup eg
+                    let present = S.insert vi history
+
+                    case grpType of
+                        (vi', vinfo@(BS.VVar, _)) -> rec present vi' vinfo
+                        (_, tp) -> Just tp
+
+        rec _ _ inf = Just inf
+    in
+        do
+            vInfo <- getVertex vid grph
+            rec S.empty vid vInfo
