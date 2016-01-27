@@ -28,9 +28,13 @@ unify hint region expected actual =
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
                     actualSrcType <- Type.toSrcType actual
+                    descExp <- UF.descriptor expected
+                    copyExp <- UF.fresh descExp
+
                     desc <- UF.descriptor actual
                     copyActual <- UF.fresh desc
-                    mergeHelp expected actual (Error copyActual)
+                    mergeHelp expected expected (Error copyExp)
+                    mergeHelp actual actual (Error copyActual)
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
