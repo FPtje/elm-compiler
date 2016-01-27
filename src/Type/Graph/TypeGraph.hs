@@ -279,8 +279,9 @@ addNewEdge (v1, v2) info stg =
  in
     addEdge (BS.EdgeId v1 v2 cnr) info (stg { constraintNumber = cnr + 1})
 
---deleteEdge edge@(BS.EdgeId v1 _ _) =
--- propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
+deleteEdge :: BS.EdgeId -> TypeGraph info -> TypeGraph info
+deleteEdge edge@(BS.EdgeId v1 _ _) =
+    propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
 
 -- | addClique in TOP
 insertClique :: CLQ.Clique -> TypeGraph info -> TypeGraph info
