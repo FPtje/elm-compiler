@@ -12,14 +12,13 @@ import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type as Type
 
-
-
 -- KICK OFF UNIFICATION
 
 
 unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
-  do  result <- runExceptT (guardedUnify ExpectedActual expected actual)
+  do
+      result <- runExceptT (guardedUnify ExpectedActual expected actual)
       case result of
         Right state ->
             return state
@@ -29,7 +28,9 @@ unify hint region expected actual =
               mkError =
                 do  expectedSrcType <- Type.toSrcType expected
                     actualSrcType <- Type.toSrcType actual
-                    mergeHelp expected actual (Error actual)
+                    desc <- UF.descriptor actual
+                    copyActual <- UF.fresh desc
+                    mergeHelp expected actual (Error copyActual)
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
