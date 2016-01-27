@@ -5,7 +5,7 @@ module Type.Graph.EQGroup where
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified AST.Variable as Var
-import Data.List (partition)
+import Data.List (partition, nub)
 
 
 -- | Equivalence groups, TODO
@@ -103,4 +103,16 @@ removeClique :: CLQ.Clique -> EquivalenceGroup info -> EquivalenceGroup info
 removeClique cl grp =
     grp { cliques = filter (not . (`CLQ.isSubsetClique` cl)) (cliques grp) }
 
+-- | Returns the type of a group in the form in which it is stored
+typeOfGroup :: EquivalenceGroup info -> Maybe BS.VertexInfo
+typeOfGroup eqgroup
+    | length allConstants > 1                           =  Nothing
+    | not (null allConstants) && not (null allApplies)  =  Nothing
 
+    | not (null allConstants)  =  Just . head $ allConstants
+    | not (null allApplies)    =  Just . head $ allApplies
+    | otherwise                =  Just . snd . head . vertices $ eqgroup
+
+    where
+        allConstants  =  nub  [ c       |  (_, c@(BS.VCon _, _))    <- vertices eqgroup  ]
+        allApplies    =       [ a       |  (_, a@(BS.VApp {}, _))   <- vertices eqgroup  ]
