@@ -160,7 +160,8 @@ addTermGraph unique var alias grph = do
             --}
             return (unique, vid, if vertexExists vid grph then grph else addVertex vid (BS.VVar, alias) grph)
         T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
-        T.Error -> error "Error constructor in addTermGraph"
+        -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
+        T.Error actual -> addTermGraph unique actual alias grph
 
 -- | Add a recursive structure type to the type graph
 addTermGraphStructure :: Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)

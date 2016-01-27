@@ -76,7 +76,7 @@ data Content
     | Atom Var.Canonical
     | Var Flex (Maybe Super) (Maybe String)
     | Alias Var.Canonical [(String,Variable)] Variable
-    | Error
+    | Error Variable
 
 
 data Flex
@@ -301,7 +301,7 @@ contentToSrcType variable content =
             srcType <- variableToSrcType realVariable
             return (T.Aliased name srcArgs (T.Filled srcType))
 
-    Error ->
+    Error  _->
         return (T.Var "?")
 
 
@@ -435,7 +435,7 @@ getVarNamesHelp content =
     Atom _ ->
         return Set.empty
 
-    Error ->
+    Error _ ->
         return Set.empty
 
 

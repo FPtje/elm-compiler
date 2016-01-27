@@ -237,7 +237,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                         <$> mapM (traverse (makeCopy alreadyCopiedMark)) args
                         <*> makeCopy alreadyCopiedMark realType
 
-                Error ->
+                Error _ ->
                     return oldContent
 
           State.liftIO $ UF.modifyDescriptor newVar $ \desc ->
@@ -261,7 +261,7 @@ needsCopy content =
     Alias _ _ _ ->
         True
 
-    Error ->
+    Error _ ->
         False
 
 
@@ -306,7 +306,7 @@ restoreContent alreadyCopiedMark content =
           <$> mapM (traverse go) args
           <*> go var
 
-    Error ->
+    Error _ ->
         return content
 
 

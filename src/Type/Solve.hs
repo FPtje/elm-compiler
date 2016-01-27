@@ -122,7 +122,7 @@ adjustRankContent youngMark visitedMark groupRank content =
     go = adjustRank youngMark visitedMark groupRank
   in
     case content of
-      Error ->
+      Error _ ->
           return groupRank
 
       Atom _ ->
@@ -188,6 +188,7 @@ actuallySolve constraint =
             errsAfter <- TS.getError
 
             when (length errsAfter > length errsBefore) $ do
+                trace ("CLET EMPTY\n\n") $ return ()
                 graph <-  TG.fromConstraint constraint' 0 TG.empty
                 trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
 
@@ -204,6 +205,7 @@ actuallySolve constraint =
 
 
             when (length errsAfter > length errsBefore) $ do
+                trace ("CLET WITH SCHEMES\n\n") $ return ()
                 graph <- TG.fromConstraint constraint' 0 TG.empty
                 trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
 
@@ -242,6 +244,7 @@ solveScheme scheme =
             errsAfter <- TS.getError
 
             when (length errsAfter > length errsBefore) $ do
+                trace ("CLET EMPTY SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
 
@@ -263,6 +266,7 @@ solveScheme scheme =
             errsAfter <- TS.getError
 
             when (length errsAfter > length errsBefore) $ do
+                trace ("CLET FILLED SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
 
@@ -294,7 +298,7 @@ allDistinct vars =
               Alias _ _ _ ->
                   crash "Can only generalize type variables, not aliases."
 
-              Error ->
+              Error _ ->
                   crash "Can only generalize type variables, not error types."
 
               Var _ _ _ ->
@@ -343,7 +347,7 @@ occursHelp :: [Variable] -> Variable -> IO Bool
 occursHelp seen var =
   if elem var seen then
       do  infiniteDescriptor <- UF.descriptor var
-          UF.setDescriptor var (infiniteDescriptor { _content = Error })
+          UF.setDescriptor var (infiniteDescriptor { _content = Error var })
           return True
 
   else
@@ -355,7 +359,7 @@ occursHelp seen var =
             Var _ _ _ ->
                 return False
 
-            Error ->
+            Error _ ->
                 return False
 
             Alias _ args _ ->
