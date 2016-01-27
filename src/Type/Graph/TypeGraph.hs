@@ -351,12 +351,12 @@ childrenInGroupOf i graph =
             ]
 
 -- | Gives the type graph inferred type of a vertex
-substituteVariable :: BS.VertexId -> TypeGraph info -> Maybe BS.VertexInfo
+substituteVariable :: BS.VertexId -> TypeGraph info -> Maybe (BS.VertexId, BS.VertexInfo)
 substituteVariable vid grph =
     let
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
-        rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Maybe BS.VertexInfo
+        rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Maybe (BS.VertexId, BS.VertexInfo)
         rec history vi (BS.VVar, _)
             | vi `S.member` history = Nothing
             | otherwise =
@@ -367,9 +367,18 @@ substituteVariable vid grph =
 
                     case grpType of
                         (vi', vinfo@(BS.VVar, _)) -> rec present vi' vinfo
-                        (_, tp) -> Just tp
+                        (_, tp) -> Just (vi, tp)
 
-        rec _ _ inf = Just inf
+        rec _ vi inf@(BS.VCon _, _) = Just (vi, inf)
+        rec history vi (BS.VApp l r, alias) =
+            do
+                lVinf <- getVertex l grph
+                (lVId, _) <- rec history l lVinf
+
+                rVinf <- getVertex r grph
+                (rVId, _) <- rec history r rVinf
+
+                Just (vi, (BS.VApp lVId rVId, alias))
     in
         do
             vInfo <- getVertex vid grph
