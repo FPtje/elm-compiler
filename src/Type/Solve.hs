@@ -187,7 +187,6 @@ actuallySolve constraint =
             errs <- TS.getError
             tgErrs <- TS.getTypeGraphErrors
             when (length errs > tgErrs) $ do
-                trace ("CLET EMPTY\n\n") $ return ()
                 graph <-  TG.fromConstraint constraint' 0 TG.empty
                 TS.updateTypeGraphErrs
                 trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
@@ -205,7 +204,6 @@ actuallySolve constraint =
 
 
             when (length errs > tgErrs) $ do
-                trace ("CLET WITH SCHEMES\n\n") $ return ()
                 graph <- TG.fromConstraint constraint' 0 TG.empty
                 TS.updateTypeGraphErrs
                 trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
@@ -245,7 +243,6 @@ solveScheme scheme =
             tgErrs <- TS.getTypeGraphErrors
 
             when (length errs > tgErrs) $ do
-                trace ("CLET EMPTY SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 TS.updateTypeGraphErrs
                 trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
@@ -268,7 +265,6 @@ solveScheme scheme =
             tgErrs <- TS.getTypeGraphErrors
 
             when (length errs > tgErrs) $ do
-                trace ("CLET FILLED SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 TS.updateTypeGraphErrs
                 trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()

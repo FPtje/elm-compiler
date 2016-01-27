@@ -24,10 +24,10 @@ instance Show info => Show (EquivalenceGroup info) where
 
     show eg =
         showString "EquivalenceGroup { " .
-        showString "Vertices: " . shows (map (\(vid, inf) -> (vid, showMVar inf)) (vertices eg)) .
-        showString "Edges: " . shows (edges eg) . showString ", " .
-        showString "cliques: " . shows (cliques eg) .
-        showString "}"
+        showString "\n    Vertices: " . shows (map (\(vid, inf) -> (vid, showMVar inf)) (vertices eg)) .
+        showString "\n    Edges: " . shows (edges eg) . showString ", " .
+        showString "\n    cliques: " . shows (cliques eg) .
+        showString "\n}"
         $
         ""
 

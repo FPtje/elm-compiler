@@ -17,6 +17,7 @@ import Data.List (nub)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
+import Debug.Trace
 
 -- | Representation of a type graph
 data TypeGraph info = TypeGraph
@@ -154,7 +155,7 @@ addTermGraph unique var alias grph = do
 
         T.Var flex msuper mname -> do -- TODO: check mark for duplicate/zeroes/-1 values
             --let idf = varNumber grph
-            let vid = BS.VertexId mark
+            let vid = BS.VertexId (trace ("\n\nVERTEX ID " ++ show mark ++ "\n\n") mark)
             --let updGrph = grph {
             --    varNumber = mark + 1
             --}
