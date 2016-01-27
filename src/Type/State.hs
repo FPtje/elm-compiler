@@ -44,6 +44,7 @@ data SolverState = SS
     , sPool :: Pool
     , sMark :: Int
     , sError :: [A.Located Error.Error]
+    , sTypeGraphErrs :: Int
     }
 
 
@@ -55,6 +56,7 @@ initialState =
     , sPool = emptyPool
     , sMark = noMark + 1  -- The mark must never be equal to noMark!
     , sError = []
+    , sTypeGraphErrs = 0
     }
 
 
@@ -90,6 +92,16 @@ getEnv =
 getError :: Solver [A.Located Error.Error]
 getError =
     State.gets sError
+
+getTypeGraphErrors :: Solver Int
+getTypeGraphErrors =
+    State.gets sTypeGraphErrs
+
+updateTypeGraphErrs :: Solver ()
+updateTypeGraphErrs =
+  do  errs <- State.gets sError
+      State.modify $ \state -> state { sTypeGraphErrs = length errs }
+
 
 saveLocalEnv :: Solver ()
 saveLocalEnv =

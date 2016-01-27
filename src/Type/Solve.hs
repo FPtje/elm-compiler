@@ -183,13 +183,13 @@ actuallySolve constraint =
         do  oldEnv <- TS.getEnv
             mapM TS.introduce fqs
 
-            errsBefore <- TS.getError
             actuallySolve constraint'
-            errsAfter <- TS.getError
-
-            when (length errsAfter > length errsBefore) $ do
+            errs <- TS.getError
+            tgErrs <- TS.getTypeGraphErrors
+            when (length errs > tgErrs) $ do
                 trace ("CLET EMPTY\n\n") $ return ()
                 graph <-  TG.fromConstraint constraint' 0 TG.empty
+                TS.updateTypeGraphErrs
                 trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
 
             TS.modifyEnv (\_ -> oldEnv)
@@ -199,14 +199,15 @@ actuallySolve constraint =
             headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
 
-            errsBefore <- TS.getError
             actuallySolve constraint'
-            errsAfter <- TS.getError
+            errs <- TS.getError
+            tgErrs <- TS.getTypeGraphErrors
 
 
-            when (length errsAfter > length errsBefore) $ do
+            when (length errs > tgErrs) $ do
                 trace ("CLET WITH SCHEMES\n\n") $ return ()
                 graph <- TG.fromConstraint constraint' 0 TG.empty
+                TS.updateTypeGraphErrs
                 trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
 
             mapM occurs $ Map.toList headers
@@ -239,13 +240,14 @@ solveScheme scheme =
   case scheme of
     Scheme [] [] constraint header ->
         do
-            errsBefore <- TS.getError
             actuallySolve constraint
-            errsAfter <- TS.getError
+            errs <- TS.getError
+            tgErrs <- TS.getTypeGraphErrors
 
-            when (length errsAfter > length errsBefore) $ do
+            when (length errs > tgErrs) $ do
                 trace ("CLET EMPTY SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
+                TS.updateTypeGraphErrs
                 trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             T.traverse flatten header
@@ -261,13 +263,14 @@ solveScheme scheme =
             header' <- T.traverse flatten header
 
 
-            errsBefore <- TS.getError
             actuallySolve constraint
-            errsAfter <- TS.getError
+            errs <- TS.getError
+            tgErrs <- TS.getTypeGraphErrors
 
-            when (length errsAfter > length errsBefore) $ do
+            when (length errs > tgErrs) $ do
                 trace ("CLET FILLED SOLVESCHEME\n\n") $ return ()
                 graph <- TG.fromConstraint constraint 0 TG.empty
+                TS.updateTypeGraphErrs
                 trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             allDistinct rigidQuantifiers
