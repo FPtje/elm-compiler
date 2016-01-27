@@ -144,7 +144,6 @@ addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS
 addTermGraph unique var alias grph = do
     desc <- liftIO $ UF.descriptor var
     let content = T._content desc
-    let mark = T._mark desc
 
     case content of
         T.Structure t -> addTermGraphStructure unique t alias grph
@@ -153,13 +152,13 @@ addTermGraph unique var alias grph = do
                 let vid = BS.VertexId unique
                 return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), alias) grph)
 
-        T.Var flex msuper mname -> do -- TODO: check mark for duplicate/zeroes/-1 values
-            --let idf = varNumber grph
-            let vid = BS.VertexId (trace ("\n\nVERTEX ID " ++ show mark ++ "\n\n") mark)
-            --let updGrph = grph {
-            --    varNumber = mark + 1
-            --}
-            return (unique, vid, if vertexExists vid grph then grph else addVertex vid (BS.VVar, alias) grph)
+        T.Var flex msuper mname -> do
+            let idf = varNumber grph
+            let vid = BS.VertexId idf
+            let updGrph = grph {
+                varNumber = varNumber grph + 1
+            }
+            return (unique, vid, if vertexExists vid updGrph then updGrph else addVertex vid (BS.VVar, alias) updGrph)
         T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
         -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
         T.Error actual -> addTermGraph unique actual alias grph
