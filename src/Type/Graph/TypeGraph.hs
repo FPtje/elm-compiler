@@ -14,11 +14,10 @@ import qualified Data.List as List
 import qualified Reporting.Annotation as A
 import qualified Data.Set as S
 import Control.Monad.State (liftIO)
-import Data.List (nub, lookup)
+import Data.List (nub)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
-import Debug.Trace
 
 -- | Representation of a type graph
 data TypeGraph info = TypeGraph
@@ -223,17 +222,17 @@ unifyTypeVars info terml termr i grph = do
 
 -- | Generate a type graph from a constraint
 -- TODO: solve type schemes, environments and shit
-fromConstraint :: T.TypeConstraint -> Int -> TypeGraph Int{-T.TypeConstraint-} -> TS.Solver (Int, TypeGraph Int{-T.TypeConstraint-})
+fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
-fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes 0{-constr-} l r i grph
+fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes constr l r i grph
 fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
     where
         helper [] i' grph' = return (i', grph')
         helper (c : cs) i' grph' = do
             (i'', grph'') <- fromConstraint c i' grph'
             helper cs i'' grph''
-fromConstraint (T.CLet schemes constr) i grph = do
+fromConstraint (T.CLet _ constr) i grph =
     -- TODO: Somehow pass type scheme vars and links
     fromConstraint constr i grph
 
@@ -254,7 +253,7 @@ fromConstraint constr@(T.CInstance _ name term) i grph = do
                   error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
     t <- TS.flatten term
-    unifyTypeVars 0{-constr-} freshCopy t i grph
+    unifyTypeVars constr freshCopy t i grph
 
 
 -- | Add a vertex to the type graph

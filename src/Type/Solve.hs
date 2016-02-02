@@ -187,9 +187,9 @@ actuallySolve constraint =
             errs <- TS.getError
             tgErrs <- TS.getTypeGraphErrors
             when (length errs > tgErrs) $ do
-                graph <-  TG.fromConstraint constraint' 0 TG.empty
+                graph <- TG.fromConstraint constraint' 0 TG.empty
                 TS.updateTypeGraphErrs
-                trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
+                --trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
 
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -206,7 +206,7 @@ actuallySolve constraint =
             when (length errs > tgErrs) $ do
                 graph <- TG.fromConstraint constraint' 0 TG.empty
                 TS.updateTypeGraphErrs
-                trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
+                --trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
 
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
@@ -245,7 +245,7 @@ solveScheme scheme =
             when (length errs > tgErrs) $ do
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 TS.updateTypeGraphErrs
-                trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
+                --trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             T.traverse flatten header
 
@@ -267,7 +267,7 @@ solveScheme scheme =
             when (length errs > tgErrs) $ do
                 graph <- TG.fromConstraint constraint 0 TG.empty
                 TS.updateTypeGraphErrs
-                trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
+                --trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
 
             allDistinct rigidQuantifiers
             youngPool <- TS.getPool
