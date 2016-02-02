@@ -386,9 +386,6 @@ substituteVariable vid grph =
             vInfo <- getVertex vid grph
             rec S.empty vid vInfo
 
-allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> P.Path info
-allPaths l r grph =
-    let
-        group = getGroupOf l
-    in
-        undefined
+-- | All equivalence paths from one vertex to another
+allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)
+allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph

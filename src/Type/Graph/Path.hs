@@ -18,9 +18,33 @@ data Step info =
       Initial info
     | Implied CLQ.ChildSide BS.VertexId BS.VertexId
     | Child CLQ.ChildSide
+    deriving (Eq, Show)
+
+
 
 -- | Combine lists of paths into a single path object
 -- altList and altList1 in Top
 concatPath, concatPath1 :: [Path a] -> Path a
 concatPath  = foldr  (:|:) Fail
 concatPath1 = foldr1 (:|:)
+
+-- | Simplifies a path
+-- called simplifyPath in TOP
+simplify :: Path a -> Path a
+simplify path =
+    case path of
+        x :|: y ->
+            case (simplify x, simplify y) of
+                (Empty, _    ) -> Empty
+                (_    , Empty) -> Empty
+                (Fail , p2   ) -> p2
+                (p1   , Fail ) -> p1
+                (p1   , p2   ) -> p1 :|: p2
+        x :+: y ->
+            case (simplify x, simplify y) of
+                (Fail , _    ) -> Fail
+                (_    , Fail ) -> Fail
+                (Empty, p1   ) -> p1
+                (p2   , Empty) -> p2
+                (p1   , p2   ) -> p1 :+: p2
+        _ -> path

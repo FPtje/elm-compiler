@@ -170,5 +170,5 @@ equalPaths start target eqgroup =
                                        then []
                                        else map f neighbours) neighbourCliques
     in
-        --   tailSharingBy (\(e1, _) (e2, _) -> e1 `compare` e2) $
+        P.simplify $
         rec start (edgeList, cliqueList)
