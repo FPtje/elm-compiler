@@ -5,6 +5,7 @@ module Type.Graph.TypeGraph where
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
+import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
 import qualified Type.Type as T
 import qualified Type.State as TS
@@ -140,7 +141,7 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
-
+-- | Create a type graph from a single term
 addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
 addTermGraph unique var alias grph = do
     desc <- liftIO $ UF.descriptor var
@@ -287,6 +288,7 @@ addNewEdge (v1, v2) info stg =
  in
     addEdge (BS.EdgeId v1 v2 cnr) info (stg { constraintNumber = cnr + 1})
 
+-- | Deletes an edge from the graph
 deleteEdge :: BS.EdgeId -> TypeGraph info -> TypeGraph info
 deleteEdge edge@(BS.EdgeId v1 _ _) =
     propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
@@ -319,6 +321,7 @@ propagateEquality vid stg =
          else id)
     $ stg
 
+-- | Used in removing an edge. Propagates the removal of a single vertex.
 propagateRemoval :: BS.VertexId -> TypeGraph info -> TypeGraph info
 propagateRemoval i stg =
     let
@@ -382,3 +385,10 @@ substituteVariable vid grph =
         do
             vInfo <- getVertex vid grph
             rec S.empty vid vInfo
+
+allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> P.Path info
+allPaths l r grph =
+    let
+        group = getGroupOf l
+    in
+        undefined

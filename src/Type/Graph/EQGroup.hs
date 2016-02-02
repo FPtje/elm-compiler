@@ -4,7 +4,9 @@ module Type.Graph.EQGroup where
 
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
+import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
+import qualified Data.Set as S
 import Data.List (partition, nub)
 
 
@@ -116,3 +118,59 @@ typeOfGroup eqgroup
     where
         allConstants  =  nub  [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
         allApplies    =       [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
+
+equalPaths :: BS.VertexId -> [BS.VertexId] -> EquivalenceGroup info -> P.Path info
+equalPaths start targets eqgroup =
+   --reduceNumberOfPaths $
+   --   tailSharingBy (\(e1, _) (e2, _) -> e1 `compare` e2) $
+      rec start (edgeList, cliqueList)
+ where
+      edgeList   = edges eqgroup
+      cliqueList = map CLQ.unclique . cliques $ eqgroup
+      targetSet  = S.fromList targets
+
+      -- Allow a second visit of a clique in a path?
+      secondCliqueVisit = False
+
+      rec :: BS.VertexId -> ([(BS.EdgeId, info)], [[CLQ.ParentChild]]) -> P.Path info
+      rec v1 (es, cs)
+        | v1 `S.member` targetSet  = P.Empty
+        | otherwise =
+             let (edges1,es' ) = partition (\(BS.EdgeId a _ _, _) -> v1 == a) es
+                 (edges2,es'') = partition (\(BS.EdgeId _ a _, _) -> v1 == a) es'
+                 (neighbourCliques, otherCliques) =
+                    partition ((v1 `elem`) . map CLQ.child) cs
+                 rest@(_, restCliques)
+                    | secondCliqueVisit = (es'', removeFromClique v1 neighbourCliques ++ otherCliques)
+                    | otherwise         = (es'', otherCliques)
+             in
+                P.concatPath $
+                map (\(BS.EdgeId _ neighbour edgeNr, info) ->
+                      P.Step (BS.EdgeId v1 neighbour edgeNr) (P.Initial info)
+                      P.:+: rec neighbour rest) edges1
+             ++ map (\(BS.EdgeId neighbour _ edgeNr, info) ->
+                      P.Step (BS.EdgeId v1 neighbour edgeNr) (P.Initial info)
+                      P.:+: rec neighbour rest) edges2
+             ++ concatMap (\list ->
+                           let (sources, others) = partition ((v1==) . CLQ.child) list
+                               sourceParents     = map CLQ.parent sources
+                               neighbours        = nub (map CLQ.child others)
+                               f neighbour       = P.concatPath
+                                  [ beginPath P.:+: restPath
+                                  | pc <- others
+                                  , CLQ.child pc == neighbour
+                                  , let beginPath = P.concatPath1 (map g sourceParents)
+                                        restPath
+                                           | secondCliqueVisit = rec neighbour (es'', map (filter (/= pc)) restCliques)
+                                           | otherwise         = rec neighbour rest
+                                        g sp = P.Step (BS.EdgeId v1 neighbour (-1)) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
+                                  ]
+                           in if null sources
+                                then []
+                                else map f neighbours) neighbourCliques
+
+      removeFromClique :: BS.VertexId -> [[CLQ.ParentChild]] -> [[CLQ.ParentChild]]
+      removeFromClique vid =
+         let p = (> 1) . length
+             f = filter ((/=vid) . CLQ.child)
+         in filter p . map f
