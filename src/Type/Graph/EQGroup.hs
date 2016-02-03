@@ -105,14 +105,16 @@ removeClique cl grp =
     grp { cliques = filter (not . (`CLQ.isSubsetClique` cl)) (cliques grp) }
 
 -- | Returns the type of a group in the form in which it is stored
-typeOfGroup :: EquivalenceGroup info -> Maybe (BS.VertexId, BS.VertexInfo)
+-- Will give the conflicting vertices when a type conflict is found
+typeOfGroup :: EquivalenceGroup info -> Either [BS.VertexId] (BS.VertexId, BS.VertexInfo)
 typeOfGroup eqgroup
-    | length allConstants > 1                           =  Nothing
-    | not (null allConstants) && not (null allApplies)  =  Nothing
+    | length allConstants > 1                           =  Left $ map fst allConstants ++ map fst allApplies
+    | not (null allConstants) && not (null allApplies)  =  Left $ map fst allConstants ++ map fst allApplies
+    -- TODO: Multiple different applications?
 
-    | not (null allConstants)  =  Just . head $ allConstants
-    | not (null allApplies)    =  Just . head $ allApplies
-    | otherwise                =  Just . head . vertices $ eqgroup
+    | not (null allConstants)  =  Right . head $ allConstants
+    | not (null allApplies)    =  Right . head $ allApplies
+    | otherwise                =  Right . head . vertices $ eqgroup
 
     where
         allConstants  =  nub  [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
