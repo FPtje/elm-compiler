@@ -12,6 +12,7 @@ data Path info =
     | Step BS.EdgeId (Step info)
     | Fail
     | Empty
+    deriving (Eq, Show)
 
 -- | Describes one step in a path
 data Step info =
