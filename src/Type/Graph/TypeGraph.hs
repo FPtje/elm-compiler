@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Type.Graph.TypeGraph where
@@ -16,6 +17,7 @@ import qualified Reporting.Annotation as A
 import qualified Data.Set as S
 import Control.Monad.State (liftIO)
 import Data.List (nub)
+import Data.Either (lefts)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
@@ -355,14 +357,15 @@ childrenInGroupOf i graph =
 data SubstitutionError info =
       InfiniteType BS.VertexId
     | InconsistentType (EG.EquivalenceGroup info) [BS.VertexId]
+    deriving (Show)
 
 -- | Gives the type graph inferred type of a vertex
-substituteVariable :: BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
+substituteVariable :: forall info . BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
-        --rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
+        rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
         rec history vi (BS.VVar, _)
             | vi `S.member` history = Left (InfiniteType vi)
             | otherwise =
@@ -393,6 +396,21 @@ substituteVariable vid grph =
         do
             res <- rec S.empty vid vertexInfo
             return (snd res)
+
+-- | Gets all the errors in the type graph
+getErrors :: forall info . TypeGraph info -> [SubstitutionError info]
+getErrors grph =
+    let
+        eGroups :: [EG.EquivalenceGroup info]
+        eGroups = map snd . M.toList . equivalenceGroupMap $ grph
+
+        reprs :: [BS.VertexId]
+        reprs = map EG.representative eGroups
+
+        substVars :: [Either (SubstitutionError info) BS.VertexInfo]
+        substVars = map (`substituteVariable` grph) reprs
+    in
+        lefts substVars
 
 -- | All equivalence paths from one vertex to another
 allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)

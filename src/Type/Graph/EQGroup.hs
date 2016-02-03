@@ -69,6 +69,10 @@ split grp =
     in
         foldr addEdge (foldr addClique eqcs cs) es
 
+-- | Representative vertex of an equivalence group
+representative :: EquivalenceGroup info -> BS.VertexId
+representative grp = fst . head . vertices $ grp
+
 -- | Inserts a vertex into an equivalence group
 insertVertex :: BS.VertexId -> BS.VertexInfo -> EquivalenceGroup info -> EquivalenceGroup info
 insertVertex vid vk grp =
