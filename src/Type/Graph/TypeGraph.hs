@@ -359,10 +359,13 @@ data SubstitutionError info =
     | InconsistentType (EG.EquivalenceGroup info) [BS.VertexId]
     deriving (Show)
 
--- | Gives the type graph inferred type of a vertex
+-- | Gives the type graph inferred type of a vertex that contains a type variable
 substituteVariable :: forall info . BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
+        getVertexGroup :: BS.VertexId -> EG.EquivalenceGroup info
+        getVertexGroup vi = fromMaybe (error "substituteVariable: Vertex has no group!") $ getGroupOf vi grph
+
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
@@ -370,8 +373,7 @@ substituteVariable vid grph =
             | vi `S.member` history = Left (InfiniteType vi)
             | otherwise =
                 do
-                    let eg = fromMaybe (error "substituteVariable: Vertex has no group!") $ getGroupOf vi grph
-
+                    let eg = getVertexGroup vid
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
@@ -379,7 +381,14 @@ substituteVariable vid grph =
                         Right (_, tp) -> Right (vi, tp)
                         Left conflicts -> Left (InconsistentType eg conflicts)
 
-        rec _ vi inf@(BS.VCon _, _) = Right (vi, inf)
+        rec _ vi inf@(BS.VCon _, _) =
+            let
+                eg = getVertexGroup vid
+            in
+                case EG.typeOfGroup eg of
+                    Right _ -> Right (vi, inf)
+                    Left conflicts -> Left (InconsistentType eg conflicts)
+
         rec history vi (BS.VApp l r, alias) =
             do
                 let lVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex l grph
@@ -388,7 +397,11 @@ substituteVariable vid grph =
                 let rVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex r grph
                 (rVId, _) <- rec history r rVinf
 
-                Right (vi, (BS.VApp lVId rVId, alias))
+                let eg = getVertexGroup vid
+
+                case EG.typeOfGroup eg of
+                    Right _ -> Right (vi, (BS.VApp lVId rVId, alias))
+                    Left conflicts -> Left (InconsistentType eg conflicts)
 
         vertexInfo :: BS.VertexInfo
         vertexInfo = fromMaybe (error "substituteVariable: Vertex does not exist") (getVertex vid grph)
