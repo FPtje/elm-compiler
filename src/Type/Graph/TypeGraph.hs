@@ -428,3 +428,8 @@ getErrors grph =
 -- | All equivalence paths from one vertex to another
 allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)
 allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
+
+-- | Get the equality paths between inconsistent types
+inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
+inconsistentTypesPaths (InfiniteType _) = error "inconsistentTypesPaths: InfiniteType given. Not supported"
+inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | l <- vids, r <- vids, l /= r]

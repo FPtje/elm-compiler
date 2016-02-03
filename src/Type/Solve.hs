@@ -157,7 +157,9 @@ invokeTypeGraph constraint =
     errs <- TS.getError
     tgErrs <- TS.getTypeGraphErrors
     when (length errs > tgErrs) $ do
-        graph <- TG.fromConstraint constraint 0 TG.empty
+        (_, graph) <- TG.fromConstraint constraint 0 TG.empty
+        let grphErrs = TG.getErrors graph
+        let inconsistentPaths = map TG.inconsistentTypesPaths grphErrs
         TS.updateTypeGraphErrs
 
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
