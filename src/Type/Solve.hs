@@ -150,6 +150,15 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 -- SOLVER
 
+-- | Invokes the type graph if errors are found.
+invokeTypeGraph :: TypeConstraint -> TS.Solver ()
+invokeTypeGraph constraint =
+  do
+    errs <- TS.getError
+    tgErrs <- TS.getTypeGraphErrors
+    when (length errs > tgErrs) $ do
+        graph <- TG.fromConstraint constraint 0 TG.empty
+        TS.updateTypeGraphErrs
 
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
 solve constraint =
@@ -184,12 +193,7 @@ actuallySolve constraint =
             mapM TS.introduce fqs
 
             actuallySolve constraint'
-            errs <- TS.getError
-            tgErrs <- TS.getTypeGraphErrors
-            when (length errs > tgErrs) $ do
-                graph <- TG.fromConstraint constraint' 0 TG.empty
-                TS.updateTypeGraphErrs
-                --trace ("CLET EMPTY\n\n" ++ show graph) $ return ()
+            invokeTypeGraph constraint'
 
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -199,14 +203,7 @@ actuallySolve constraint =
             TS.modifyEnv $ \env -> Map.union headers env
 
             actuallySolve constraint'
-            errs <- TS.getError
-            tgErrs <- TS.getTypeGraphErrors
-
-
-            when (length errs > tgErrs) $ do
-                graph <- TG.fromConstraint constraint' 0 TG.empty
-                TS.updateTypeGraphErrs
-                --trace ("CLET WITH SCHEMES\n\n" ++ show graph) $ return ()
+            invokeTypeGraph constraint'
 
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
@@ -239,13 +236,7 @@ solveScheme scheme =
     Scheme [] [] constraint header ->
         do
             actuallySolve constraint
-            errs <- TS.getError
-            tgErrs <- TS.getTypeGraphErrors
-
-            when (length errs > tgErrs) $ do
-                graph <- TG.fromConstraint constraint 0 TG.empty
-                TS.updateTypeGraphErrs
-                --trace ("CLET EMPTY SOLVESCHEME\n\n" ++ show graph) $ return ()
+            invokeTypeGraph constraint
 
             T.traverse flatten header
 
@@ -261,13 +252,7 @@ solveScheme scheme =
 
 
             actuallySolve constraint
-            errs <- TS.getError
-            tgErrs <- TS.getTypeGraphErrors
-
-            when (length errs > tgErrs) $ do
-                graph <- TG.fromConstraint constraint 0 TG.empty
-                TS.updateTypeGraphErrs
-                --trace ("CLET FILLED SOLVESCHEME\n\n" ++ show graph) $ return ()
+            invokeTypeGraph constraint
 
             allDistinct rigidQuantifiers
             youngPool <- TS.getPool

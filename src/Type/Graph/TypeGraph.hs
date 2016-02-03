@@ -352,17 +352,17 @@ childrenInGroupOf i graph =
             | (p, (BS.VApp t1 t2, _)) <- verticesInGroupOf i graph
             ]
 
-data SubstitutionError =
+data SubstitutionError info =
       InfiniteType BS.VertexId
-    | InconsistentType [BS.VertexId]
+    | InconsistentType (EG.EquivalenceGroup info) [BS.VertexId]
 
 -- | Gives the type graph inferred type of a vertex
-substituteVariable :: BS.VertexId -> TypeGraph info -> Either SubstitutionError BS.VertexInfo
+substituteVariable :: BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
-        rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either SubstitutionError (BS.VertexId, BS.VertexInfo)
+        --rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
         rec history vi (BS.VVar, _)
             | vi `S.member` history = Left (InfiniteType vi)
             | otherwise =
@@ -374,7 +374,7 @@ substituteVariable vid grph =
                     case EG.typeOfGroup eg of
                         Right (vi', vinfo@(BS.VVar, _)) -> rec present vi' vinfo
                         Right (_, tp) -> Right (vi, tp)
-                        Left conflicts -> Left (InconsistentType conflicts)
+                        Left conflicts -> Left (InconsistentType eg conflicts)
 
         rec _ vi inf@(BS.VCon _, _) = Right (vi, inf)
         rec history vi (BS.VApp l r, alias) =
