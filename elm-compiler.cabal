@@ -128,6 +128,7 @@ Library
         Type.Graph.Basics,
         Type.Graph.Clique,
         Type.Graph.EQGroup,
+        Type.Graph.Path,
         Validate,
         Paths_elm_compiler
 
