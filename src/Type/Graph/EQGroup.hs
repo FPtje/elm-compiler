@@ -6,8 +6,7 @@ import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
-import Data.List (partition, nub)
-
+import Data.List (partition, nub, nubBy)
 
 -- | Equivalence groups, TODO
 data EquivalenceGroup info = EQGroup
@@ -112,8 +111,8 @@ removeClique cl grp =
 -- Will give the conflicting vertices when a type conflict is found
 typeOfGroup :: EquivalenceGroup info -> Either [BS.VertexId] (BS.VertexId, BS.VertexInfo)
 typeOfGroup eqgroup
-    | length allConstants > 1                           =  Left $ map fst allConstants ++ map fst allApplies
-    | not (null allConstants) && not (null allApplies)  =  Left $ map fst allConstants ++ map fst allApplies
+    | length allConstants > 1                           = Left $ map fst allConstants ++ map fst allApplies
+    | not (null allConstants) && not (null allApplies)  = Left $ map fst allConstants ++ map fst allApplies
     -- TODO: Multiple different applications?
 
     | not (null allConstants)  =  Right . head $ allConstants
@@ -121,8 +120,11 @@ typeOfGroup eqgroup
     | otherwise                =  Right . head . vertices $ eqgroup
 
     where
-        allConstants  =  nub  [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
-        allApplies    =       [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
+        cmp :: (BS.VertexId, BS.VertexInfo) -> (BS.VertexId, BS.VertexInfo) -> Bool
+        cmp (_, (l, _)) (_, (r, _)) = l == r
+
+        allConstants  = nubBy cmp [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
+        allApplies    =           [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info
