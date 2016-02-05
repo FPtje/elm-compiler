@@ -33,8 +33,8 @@ unify hint region expected actual =
 
                     desc <- UF.descriptor actual
                     copyActual <- UF.fresh desc
-                    mergeHelp expected expected (Error copyExp)
-                    mergeHelp actual actual (Error copyActual)
+                    --mergeHelp expected expected (Error copyExp)
+                    --mergeHelp actual actual (Error copyActual)
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
                     return (Error.Mismatch info)
             in
@@ -187,7 +187,7 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
   case _content firstDesc of
     Error _ ->
         -- If there was an error, just pretend it is okay. This lets us avoid
-        -- "cascading" errors where one problem manifests as multiple message.
+        -- "cascading" errors where one problem manifests as multiple messages.
         return ()
 
     Var Flex Nothing _ ->
