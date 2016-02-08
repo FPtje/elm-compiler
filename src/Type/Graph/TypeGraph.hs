@@ -21,6 +21,8 @@ import Data.Either (lefts)
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
+import Debug.Trace
+
 
 -- | Representation of a type graph
 data TypeGraph info = TypeGraph
@@ -431,5 +433,5 @@ allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
 
 -- | Get the equality paths between inconsistent types
 inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
-inconsistentTypesPaths (InfiniteType _) = error "inconsistentTypesPaths: InfiniteType given. Not supported"
+inconsistentTypesPaths (InfiniteType _) = trace "inconsistentTypesPaths: InfiniteType given. Not supported" []
 inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | l <- vids, r <- vids, l < r]

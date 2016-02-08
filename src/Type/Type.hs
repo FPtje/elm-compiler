@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wall #-}
 module Type.Type where
 
@@ -15,7 +16,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 
-
+import System.IO.Unsafe
 
 -- CONCRETE TYPES
 
@@ -27,6 +28,17 @@ type Type =
 type Variable =
     UF.Point Descriptor
 
+
+instance (Eq a, Show a) => Show (UF.Point a) where
+  show x = unsafePerformIO $ do
+            desc <- UF.descriptor x
+            repr <- UF.repr x
+            reprdesc <- UF.descriptor repr
+
+            if desc == reprdesc then
+              (return $ "SAME UnionFindThing " ++ show desc)
+             else
+              (return $ "DIFFERENT UnionFindThing" ++ show reprdesc)
 
 type TypeConstraint =
     Constraint Type Variable
@@ -45,6 +57,7 @@ data Term1 a
     | Fun1 a a
     | EmptyRecord1
     | Record1 (Map.Map String a) a
+    deriving (Show, Eq)
 
 
 data TermN a
@@ -52,6 +65,7 @@ data TermN a
     | AliasN Var.Canonical [(String, TermN a)] (TermN a)
     | VarN a
     | TermN (Term1 (TermN a))
+    deriving (Show)
 
 
 record :: Map.Map String (TermN a) -> TermN a -> TermN a
@@ -69,6 +83,7 @@ data Descriptor = Descriptor
     , _mark :: Int
     , _copy :: Maybe Variable
     }
+    deriving (Show, Eq)
 
 
 data Content
@@ -77,11 +92,13 @@ data Content
     | Var Flex (Maybe Super) (Maybe String)
     | Alias Var.Canonical [(String,Variable)] Variable
     | Error Variable
+    deriving(Show, Eq)
 
 
 data Flex
     = Rigid
     | Flex
+    deriving (Show, Eq)
 
 
 data Super
@@ -89,7 +106,7 @@ data Super
     | Comparable
     | Appendable
     | CompAppend
-    deriving (Eq)
+    deriving (Eq, Show)
 
 
 noRank :: Int
@@ -129,6 +146,7 @@ data Constraint a b
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance R.Region SchemeName a
+    deriving (Show)
 
 
 type SchemeName = String
@@ -140,8 +158,11 @@ data Scheme a b = Scheme
     , _constraint :: Constraint a b
     , _header :: Map.Map String (A.Located a)
     }
+    deriving (Show)
 
 
+instance Show a => Show (A.Annotated R.Region a) where
+    show (A.A _ t) = "Annotated (" ++ show t ++ ")"
 
 -- TYPE HELPERS
 

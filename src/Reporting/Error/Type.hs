@@ -24,6 +24,7 @@ data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
     | InfiniteType String Type.Canonical
+    deriving (Show)
 
 
 data Mismatch = MismatchInfo
@@ -32,6 +33,7 @@ data Mismatch = MismatchInfo
     , _rightType :: Type.Canonical
     , _reason :: Maybe Reason
     }
+    deriving(Show)
 
 
 data Reason
@@ -39,6 +41,7 @@ data Reason
     | IntFloat
     | TooLongComparableTuple Int
     | BadVar (Maybe VarType) (Maybe VarType)
+    deriving (Show)
 
 
 data VarType
@@ -47,6 +50,7 @@ data VarType
     | Appendable
     | CompAppend
     | Rigid (Maybe String)
+    deriving (Show)
 
 
 data Hint
@@ -72,6 +76,7 @@ data Hint
     | Range
     | Lambda
     | Record
+    deriving (Show)
 
 
 data Pattern
@@ -79,6 +84,7 @@ data Pattern
     | PAlias String
     | PData String
     | PRecord
+    deriving (Show)
 
 
 

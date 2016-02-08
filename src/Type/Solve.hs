@@ -150,6 +150,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 -- SOLVER
 
+
 -- | Invokes the type graph if errors are found.
 invokeTypeGraph :: TypeConstraint -> TS.Solver ()
 invokeTypeGraph constraint =
@@ -162,15 +163,47 @@ invokeTypeGraph constraint =
         let inconsistentPaths = map TG.inconsistentTypesPaths grphErrs
         TS.updateTypeGraphErrs
 
+        trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) TS.updateTypeGraphErrs
+
+justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
+justFlatten CTrue = return CTrue
+justFlatten CSaveEnv = return CSaveEnv
+justFlatten (CEqual hint region term1 term2) =
+    do  t1 <- TS.flatten term1
+        t2 <- TS.flatten term2
+
+        return $ CEqual hint region (VarN t1) (VarN t2)
+justFlatten (CAnd xs) = helper xs
+  where
+    helper [] = return (CAnd [])
+    helper (c : cs) = do
+      c' <- justFlatten c
+      (CAnd cs') <- helper cs
+      return $ CAnd (c' : cs')
+
+justFlatten (CLet schemes constraint) = do
+  c' <- justFlatten constraint
+  return $ CLet schemes c'
+justFlatten (CInstance region name term) = do
+  t' <- TS.flatten term
+  return $ CInstance region name (VarN t')
+
+
 solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
 solve constraint =
-  do  state <-
+  do
+      {-liftIO (execStateT (
+        do
+          newConstr <- justFlatten constraint
+          trace (show newConstr) $ return ()
+          ) TS.initialState)-}
+      state <-
           liftIO (execStateT (actuallySolve constraint) TS.initialState)
       case TS.sError state of
         [] ->
             return state
         errors ->
-            throwError errors
+            {-trace ("ORIGINAL ERRORS: \n\n" ++ show errors) trace (show constraint) $-} throwError errors
 
 
 actuallySolve :: TypeConstraint -> TS.Solver ()

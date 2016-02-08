@@ -39,13 +39,13 @@ data Canonical
     | App Canonical [Canonical]
     | Record [(String, Canonical)] (Maybe Canonical)
     | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 data Aliased t
     = Holey t
     | Filled t
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 data Port t

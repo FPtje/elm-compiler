@@ -35,14 +35,14 @@ data Home
     | Module ModuleName.Canonical
     | TopLevel ModuleName.Canonical
     | Local
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 data Canonical = Canonical
     { home :: !Home
     , name :: !String
     }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 local :: String -> Canonical
