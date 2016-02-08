@@ -70,7 +70,7 @@ split grp =
 
 -- | Representative vertex of an equivalence group
 representative :: EquivalenceGroup info -> BS.VertexId
-representative grp = fst . head . vertices $ grp
+representative = fst . head . vertices
 
 -- | Inserts a vertex into an equivalence group
 insertVertex :: BS.VertexId -> BS.VertexInfo -> EquivalenceGroup info -> EquivalenceGroup info
