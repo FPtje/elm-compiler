@@ -149,7 +149,7 @@ equalPaths start target eqgroup =
                     (neighbourCliques, otherCliques) = partition ((v1 `elem`) . map CLQ.child) cs
                     rest = (es'', otherCliques)
                 in
-                    P.concatPath $
+                    P.choice $
 
                     -- Add steps to all edges coming from this node
                     map (\(BS.EdgeId _ neighbour edgeNr, info) ->
@@ -166,11 +166,11 @@ equalPaths start target eqgroup =
                                   let (sources, others) = partition ((v1==) . CLQ.child) list
                                       sourceParents     = map CLQ.parent sources
                                       neighbours        = nub (map CLQ.child others)
-                                      f neighbour       = P.concatPath
+                                      f neighbour       = P.choice
                                          [ beginPath P.:+: restPath
                                          | pc <- others
                                          , CLQ.child pc == neighbour
-                                         , let beginPath = P.concatPath1 (map g sourceParents)
+                                         , let beginPath = P.choice1 (map g sourceParents)
                                                restPath = rec neighbour rest
                                                g sp = P.Step (BS.EdgeId v1 neighbour (-1)) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
                                          ]

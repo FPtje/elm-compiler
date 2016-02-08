@@ -25,9 +25,9 @@ data Step info =
 
 -- | Combine lists of paths into a single path object
 -- altList and altList1 in Top
-concatPath, concatPath1 :: [Path a] -> Path a
-concatPath  = foldr  (:|:) Fail
-concatPath1 = foldr1 (:|:)
+choice, choice1 :: [Path a] -> Path a
+choice  = foldr  (:|:) Fail
+choice1 = foldr1 (:|:)
 
 -- | Simplifies a path
 -- called simplifyPath in TOP
