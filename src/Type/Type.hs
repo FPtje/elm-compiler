@@ -82,6 +82,7 @@ data Descriptor = Descriptor
     , _rank :: Int
     , _mark :: Int
     , _copy :: Maybe Variable
+    , _typegraphid :: Maybe Int
     }
     deriving (Show, Eq)
 
@@ -191,6 +192,7 @@ mkDescriptor content =
     , _rank = noRank
     , _mark = noMark
     , _copy = Nothing
+    , _typegraphid = Nothing
     }
 
 

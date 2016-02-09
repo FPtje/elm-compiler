@@ -143,6 +143,7 @@ mergeHelp first second content =
           , _rank = min (_rank desc1) (_rank desc2)
           , _mark = noMark
           , _copy = Nothing
+          , _typegraphid = Nothing
           }
 
 
@@ -155,6 +156,7 @@ fresh (Context _ _ desc1 _ desc2) content =
               , _rank = min (_rank desc1) (_rank desc2)
               , _mark = noMark
               , _copy = Nothing
+              , _typegraphid = Nothing
               }
       lift (TS.register freshVariable)
 
@@ -418,6 +420,7 @@ unifyComparableRecursive orientation var =
                     , _rank = _rank desc
                     , _mark = noMark
                     , _copy = Nothing
+                    , _typegraphid = Nothing
                     }
 
       guardedUnify orientation compVar var

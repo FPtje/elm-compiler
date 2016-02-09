@@ -151,16 +151,21 @@ addTermGraph unique var alias grph = do
     desc <- liftIO $ UF.descriptor var
     let content = T._content desc
 
+    -- Get and update the vertex id in the representative of this variable
+    repr <- liftIO $ UF.repr var
+    reprDesc <- liftIO $ UF.descriptor repr
+    let vertexId = fromMaybe unique (T._typegraphid reprDesc)
+    liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
+
     case content of
-        T.Structure t -> addTermGraphStructure unique t alias grph
+        T.Structure t -> addTermGraphStructure unique (T._typegraphid reprDesc) t alias grph
         T.Atom name ->
-            do -- Add con here
+            do
                 let vid = BS.VertexId unique
                 return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), alias) grph)
 
         T.Var flex msuper mname -> do
-            let idf = varNumber grph
-            let vid = BS.VertexId idf
+            let vid = BS.VertexId vertexId
             let updGrph = grph {
                 varNumber = varNumber grph + 1
             }
@@ -170,17 +175,18 @@ addTermGraph unique var alias grph = do
         T.Error actual -> addTermGraph unique actual alias grph
 
 -- | Add a recursive structure type to the type graph
-addTermGraphStructure :: Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
-addTermGraphStructure unique (T.App1 l r) alias grph = do
+-- The first parameter is a unique counter, the second parameter a possible reference to a vertexID that already exists in the graph
+addTermGraphStructure :: Int -> Maybe Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
+addTermGraphStructure unique vertexId (T.App1 l r) alias grph = do
     (uql, vidl, gphl) <- addTermGraph unique l Nothing grph
     (uqr, vidr, gphr) <- addTermGraph uql r Nothing gphl
 
-    let vid = BS.VertexId uqr
+    let vid = BS.VertexId (fromMaybe uqr vertexId)
     let updGrph = addVertex vid (BS.VApp vidl vidr, alias) gphr
 
-    return (uqr + 1, BS.VertexId uqr, updGrph)
+    return (if isJust vertexId then uqr else uqr + 1, vid, updGrph)
 
-addTermGraphStructure unique (T.Fun1 l r) alias grph = do
+addTermGraphStructure unique vertexId (T.Fun1 l r) alias grph = do
     -- Add the function constructor to the graph
     let vid = BS.VertexId unique
     let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", Nothing) grph)
@@ -197,13 +203,13 @@ addTermGraphStructure unique (T.Fun1 l r) alias grph = do
     (uqr, vidr, gphr) <- addTermGraph uqAppL r Nothing updGrphL
 
     -- Add the application of (VApp function l) to the right's type
-    let appRVid = BS.VertexId uqr
+    let appRVid = BS.VertexId (fromMaybe uqr vertexId)
     let updGrphR = addVertex appRVid (BS.VApp vidAppL vidr, alias) gphr
 
-    return (uqr + 1, BS.VertexId uqr, updGrphR)
+    return (if isJust vertexId then uqr else uqr + 1, appRVid, updGrphR)
 
-addTermGraphStructure unique T.EmptyRecord1 alias grph = error "Records not implemented"
-addTermGraphStructure unique T.Record1 {} alias grph = error "Records not implemented"
+addTermGraphStructure unique vertexId T.EmptyRecord1 alias grph = error "Records not implemented"
+addTermGraphStructure unique vertexId T.Record1 {} alias grph = error "Records not implemented"
 
 
 -- | Unify two types in the type graph

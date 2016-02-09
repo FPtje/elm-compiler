@@ -157,6 +157,7 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
+                  , _typegraphid = Nothing
                   }
             register variable
 
@@ -172,6 +173,7 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
+                  , _typegraphid = Nothing
                   }
             register variable
 
@@ -215,6 +217,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                 , _rank = maxRank pool
                 , _mark = noMark
                 , _copy = Nothing
+                , _typegraphid = Nothing
                 }
           _ <- register newVar
 
@@ -293,6 +296,7 @@ restore alreadyCopiedMark variable =
                   , _rank = noRank
                   , _mark = noMark
                   , _copy = Nothing
+                  , _typegraphid = Nothing
                   }
               return variable
 
