@@ -176,7 +176,8 @@ addTermGraph unique var alias grph = do
                 varNumber = varNumber grph + 1
             }
             liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
-            return (unique, vid, if vertexExists vid updGrph then updGrph else addVertex vid (BS.VVar, alias) updGrph)
+            let exists = vertexExists vid updGrph
+            return (if exists then unique else unique + 1, vid, if exists then updGrph else addVertex vid (BS.VVar, alias) updGrph)
         T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
         -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
         T.Error actual -> addTermGraph unique actual alias grph
