@@ -9,6 +9,9 @@ newtype VertexId =
     VertexId Int
     deriving (Eq, Ord, Show)
 
+unVertexId :: VertexId -> Int
+unVertexId (VertexId i) = i
+
 type VertexInfo = (VertexKind, Maybe Var.Canonical)
 
 -- | The types that a vertex can contain

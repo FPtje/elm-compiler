@@ -155,10 +155,16 @@ addTermGraph unique var alias grph = do
     repr <- liftIO $ UF.repr var
     reprDesc <- liftIO $ UF.descriptor repr
     let vertexId = fromMaybe unique (T._typegraphid reprDesc)
-    liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
 
     case content of
-        T.Structure t -> addTermGraphStructure unique (T._typegraphid reprDesc) t alias grph
+        T.Structure t ->
+            if vertexExists (BS.VertexId vertexId) grph then
+                return (unique, (BS.VertexId vertexId), grph)
+            else
+                do
+                    (i, vid, grph') <- addTermGraphStructure unique (T._typegraphid reprDesc) t alias grph
+                    liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just (BS.unVertexId vid) })
+                    return (i, vid, grph')
         T.Atom name ->
             do
                 let vid = BS.VertexId unique
@@ -169,6 +175,7 @@ addTermGraph unique var alias grph = do
             let updGrph = grph {
                 varNumber = varNumber grph + 1
             }
+            liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
             return (unique, vid, if vertexExists vid updGrph then updGrph else addVertex vid (BS.VVar, alias) updGrph)
         T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
         -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
@@ -197,14 +204,14 @@ addTermGraphStructure unique vertexId (T.Fun1 l r) alias grph = do
     -- Add the application of the function to the left's type
     let appLVid = BS.VertexId uql
     let updGrphL = addVertex appLVid (BS.VApp vid' vidl, Nothing) gphl
-    let (uqAppL, vidAppL) = (uql + 1, BS.VertexId uql)
+    let uqAppL = uql + 1
 
     -- Add the right type's subgraph
     (uqr, vidr, gphr) <- addTermGraph uqAppL r Nothing updGrphL
 
     -- Add the application of (VApp function l) to the right's type
     let appRVid = BS.VertexId (fromMaybe uqr vertexId)
-    let updGrphR = addVertex appRVid (BS.VApp vidAppL vidr, alias) gphr
+    let updGrphR = addVertex appRVid (BS.VApp appLVid vidr, alias) gphr
 
     return (if isJust vertexId then uqr else uqr + 1, appRVid, updGrphR)
 
@@ -292,11 +299,11 @@ addEdge edge@(BS.EdgeId v1 v2 _) info =
 
 -- | Adds an edge to the type graph based on vertices
 addNewEdge :: (BS.VertexId, BS.VertexId) -> info -> TypeGraph info -> TypeGraph info
-addNewEdge (v1, v2) info stg =
+addNewEdge (v1, v2) info grph =
  let
-    cnr = constraintNumber stg
+    cnr = constraintNumber grph
  in
-    addEdge (BS.EdgeId v1 v2 cnr) info (stg { constraintNumber = cnr + 1})
+    addEdge (BS.EdgeId v1 v2 cnr) info (grph { constraintNumber = cnr + 1})
 
 -- | Deletes an edge from the graph
 deleteEdge :: BS.EdgeId -> TypeGraph info -> TypeGraph info
@@ -316,10 +323,10 @@ removeClique clique =
 -- | When an equality edge is inserted, the equality trickles down to subtypes
 -- that's what this function applies
 propagateEquality :: BS.VertexId -> TypeGraph info -> TypeGraph info
-propagateEquality vid stg =
-   let (listLeft, listRight) = childrenInGroupOf vid stg
-       left  = map (flip representativeInGroupOf stg . CLQ.child) listLeft
-       right = map (flip representativeInGroupOf stg . CLQ.child) listRight
+propagateEquality vid grph =
+   let (listLeft, listRight) = childrenInGroupOf vid grph
+       left  = map (flip representativeInGroupOf grph . CLQ.child) listLeft
+       right = map (flip representativeInGroupOf grph . CLQ.child) listRight
    in (if length (nub right) > 1
          then propagateEquality (head right)
          else id)
@@ -329,13 +336,13 @@ propagateEquality vid stg =
     . (if length listLeft > 1
          then insertClique (CLQ.makeClique listRight) . insertClique (CLQ.makeClique listLeft)
          else id)
-    $ stg
+    $ grph
 
 -- | Used in removing an edge. Propagates the removal of a single vertex.
 propagateRemoval :: BS.VertexId -> TypeGraph info -> TypeGraph info
-propagateRemoval i stg =
+propagateRemoval i grph =
     let
-        (is, new) = splitEQGroups i stg
+        (is, new) = splitEQGroups i grph
         ts = map (`childrenInGroupOf` new) is
 
         (leftList, rightList) = unzip ts
