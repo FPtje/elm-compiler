@@ -16,6 +16,8 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
 
+import Data.Maybe (fromJust)
+
 import System.IO.Unsafe
 
 -- CONCRETE TYPES
@@ -60,13 +62,13 @@ data Term1 a
     deriving (Show, Eq)
 
 
+
 data TermN a
     = PlaceHolder String
     | AliasN Var.Canonical [(String, TermN a)] (TermN a)
     | VarN a
     | TermN (Term1 (TermN a))
     deriving (Show)
-
 
 record :: Map.Map String (TermN a) -> TermN a -> TermN a
 record fs rec =
@@ -83,6 +85,7 @@ data Descriptor = Descriptor
     , _mark :: Int
     , _copy :: Maybe Variable
     , _typegraphid :: Maybe Int
+    , _typegraphCopyId :: Maybe Int
     }
     deriving (Show, Eq)
 
@@ -161,7 +164,6 @@ data Scheme a b = Scheme
     }
     deriving (Show)
 
-
 instance Show a => Show (A.Annotated R.Region a) where
     show (A.A _ t) = "Annotated (" ++ show t ++ ")"
 
@@ -182,6 +184,137 @@ infixr 9 ==>
 
 
 
+copyTerm1 :: Map.Map Int Variable -> Term1 Type -> IO (Term1 Type, Map.Map Int Variable)
+copyTerm1 mp (App1 l r) =
+  do
+    (l', mp1) <- copyType mp l
+    (r', mp2) <- copyType mp1 r
+    return $ (App1 l' r', mp2)
+
+copyTerm1 mp (Fun1 l r) =
+  do
+    (l', mp1) <- copyType mp l
+    (r', mp2) <- copyType mp1 r
+    return $ (Fun1 l' r', mp2)
+
+copyTerm1 mp EmptyRecord1 = return (EmptyRecord1, mp)
+copyTerm1 vmp (Record1 mp var) =
+  do
+    (var', vmp1) <- copyType vmp var
+    (smp', vmp4) <- Map.foldlWithKey (\iom key val -> do
+      (smp, vmp2) <- iom
+      (val', vmp3) <- copyType vmp2 val
+      return $ (Map.insert key val' smp, vmp3)) (return (Map.empty, vmp1)) mp
+    return $ (Record1 smp' var', vmp4)
+
+
+copyVariable :: Map.Map Int Variable -> Variable -> IO (Variable, Map.Map Int Variable)
+copyVariable mp var =
+  do
+    desc <- UF.descriptor var
+
+    case _typegraphCopyId desc of
+      Nothing ->
+        do
+          let newId = if Map.null mp then 0 else (+ 1) . fst . Map.findMax $ mp
+
+          var' <- UF.fresh desc
+          UF.modifyDescriptor var (\d -> d { _typegraphCopyId = Just newId })
+          UF.modifyDescriptor var' (\d -> d { _copy = Just var })
+
+          let mp' = Map.insert newId var' mp
+          return (var', mp')
+
+      Just i -> return $ (Map.findWithDefault (error (show mp)) i mp, mp)
+
+copyScheme :: Map.Map Int Variable -> Scheme Type Variable -> IO (Scheme Type Variable, Map.Map Int Variable)
+copyScheme mp scheme =
+  do
+    let fold = foldr (\quant acc -> do
+        (lst, mp') <- acc
+        (val', mp1) <- copyVariable mp' quant
+        return (val' : lst, mp1)
+        )
+
+    (rquants, mp1) <- fold (return ([], mp)) (_rigidQuantifiers scheme)
+    (fquants, mp2) <- fold (return ([], mp1)) (_flexibleQuantifiers scheme)
+    (constr, mp3) <- copyConstraintHelp mp2 (_constraint scheme)
+
+    return (Scheme rquants fquants constr (_header scheme), mp3)
+
+copyType :: Map.Map Int Variable -> Type -> IO (Type, Map.Map Int Variable)
+copyType mp (PlaceHolder s) = return (PlaceHolder s, mp)
+copyType mp (AliasN vc aliases term) =
+  do
+    (aliases', mp1) <- foldr (\(s, var) acc -> do
+      (lst, mp') <- acc
+      (var', mp'') <- copyType mp' var
+      return ((s, var') : lst, mp'')) (return ([], mp)) aliases
+    (term', mp2) <- copyType mp1 term
+
+    return $ (AliasN vc aliases' term', mp2)
+
+copyType mp (VarN var) =
+  do
+    (var', mp1) <- copyVariable mp var
+
+    return $ (VarN var', mp1)
+
+copyType mp (TermN term1) =
+  do
+    (t1', mp1) <- copyTerm1 mp term1
+    return (TermN t1', mp1)
+
+copyConstraint :: TypeConstraint -> IO TypeConstraint
+copyConstraint cnstr =
+  do
+    (cnstr', mp') <- copyConstraintHelp Map.empty cnstr
+
+    -- Unregister all vars for reuse
+    let vars = map snd . Map.toList $ mp'
+    let unregister var = do
+        desc <- UF.descriptor var
+        let old = fromJust (_copy desc)
+        UF.modifyDescriptor old (\d -> d { _typegraphCopyId = Nothing })
+
+    mapM_ unregister vars
+
+    return cnstr'
+
+copyConstraintHelp :: Map.Map Int Variable -> TypeConstraint -> IO (TypeConstraint, Map.Map Int Variable)
+copyConstraintHelp mp (CEqual h rg l r) =
+  do
+    (l', mp1) <- copyType mp l
+    (r', mp2) <- copyType mp1 r
+
+    return $ (CEqual h rg l' r', mp2)
+
+copyConstraintHelp mp (CAnd cs) = do
+  (cnstrs, mp') <- foldr (\cnstr acc -> do
+    (lst, mp1) <- acc
+    (cnstr', mp2) <- copyConstraintHelp mp1 cnstr
+    return (cnstr' : lst, mp2)) (return ([], mp)) cs
+
+  return (CAnd cnstrs, mp')
+
+copyConstraintHelp mp (CLet schemes cnstr) =
+  do
+    (schemes', mp1) <- foldr (\scheme acc -> do
+      (lst, mp') <- acc
+      (scheme', mp'') <- copyScheme mp' scheme
+      return (scheme' : lst, mp'')) (return ([], mp)) schemes
+
+    (cnstr', mp2) <- copyConstraintHelp mp1 cnstr
+
+    return $ (CLet schemes' cnstr', mp2)
+
+copyConstraintHelp mp (CInstance rg nm tp) =
+  do
+    (tp', mp') <- copyType mp tp
+    return (CInstance rg nm tp', mp')
+
+copyConstraintHelp mp x = return (x, mp)
+
 -- VARIABLE CREATION
 
 
@@ -193,6 +326,7 @@ mkDescriptor content =
     , _mark = noMark
     , _copy = Nothing
     , _typegraphid = Nothing
+    , _typegraphCopyId = Nothing
     }
 
 

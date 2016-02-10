@@ -144,6 +144,7 @@ mergeHelp first second content =
           , _mark = noMark
           , _copy = Nothing
           , _typegraphid = Nothing
+          , _typegraphCopyId = Nothing
           }
 
 
@@ -157,6 +158,7 @@ fresh (Context _ _ desc1 _ desc2) content =
               , _mark = noMark
               , _copy = Nothing
               , _typegraphid = Nothing
+              , _typegraphCopyId = Nothing
               }
       lift (TS.register freshVariable)
 
@@ -421,6 +423,7 @@ unifyComparableRecursive orientation var =
                     , _mark = noMark
                     , _copy = Nothing
                     , _typegraphid = Nothing
+                    , _typegraphCopyId = Nothing
                     }
 
       guardedUnify orientation compVar var

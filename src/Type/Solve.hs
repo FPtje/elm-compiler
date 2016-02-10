@@ -205,7 +205,6 @@ solve constraint =
         errors ->
             {-trace ("ORIGINAL ERRORS: \n\n" ++ show errors) trace (show constraint) $-} throwError errors
 
-
 actuallySolve :: TypeConstraint -> TS.Solver ()
 actuallySolve constraint =
   case constraint of
@@ -227,8 +226,9 @@ actuallySolve constraint =
         do  oldEnv <- TS.getEnv
             mapM TS.introduce fqs
 
+            copy <- liftIO $ copyConstraint constraint'
             actuallySolve constraint'
-            invokeTypeGraph constraint'
+            invokeTypeGraph copy
 
             TS.modifyEnv (\_ -> oldEnv)
 
@@ -237,8 +237,9 @@ actuallySolve constraint =
             headers <- Map.unions <$> mapM solveScheme schemes
             TS.modifyEnv $ \env -> Map.union headers env
 
+            copy <- liftIO $ copyConstraint constraint'
             actuallySolve constraint'
-            invokeTypeGraph constraint'
+            invokeTypeGraph copy
 
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
@@ -270,8 +271,9 @@ solveScheme scheme =
   case scheme of
     Scheme [] [] constraint header ->
         do
+            copy <- liftIO $ copyConstraint constraint
             actuallySolve constraint
-            invokeTypeGraph constraint
+            invokeTypeGraph copy
 
             T.traverse flatten header
 
@@ -286,8 +288,9 @@ solveScheme scheme =
             header' <- T.traverse flatten header
 
 
+            copy <- liftIO $ copyConstraint constraint
             actuallySolve constraint
-            invokeTypeGraph constraint
+            invokeTypeGraph copy
 
             allDistinct rigidQuantifiers
             youngPool <- TS.getPool

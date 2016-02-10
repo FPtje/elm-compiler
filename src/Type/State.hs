@@ -158,6 +158,7 @@ flattenHelp aliasDict termN =
                   , _mark = noMark
                   , _copy = Nothing
                   , _typegraphid = Nothing
+                  , _typegraphCopyId = Nothing
                   }
             register variable
 
@@ -174,6 +175,7 @@ flattenHelp aliasDict termN =
                   , _mark = noMark
                   , _copy = Nothing
                   , _typegraphid = Nothing
+                  , _typegraphCopyId = Nothing
                   }
             register variable
 
@@ -218,6 +220,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                 , _mark = noMark
                 , _copy = Nothing
                 , _typegraphid = Nothing
+                , _typegraphCopyId = Nothing
                 }
           _ <- register newVar
 
@@ -297,6 +300,7 @@ restore alreadyCopiedMark variable =
                   , _mark = noMark
                   , _copy = Nothing
                   , _typegraphid = Nothing
+                  , _typegraphCopyId = Nothing
                   }
               return variable
 
