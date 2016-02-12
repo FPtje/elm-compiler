@@ -393,7 +393,7 @@ substituteVariable vid grph =
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
-                        Right (vi', vinfo@(BS.VVar, _)) -> rec present vi' vinfo
+                        Right (vi', vinfo@(BS.VVar, _)) -> if vi == vi' then Right (vi, vinfo) else rec present vi' vinfo
                         Right (_, tp) -> Right (vi, tp)
                         Left conflicts -> Left (InconsistentType eg conflicts)
 
@@ -447,5 +447,5 @@ allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
 
 -- | Get the equality paths between inconsistent types
 inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
-inconsistentTypesPaths (InfiniteType _) = trace "inconsistentTypesPaths: InfiniteType given. Not supported" []
+inconsistentTypesPaths (InfiniteType vid) = trace ("inconsistentTypesPaths: InfiniteType given. Not supported. " ++ show vid) []
 inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | l <- vids, r <- vids, l < r]
