@@ -3,7 +3,7 @@
 module Type.Graph.Clique where
 
 import qualified Type.Graph.Basics as BS
-import Data.List (partition, sort)
+import Data.List (partition, sort, find)
 
 -- | Indicates whether a child is the left or right child of a parent
 data ChildSide =
@@ -49,6 +49,10 @@ representative (Clique xs) =
    case xs of
       []  -> error "cliqueRepresentative: A clique cannot be empty"
       x:_ -> child x
+
+-- | Get the parent of a vertex that lives in this clique
+getParent :: BS.VertexId -> Clique -> Maybe BS.VertexId
+getParent v (Clique pcs) = find (\pc -> child pc == v) pcs >>= return . parent
 
 
 -- | Returns true when the first clique is a subset of the second

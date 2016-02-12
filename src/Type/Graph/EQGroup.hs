@@ -6,7 +6,8 @@ import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
-import Data.List (partition, nub, nubBy)
+import Data.List (partition, nub, nubBy, find)
+import Data.Maybe (listToMaybe, isJust, mapMaybe)
 
 -- | Equivalence groups, TODO
 data EquivalenceGroup info = EQGroup
@@ -71,6 +72,10 @@ split grp =
 -- | Representative vertex of an equivalence group
 representative :: EquivalenceGroup info -> BS.VertexId
 representative = fst . head . vertices
+
+-- | Returns the parent of a vertex
+getParent :: BS.VertexId -> EquivalenceGroup info -> Maybe BS.VertexId
+getParent v grp = listToMaybe . mapMaybe (CLQ.getParent v) $ (cliques grp)
 
 -- | Inserts a vertex into an equivalence group
 insertVertex :: BS.VertexId -> BS.VertexInfo -> EquivalenceGroup info -> EquivalenceGroup info

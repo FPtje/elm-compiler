@@ -118,6 +118,10 @@ getGroupOf vid grph =
         eqnr <- M.lookup vid (referenceMap grph)
         M.lookup eqnr (equivalenceGroupMap grph)
 
+-- | Same as getGroupOf, but errors when the vertex oes not exist
+getVertexGroup :: BS.VertexId -> TypeGraph info -> EG.EquivalenceGroup info
+getVertexGroup vi grph = fromMaybe (error "substituteVariable: Vertex has no group!") $ getGroupOf vi grph
+
 -- | Updates the equivalence group that contains a given VertexId
 -- Throws error when the VertexId doesn't exist
 updateGroupOf :: BS.VertexId -> (EG.EquivalenceGroup info -> EG.EquivalenceGroup info) -> TypeGraph info -> TypeGraph info
@@ -240,7 +244,6 @@ unifyTypeVars info terml termr i grph = do
     return (uqr, addNewEdge (vidl, vidr) info grphr)
 
 -- | Generate a type graph from a constraint
--- TODO: solve type schemes, environments and shit
 fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
@@ -273,6 +276,13 @@ fromConstraint constr@(T.CInstance _ name term) i grph = do
 
     t <- TS.flatten term
     unifyTypeVars constr freshCopy t i grph
+
+-- | Find the root of a vertex in a type graph
+findRoot :: BS.VertexId -> TypeGraph info -> BS.VertexId
+findRoot v grph =
+    case EG.getParent v (getVertexGroup v grph) of
+        Just parent -> findRoot parent grph
+        Nothing -> v
 
 
 -- | Add a vertex to the type graph
@@ -379,9 +389,6 @@ data SubstitutionError info =
 substituteVariable :: forall info . BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
-        getVertexGroup :: BS.VertexId -> EG.EquivalenceGroup info
-        getVertexGroup vi = fromMaybe (error "substituteVariable: Vertex has no group!") $ getGroupOf vi grph
-
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
@@ -389,7 +396,7 @@ substituteVariable vid grph =
             | vi `S.member` history = Left (InfiniteType vi)
             | otherwise =
                 do
-                    let eg = getVertexGroup vid
+                    let eg = getVertexGroup vid grph
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
@@ -399,7 +406,7 @@ substituteVariable vid grph =
 
         rec _ vi inf@(BS.VCon _, _) =
             let
-                eg = getVertexGroup vid
+                eg = getVertexGroup vid grph
             in
                 case EG.typeOfGroup eg of
                     Right _ -> Right (vi, inf)
@@ -413,7 +420,7 @@ substituteVariable vid grph =
                 let rVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex r grph
                 (rVId, _) <- rec history r rVinf
 
-                let eg = getVertexGroup vid
+                let eg = getVertexGroup vid grph
 
                 case EG.typeOfGroup eg of
                     Right _ -> Right (vi, (BS.VApp lVId rVId, alias))
