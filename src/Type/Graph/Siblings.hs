@@ -8,7 +8,6 @@ import qualified Type.Graph.Path as P
 import qualified Type.State as TS
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
-import qualified Reporting.Region as R
 import qualified AST.Variable as V
 import qualified Data.Map as M
 import qualified Data.Set as S
