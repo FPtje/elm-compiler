@@ -59,7 +59,9 @@ siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
 
         (_, vidl, grphl) <- TG.addTermGraph 9000{-todo-} freshCopy Nothing removedEdge
         let updatedGrph = TG.addNewEdge (vidl, r) constr grphl
+
         let grphErrs = TG.getErrors updatedGrph
+
 
         return $ null grphErrs
 
@@ -113,15 +115,31 @@ suggestSiblings sbs (l P.:+: r) grph =
         lsibs <- suggestSiblings sbs l grph
         rsibs <- suggestSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-suggestSiblings sbs (P.Step eid@(BS.EdgeId l _ _) (P.Initial constr)) grph =
+suggestSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
     -- An initial edge in the error path mentions a function
     -- Check whether there is a sibling of that function
     -- then check whether that function applies.
     case constr of
-        T.CEqual (Error.BinopLeft v _) _ _ _ -> searchSiblings sbs (V.toString v) l grph
-        T.CEqual (Error.BinopRight v _) _ _ _ -> searchSiblings sbs (V.toString v) l grph
-        T.CEqual (Error.UnexpectedArg (Just v) _ _ _) _ _ _ -> searchSiblings sbs (V.toString v) l grph
-        T.CEqual (Error.FunctionArity (Just v) _ _ _) _ _ _ -> searchSiblings sbs (V.toString v) l grph
+        T.CEqual (Error.BinopLeft v _) _ _ _ ->
+            do
+                leftSibs <- searchSiblings sbs (V.toString v) l grph
+                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                return $ leftSibs `S.union` rightSibs
+        T.CEqual (Error.BinopRight v _) _ _ _ ->
+            do
+                leftSibs <- searchSiblings sbs (V.toString v) l grph
+                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                return $ leftSibs `S.union` rightSibs
+        T.CEqual (Error.UnexpectedArg (Just v) _ _ _) _ _ _ ->
+            do
+                leftSibs <- searchSiblings sbs (V.toString v) l grph
+                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                return $ leftSibs `S.union` rightSibs
+        T.CEqual (Error.FunctionArity (Just v) _ _ _) _ _ _ ->
+            do
+                leftSibs <- searchSiblings sbs (V.toString v) l grph
+                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                return $ leftSibs `S.union` rightSibs
         T.CInstance _ funcName _ ->
             do
                 let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
