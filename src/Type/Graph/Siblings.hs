@@ -143,6 +143,11 @@ suggestSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
                 leftSibs <- searchSiblings sbs (V.toString v) l grph
                 rightSibs <- searchSiblings sbs (V.toString v) r grph
                 return $ leftSibs `S.union` rightSibs
+        T.CEqual (Error.Function (Just v)) _ _ _ ->
+            do
+                leftSibs <- searchSiblings sbs (V.toString v) l grph
+                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                return $ leftSibs `S.union` rightSibs
         T.CInstance _ funcName _ ->
             do
                 let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
