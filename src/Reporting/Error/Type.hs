@@ -32,6 +32,7 @@ data Mismatch = MismatchInfo
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
     , _reason :: Maybe Reason
+    , _siblings :: [(String, String)]
     }
     deriving(Show)
 
@@ -119,7 +120,7 @@ toReport localizer err =
 
 
 mismatchToReport :: RenderType.Localizer -> Mismatch -> Report.Report
-mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
+mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sibs) =
   let
     report =
       Report.report "TYPE MISMATCH"
@@ -129,6 +130,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
         ( Maybe.maybeToList (reasonToString =<< maybeReason)
           ++ map toHint extraHints
         )
+
+    sibSuggestions = map (
+      \(bad, good) ->
+        "Did you mean `" ++ bad ++ "`, instead of `" ++ good ++ "`?") sibs
   in
   case hint of
     CaseBranch branchNumber region ->
@@ -237,7 +242,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (prettyName op ++ " is expecting the left argument to be a:")
               "But the left argument is:"
-              (binopHint op leftType rightType)
+              (binopHint op leftType rightType ++ sibSuggestions)
           )
 
     BinopRight op region ->
@@ -249,10 +254,13 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               "But the right argument is:"
               ( binopHint op leftType rightType
                 ++
-                [ "I always figure out the type of the left argument first and if it is\
-                  \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
-                  \ So the problem may actually be in how the left and right arguments interact."
-                ]
+                if null sibSuggestions then
+                  [ "I always figure out the type of the left argument first and if it is\
+                    \ acceptable on its own, I assume it is \"correct\" in subsequent checks.\
+                    \ So the problem may actually be in how the left and right arguments interact."
+                  ]
+                else
+                  sibSuggestions
               )
           )
 
@@ -266,7 +274,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               "The result of this binary operation is:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
+              sibSuggestions
           )
 
     Function maybeName ->
@@ -277,7 +285,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               "The function results in this type of value:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
+              sibSuggestions
           )
 
     UnexpectedArg maybeName 1 1 region ->
@@ -287,7 +295,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
-              []
+              sibSuggestions
           )
 
     UnexpectedArg maybeName index _totalArgs region ->
@@ -304,11 +312,14 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
               ( if index == 1 then
                   []
                 else
-                  [ "I always figure out the type of arguments from left to right. If an argument\
-                    \ is acceptable when I check it, I assume it is \"correct\" in subsequent checks.\
-                    \ So the problem may actually be in how previous arguments interact with the "
-                    ++ Help.ordinalize index ++ "."
-                  ]
+                  if null sibSuggestions then
+                    [ "I always figure out the type of arguments from left to right. If an argument\
+                      \ is acceptable when I check it, I assume it is \"correct\" in subsequent checks.\
+                      \ So the problem may actually be in how previous arguments interact with the "
+                      ++ Help.ordinalize index ++ "."
+                    ]
+                  else
+                    sibSuggestions
               )
           )
 
@@ -328,7 +339,11 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
           report
             (Just region)
             preHint
-            (text "Maybe you forgot some parentheses? Or a comma?")
+            (if null sibSuggestions then
+              text "Maybe you forgot some parentheses? Or a comma?"
+            else
+              vcat (map text sibSuggestions)
+            )
 
     FunctionArity maybeName expected actual region ->
         let
@@ -339,7 +354,11 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason) =
             ( Help.capitalize (funcName maybeName) ++ " is expecting " ++ show expected
               ++ " argument" ++ s ++ ", but was given " ++ show actual ++ "."
             )
-            (text "Maybe you forgot some parentheses? Or a comma?")
+            (if null sibSuggestions then
+              text "Maybe you forgot some parentheses? Or a comma?"
+            else
+              vcat (map text sibSuggestions)
+            )
 
     BadTypeAnnotation name ->
         report

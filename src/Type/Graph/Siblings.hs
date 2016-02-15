@@ -107,18 +107,18 @@ searchSiblings sbs funcName vid grph =
 
 
 -- | Gives a set of siblings that would resolve the type error
-suggestSiblings :: Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
-suggestSiblings sbs (l P.:|: r) grph =
+investigateSiblings :: Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
+investigateSiblings sbs (l P.:|: r) grph =
     do
-        lsibs <- suggestSiblings sbs l grph
-        rsibs <- suggestSiblings sbs r grph
+        lsibs <- investigateSiblings sbs l grph
+        rsibs <- investigateSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-suggestSiblings sbs (l P.:+: r) grph =
+investigateSiblings sbs (l P.:+: r) grph =
     do
-        lsibs <- suggestSiblings sbs l grph
-        rsibs <- suggestSiblings sbs r grph
+        lsibs <- investigateSiblings sbs l grph
+        rsibs <- investigateSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-suggestSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
+investigateSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
     -- An initial edge in the error path mentions a function
     -- Check whether there is a sibling of that function
     -- then check whether that function applies.
@@ -154,4 +154,25 @@ suggestSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
                 solvingSibs <- filterM (siblingSolvesError constr eid grph) sibList
                 return . S.fromList . map ((,) funcName) $ solvingSibs
         _ -> return S.empty
-suggestSiblings _ _ _ = return S.empty
+investigateSiblings _ _ _ = return S.empty
+
+
+addHintToError :: [A.Located Error.Error] -> [(Sibling, Sibling)] -> [A.Located Error.Error]
+addHintToError [] _ = []
+addHintToError ((A.A rg (Error.Mismatch mism)) : xs) sibs =
+    A.A rg (Error.Mismatch mism { Error._siblings = sibs }) : addHintToError xs sibs
+addHintToError (x : xs) sibs = x : addHintToError xs sibs
+
+-- | Add sibling suggestions to the errors that have been thrown by the original unify algorithm
+addSiblingSuggestions :: S.Set (Sibling, Sibling) -> TS.Solver ()
+addSiblingSuggestions sibs =
+    do
+        let sibList = S.toList sibs
+
+        errs <- TS.getError
+        tgErrs <- TS.getTypeGraphErrors
+        let (otherErrs, neededErrs) = splitAt tgErrs errs
+
+        TS.setError $ otherErrs ++ (addHintToError neededErrs sibList)
+
+        return ()

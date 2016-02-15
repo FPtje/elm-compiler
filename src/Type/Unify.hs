@@ -35,7 +35,7 @@ unify hint region expected actual =
                     copyActual <- UF.fresh desc
                     --mergeHelp expected expected (Error copyExp)
                     --mergeHelp actual actual (Error copyActual)
-                    let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason
+                    let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason []
                     return (Error.Mismatch info)
             in
               TS.addError region =<< liftIO mkError

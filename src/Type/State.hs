@@ -93,6 +93,9 @@ getError :: Solver [A.Located Error.Error]
 getError =
     State.gets sError
 
+setError :: [A.Located Error.Error] -> Solver ()
+setError errs = State.modify $ \state -> state { sError = errs }
+
 getTypeGraphErrors :: Solver Int
 getTypeGraphErrors =
     State.gets sTypeGraphErrs

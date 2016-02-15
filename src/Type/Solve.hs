@@ -7,6 +7,7 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Traversable as T
 import qualified Data.UnionFind.IO as UF
+import qualified Data.Set as S
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
@@ -163,10 +164,13 @@ invokeTypeGraph constraint =
         let grphErrs = TG.getErrors graph
         let inconsistentPaths = map TG.inconsistentTypesPaths grphErrs
 
-        trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) TS.updateTypeGraphErrs
+        trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) $ return ()
 
-        sibSuggestions <- mapM (\ip -> SB.suggestSiblings SB.defaultSiblings ip graph) (concat inconsistentPaths)
-        trace ("\n\n\nSIBLING SUGGESTIONS:\n" ++ show sibSuggestions) $ return ()
+        sibSuggestions <- mapM (\ip -> SB.investigateSiblings SB.defaultSiblings ip graph) (concat inconsistentPaths)
+
+        SB.addSiblingSuggestions . S.unions $ sibSuggestions
+        trace ("\n\n\nSIBLING SUGGESTIONS:\n" ++ show (S.unions $ sibSuggestions)) $ return ()
+        TS.updateTypeGraphErrs
 
 justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
 justFlatten CTrue = return CTrue
