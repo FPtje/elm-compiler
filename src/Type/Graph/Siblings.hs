@@ -70,7 +70,7 @@ siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
 
 
 
-searchSiblings :: Siblings -> Sibling -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set Sibling)
+searchSiblings :: Siblings -> Sibling -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
 searchSiblings sbs funcName vid grph =
     let
         root :: BS.VertexId
@@ -103,11 +103,11 @@ searchSiblings sbs funcName vid grph =
     in
         do
             workingSibs <- workingSiblings
-            return . S.fromList . map fst3 $ workingSibs
+            return . S.fromList . map ((,) funcName . fst3) $ workingSibs
 
 
 -- | Gives a set of siblings that would resolve the type error
-suggestSiblings :: Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set Sibling)
+suggestSiblings :: Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
 suggestSiblings sbs (l P.:|: r) grph =
     do
         lsibs <- suggestSiblings sbs l grph
@@ -152,6 +152,6 @@ suggestSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
             do
                 let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
                 solvingSibs <- filterM (siblingSolvesError constr eid grph) sibList
-                return $ S.fromList solvingSibs
+                return . S.fromList . map ((,) funcName) $ solvingSibs
         _ -> return S.empty
 suggestSiblings _ _ _ = return S.empty
