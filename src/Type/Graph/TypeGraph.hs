@@ -247,6 +247,20 @@ unifyTypeVars info terml termr i grph = do
 
     return (uqr, addNewEdge (vidl, vidr) info grphr)
 
+
+-- | Generate type graph from a single scheme
+fromScheme :: T.TypeScheme -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
+fromScheme scheme i grph = fromConstraint (T._constraint scheme) i grph
+
+-- | Generate type graph from type scheme
+-- Note: only simple type schmemes
+fromSchemes :: [T.TypeScheme] -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
+fromSchemes [] i grph = return (i, grph)
+fromSchemes (s : ss) i grph =
+    do
+        (i', grph') <- fromSchemes ss i grph
+        fromScheme s i' grph'
+
 -- | Generate a type graph from a constraint
 fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
@@ -258,9 +272,10 @@ fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
         helper (c : cs) i' grph' = do
             (i'', grph'') <- fromConstraint c i' grph'
             helper cs i'' grph''
-fromConstraint (T.CLet _ constr) i grph =
-    -- TODO: Somehow pass type scheme vars and links
-    fromConstraint constr i grph
+fromConstraint (T.CLet schemes constr) i grph =
+    do
+        (uq, grph') <- fromSchemes schemes i grph
+        fromConstraint constr uq grph'
 
 fromConstraint constr@(T.CInstance _ name term) i grph = do
     env <- TS.getEnv
