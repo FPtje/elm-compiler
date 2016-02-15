@@ -44,7 +44,8 @@ Library
         Elm.Compiler.Type,
         Elm.Docs,
         Elm.Package,
-        Elm.Utils
+        Elm.Utils,
+        Paths_elm_compiler
 
     other-modules:
         AST.Declaration,
@@ -130,8 +131,8 @@ Library
         Type.Graph.EQGroup,
         Type.Graph.Path,
         Type.Graph.Siblings,
-        Validate,
-        Paths_elm_compiler
+        Validate
+
 
     Build-depends:
         aeson >= 0.7 && < 0.9,
