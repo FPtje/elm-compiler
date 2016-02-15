@@ -133,7 +133,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
 
     sibSuggestions = map (
       \(bad, good) ->
-        "Did you mean `" ++ bad ++ "`, instead of `" ++ good ++ "`?") sibs
+        "Did you mean `" ++ good ++ "`, instead of `" ++ bad ++ "`?") sibs
   in
   case hint of
     CaseBranch branchNumber region ->
