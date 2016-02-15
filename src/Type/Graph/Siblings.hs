@@ -39,6 +39,9 @@ defaultSiblings :: Siblings
 defaultSiblings =
       addSymmSib "Basics.|>" "Basics.<|"
     .  addSibling "Debug.crash" "Basics.not"
+    .  addSymmSib "Basics.fst" "Basics.snd"
+    .  addSymmSib "Basics.>>" "Basics.<<"
+    .  addSymmSib "Basics.curry" "Basics.uncurry"
     .  addSymmSib "Basics.sqrt" "Basics.not"
     . addSibling "Date.fromString" "Basics.not"
     $ emptySiblings
