@@ -189,14 +189,14 @@ equalPaths start target eqgroup =
                                       sourceParents     = map CLQ.parent sources
                                       neighbours        = nub (map CLQ.child others)
                                       f neighbour       = P.choice
-                                         [ beginPath P.:+: (fst filteredRest)
+                                         [ beginPath P.:+: restPath--(fst filteredRest)
                                          | pc <- others
                                          , CLQ.child pc == neighbour
                                          , let beginPath = P.choice1 (map makeImplied sourceParents)
                                                restPath = rec neighbour rest
                                                filteredRest = removeStartImplied . P.simplify $ restPath
                                                makeImplied sp = P.Step (BS.EdgeId v1 neighbour (-1)) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
-                                         , not (snd filteredRest) -- prevent detours
+                                         --, not (snd filteredRest) -- prevent detours
                                          ]
                                   in if null sources
                                        then []
