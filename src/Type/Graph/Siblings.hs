@@ -57,7 +57,7 @@ siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
               Nothing ->
                   error ("Could not find `" ++ sib ++ "` when trying out siblings.")
 
-        (_, vidl, grphl) <- TG.addTermGraph 9000{-todo-} freshCopy Nothing removedEdge
+        (_, vidl, grphl) <- TG.addTermGraph (TG.uniqueVertexId removedEdge) freshCopy Nothing removedEdge
         let updatedGrph = TG.addNewEdge (vidl, r) constr grphl
 
         let grphErrs = TG.getErrors updatedGrph
@@ -77,7 +77,7 @@ searchSiblings sbs funcName vid grph =
         rootEdges = EG.edges . TG.getVertexGroup root $ grph
 
         isCInstance :: (BS.EdgeId, T.TypeConstraint) -> Bool
-        isCInstance (_, T.CInstance _ _ _) = True
+        isCInstance (_, T.CInstance {}) = True
         isCInstance _ = False
 
         cInstanceEdges :: [(BS.EdgeId, T.TypeConstraint)]

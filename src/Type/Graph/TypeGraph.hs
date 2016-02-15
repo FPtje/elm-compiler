@@ -149,6 +149,10 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
+-- | Retrieves a unique number for adding vertexIds to the graph
+uniqueVertexId :: TypeGraph info -> Int
+uniqueVertexId grph = (+) 1 . BS.unVertexId . fst . M.findMax . referenceMap $ grph
+
 -- | Create a type graph from a single term
 addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
 addTermGraph unique var alias grph = do
@@ -163,7 +167,7 @@ addTermGraph unique var alias grph = do
     case content of
         T.Structure t ->
             if vertexExists (BS.VertexId vertexId) grph then
-                return (unique, (BS.VertexId vertexId), grph)
+                return (unique, BS.VertexId vertexId, grph)
             else
                 do
                     (i, vid, grph') <- addTermGraphStructure unique (T._typegraphid reprDesc) t alias grph
