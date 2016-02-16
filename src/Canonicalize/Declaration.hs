@@ -73,6 +73,9 @@ toDefs moduleName (A.A (region,_) decl) =
           E.Task name _expr tipe ->
               [ definition name body region (T.getPortType tipe) ]
 
+    D.Sibling _ _ ->
+        []
+
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->
         []

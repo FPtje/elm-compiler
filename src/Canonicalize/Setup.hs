@@ -337,6 +337,9 @@ declToPatches moduleName (A.A (region,_) decl) =
         , [topLevel Env.Value (D.validPortName port)]
         )
 
+    D.Sibling _ _ -> (Nothing, [])
+
+
     D.Fixity _ _ _ ->
         ( Nothing
         , []

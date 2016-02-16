@@ -77,6 +77,10 @@ validateDeclsHelp comment (A.A region decl) decls =
     D.Port port ->
         portHelp comment region port decls
 
+    D.Sibling from to ->
+        addRest (D.Sibling from to)
+
+
 
 -- VALIDATE DEFINITIONS IN DECLARATIONS
 
@@ -342,43 +346,56 @@ defDuplicates patterns =
 
 declDuplicates :: [D.ValidDecl] -> Result.Result wrn Error.Error ()
 declDuplicates decls =
-  let (valueLists, typeLists) = unzip (map extractValues decls)
+  let (valueLists, typeLists, sibLists) = unzip3 (map extractValues decls)
   in
-      (\_ _ -> ())
+      (\_ _ _ -> ())
         <$> detectDuplicates Error.DuplicateValueDeclaration (concat valueLists)
         <*> detectDuplicates Error.DuplicateTypeDeclaration (concat typeLists)
+        <*> detectDuplicates Error.DuplicateSiblingDeclaration (concat sibLists)
 
 
-extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String])
+extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String], [A.Located String])
 extractValues (A.A (region, _) decl) =
   case decl of
     D.Definition (Valid.Definition pattern _ _) ->
         ( Pattern.boundVars pattern
+        , []
         , []
         )
 
     D.Datatype name _ ctors ->
         ( map (A.A region . fst) ctors
         , [A.A region name]
+        , []
         )
 
     D.TypeAlias name _ (A.A _ (Type.RRecord _ _)) ->
         ( [A.A region name]
         , [A.A region name]
+        , []
         )
 
     D.TypeAlias name _ _ ->
         ( []
         , [A.A region name]
+        , []
         )
 
     D.Port port ->
         ( [A.A region (D.validPortName port)]
         , []
+        , []
+        )
+
+    D.Sibling from to ->
+        ( []
+        , []
+        , [A.A region (from ++ " resembles " ++ to)]
         )
 
     D.Fixity _ _ _ ->
         ( []
+        , []
         , []
         )
 
@@ -424,6 +441,8 @@ checkDecl isRoot (A.A (region,_) decl) =
         else
             Result.throw region Error.UnexpectedPort
 
+    D.Sibling _ _ ->
+        return ()
     D.Fixity _ _ _ ->
         return ()
 

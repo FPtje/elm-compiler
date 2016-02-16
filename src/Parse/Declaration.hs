@@ -13,7 +13,7 @@ declaration :: IParser D.SourceDecl
 declaration =
   choice
     [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> definition)
+    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> sibling <|> definition)
     ]
 
 
@@ -88,3 +88,14 @@ port =
           expr <- Expr.expr
           return (D.Port (D.PortDefinition name expr))
 
+sibling :: IParser D.SourceDecl'
+sibling =
+  expecting "a sibling declaration" $
+  do  try (reserved "sibling")
+      forcedWS
+      from <- (anyOp <|> qualifiedVar)
+      forcedWS
+      reserved "resembles"
+      forcedWS
+      to <- (anyOp <|> qualifiedVar)
+      return $ D.Sibling from to

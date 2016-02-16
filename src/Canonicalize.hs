@@ -115,6 +115,15 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
           , datatypes =
               Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- nakedDecls ]
 
+          , siblings =
+              foldl (
+                \mp (from, to) ->
+                  Map.insert from
+                  (to `Set.insert` Map.findWithDefault Set.empty from mp) mp
+                )
+              Map.empty
+              [(from, to) | D.Sibling from to <- map A.drop decls]
+
           , fixities =
               [ (assoc,level,op) | D.Fixity assoc level op <- nakedDecls ]
 
@@ -372,6 +381,14 @@ declaration env (A.A ann@(region,_) decl) =
                         exprTypeResult
                           `Result.andThen` \(expr', tipe') ->
                               D.Port <$> Port.check region name (Just expr') tipe'
+
+      D.Sibling from to ->
+        do
+          Canonicalize.variable region env from
+            `Result.andThen` \fromVar ->
+              Canonicalize.variable region env to
+              `Result.andThen` \toVar ->
+                Result.ok (D.Sibling fromVar toVar)
 
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)

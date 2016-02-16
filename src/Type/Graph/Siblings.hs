@@ -1,5 +1,6 @@
 module Type.Graph.Siblings where
 
+import qualified AST.Module as Module
 import qualified Type.Type as T
 import qualified Type.Graph.TypeGraph as TG
 import qualified Type.Graph.EQGroup as EG
@@ -14,51 +15,20 @@ import qualified Data.Set as S
 
 import Control.Monad (filterM)
 
-type Sibling = String
-type Siblings = M.Map Sibling (S.Set Sibling)
-
--- | Adds a sibling
--- Note: Asymmetrical, the first function will be a sibling
--- of the second one
-addSibling :: Sibling -> Sibling -> Siblings -> Siblings
-addSibling sibl siblOf mp =
-    M.insert siblOf (sibl `S.insert` M.findWithDefault S.empty siblOf mp) mp
-
--- | Add a sibling symmetrically
-addSymmSib :: Sibling -> Sibling -> Siblings -> Siblings
-addSymmSib l r =
-      addSibling l r
-    . addSibling r l
-
-
-emptySiblings :: Siblings
-emptySiblings = M.empty
-
--- Testing siblings
-defaultSiblings :: Siblings
-defaultSiblings =
-      addSymmSib "Basics.|>" "Basics.<|"
-    .  addSibling "Debug.crash" "Basics.not"
-    .  addSymmSib "Basics.fst" "Basics.snd"
-    .  addSymmSib "Basics.>>" "Basics.<<"
-    .  addSymmSib "Basics.curry" "Basics.uncurry"
-    .  addSymmSib "Basics.sqrt" "Basics.not"
-    . addSibling "Date.fromString" "Basics.not"
-    $ emptySiblings
-
-siblingSolvesError :: T.TypeConstraint -> BS.EdgeId -> TG.TypeGraph T.TypeConstraint -> Sibling -> TS.Solver Bool
+siblingSolvesError :: T.TypeConstraint -> BS.EdgeId -> TG.TypeGraph T.TypeConstraint -> Module.Sibling -> TS.Solver Bool
 siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
     do
         let removedEdge = TG.deleteEdge eid grph
+        let sibName = V.toString sib
 
         env <- TS.getEnv
         freshCopy <-
-            case M.lookup sib env of
+            case M.lookup sibName env of
               Just (A.A _ tipe) ->
                   TS.makeInstance tipe
 
               Nothing ->
-                  error ("Could not find `" ++ sib ++ "` when trying out siblings.")
+                  error ("Could not find `" ++ sibName ++ "` when trying out siblings.")
 
         (_, vidl, grphl) <- TG.addTermGraph (TG.uniqueVertexId removedEdge) freshCopy Nothing removedEdge
         let updatedGrph = TG.addNewEdge (vidl, r) constr grphl
@@ -70,7 +40,7 @@ siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
 
 
 
-searchSiblings :: Siblings -> Sibling -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
+searchSiblings :: Module.Siblings -> Module.Sibling -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
 searchSiblings sbs funcName vid grph =
     let
         root :: BS.VertexId
@@ -86,16 +56,16 @@ searchSiblings sbs funcName vid grph =
         cInstanceEdges :: [(BS.EdgeId, T.TypeConstraint)]
         cInstanceEdges = filter isCInstance rootEdges
 
-        siblings :: S.Set Sibling
+        siblings :: S.Set Module.Sibling
         siblings = M.findWithDefault S.empty funcName sbs
 
-        sibConstraints :: [(Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
+        sibConstraints :: [(Module.Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
         sibConstraints = [(sib, eid, constr) | sib <- S.toList siblings, (eid, constr) <- cInstanceEdges]
 
-        sibFits :: (Sibling, BS.EdgeId, T.TypeConstraint) -> TS.Solver Bool
+        sibFits :: (Module.Sibling, BS.EdgeId, T.TypeConstraint) -> TS.Solver Bool
         sibFits (sib, eid, constr) = siblingSolvesError constr eid grph sib
 
-        workingSiblings :: TS.Solver [(Sibling, BS.EdgeId, T.TypeConstraint)]
+        workingSiblings :: TS.Solver [(Module.Sibling, BS.EdgeId, T.TypeConstraint)]
         workingSiblings = filterM sibFits sibConstraints
 
         fst3 :: (a, b, c) -> a
@@ -107,7 +77,7 @@ searchSiblings sbs funcName vid grph =
 
 
 -- | Gives a set of siblings that would resolve the type error
-investigateSiblings :: Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Sibling, Sibling))
+investigateSiblings :: Module.Siblings -> P.Path T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
 investigateSiblings sbs (l P.:|: r) grph =
     do
         lsibs <- investigateSiblings sbs l grph
@@ -125,46 +95,46 @@ investigateSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
     case constr of
         T.CEqual (Error.BinopLeft v _) _ _ _ ->
             do
-                leftSibs <- searchSiblings sbs (V.toString v) l grph
-                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                leftSibs <- searchSiblings sbs v l grph
+                rightSibs <- searchSiblings sbs v r grph
                 return $ leftSibs `S.union` rightSibs
         T.CEqual (Error.BinopRight v _) _ _ _ ->
             do
-                leftSibs <- searchSiblings sbs (V.toString v) l grph
-                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                leftSibs <- searchSiblings sbs v l grph
+                rightSibs <- searchSiblings sbs v r grph
                 return $ leftSibs `S.union` rightSibs
         T.CEqual (Error.UnexpectedArg (Just v) _ _ _) _ _ _ ->
             do
-                leftSibs <- searchSiblings sbs (V.toString v) l grph
-                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                leftSibs <- searchSiblings sbs v l grph
+                rightSibs <- searchSiblings sbs v r grph
                 return $ leftSibs `S.union` rightSibs
         T.CEqual (Error.FunctionArity (Just v) _ _ _) _ _ _ ->
             do
-                leftSibs <- searchSiblings sbs (V.toString v) l grph
-                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                leftSibs <- searchSiblings sbs v l grph
+                rightSibs <- searchSiblings sbs v r grph
                 return $ leftSibs `S.union` rightSibs
         T.CEqual (Error.Function (Just v)) _ _ _ ->
             do
-                leftSibs <- searchSiblings sbs (V.toString v) l grph
-                rightSibs <- searchSiblings sbs (V.toString v) r grph
+                leftSibs <- searchSiblings sbs v l grph
+                rightSibs <- searchSiblings sbs v r grph
                 return $ leftSibs `S.union` rightSibs
-        T.CInstance _ funcName _ ->
-            do
-                let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
-                solvingSibs <- filterM (siblingSolvesError constr eid grph) sibList
-                return . S.fromList . map ((,) funcName) $ solvingSibs
+        --T.CInstance _ funcName _ ->
+        --    do
+        --        let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
+        --        solvingSibs <- filterM (siblingSolvesError constr eid grph) sibList
+        --        return . S.fromList . map ((,) funcName) $ solvingSibs
         _ -> return S.empty
 investigateSiblings _ _ _ = return S.empty
 
 
-addHintToError :: [A.Located Error.Error] -> [(Sibling, Sibling)] -> [A.Located Error.Error]
+addHintToError :: [A.Located Error.Error] -> [(Module.Sibling, Module.Sibling)] -> [A.Located Error.Error]
 addHintToError [] _ = []
 addHintToError ((A.A rg (Error.Mismatch mism)) : xs) sibs =
     A.A rg (Error.Mismatch mism { Error._siblings = sibs }) : addHintToError xs sibs
 addHintToError (x : xs) sibs = x : addHintToError xs sibs
 
 -- | Add sibling suggestions to the errors that have been thrown by the original unify algorithm
-addSiblingSuggestions :: S.Set (Sibling, Sibling) -> TS.Solver ()
+addSiblingSuggestions :: S.Set (Module.Sibling, Module.Sibling) -> TS.Solver ()
 addSiblingSuggestions sibs =
     do
         let sibList = S.toList sibs

@@ -1,6 +1,7 @@
 module Type.Solve (solve) where
 
 import Control.Monad
+import qualified AST.Module as Module
 import Control.Monad.State (execStateT, liftIO)
 import Control.Monad.Except (ExceptT, throwError)
 import qualified Data.List as List
@@ -164,12 +165,13 @@ invokeTypeGraph constraint =
         let grphErrs = TG.getErrors graph
         let inconsistentPaths = map TG.inconsistentTypesPaths grphErrs
 
-        trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) $ return ()
+        --trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) $ return ()
 
-        sibSuggestions <- mapM (\ip -> SB.investigateSiblings SB.defaultSiblings ip graph) (concat inconsistentPaths)
+        sbs <- TS.getSiblings
+        sibSuggestions <- mapM (\ip -> SB.investigateSiblings sbs ip graph) (concat inconsistentPaths)
 
         SB.addSiblingSuggestions . S.unions $ sibSuggestions
-        trace ("\n\n\nSIBLING SUGGESTIONS:\n" ++ show (S.unions $ sibSuggestions)) $ return ()
+        --trace ("\n\n\nSIBLING SUGGESTIONS:\n" ++ show (S.unions $ sibSuggestions)) $ return ()
         TS.updateTypeGraphErrs
 
 justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
@@ -196,8 +198,8 @@ justFlatten (CInstance region name term) = do
   return $ CInstance region name (VarN t')
 
 
-solve :: TypeConstraint -> ExceptT [A.Located Error.Error] IO TS.SolverState
-solve constraint =
+solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO TS.SolverState
+solve constraint siblings =
   do
       {-liftIO (execStateT (
         do
@@ -205,7 +207,7 @@ solve constraint =
           trace (show newConstr) $ return ()
           ) TS.initialState)-}
       state <-
-          liftIO (execStateT (actuallySolve constraint) TS.initialState)
+          liftIO (execStateT (actuallySolve constraint) (TS.initialState siblings))
       case TS.sError state of
         [] ->
             return state

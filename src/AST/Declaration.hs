@@ -7,17 +7,19 @@ import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Variable as Var
 import qualified AST.Type as Type
 import qualified Reporting.Annotation as A
 
 
 -- DECLARATIONS
 
-data Declaration' port def tipe expr
+data Declaration' port def tipe expr sibling
     = Definition def
     | Datatype String [String] [(String, [tipe])]
     | TypeAlias String [String] tipe
     | Port port
+    | Sibling sibling sibling
     | Fixity Assoc Int String
 
 
@@ -38,7 +40,7 @@ assocToString assoc =
 -- DECLARATION PHASES
 
 type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw Source.Expr
+  Declaration' SourcePort Source.Def Type.Raw Source.Expr String
 
 
 data SourceDecl
@@ -47,11 +49,11 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String)
 
 
 type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr)
+  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr Var.Canonical)
 
 
 -- PORTS

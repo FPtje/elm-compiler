@@ -5,6 +5,7 @@ import qualified Control.Monad.State as State
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
+import qualified AST.Module as Module
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
@@ -45,11 +46,12 @@ data SolverState = SS
     , sMark :: Int
     , sError :: [A.Located Error.Error]
     , sTypeGraphErrs :: Int
+    , sSiblings :: Module.Siblings
     }
 
 
-initialState :: SolverState
-initialState =
+initialState :: Module.Siblings -> SolverState
+initialState siblings =
     SS
     { sEnv = Map.empty
     , sSavedEnv = Map.empty
@@ -57,6 +59,7 @@ initialState =
     , sMark = noMark + 1  -- The mark must never be equal to noMark!
     , sError = []
     , sTypeGraphErrs = 0
+    , sSiblings = siblings
     }
 
 
@@ -105,6 +108,9 @@ updateTypeGraphErrs =
   do  errs <- State.gets sError
       State.modify $ \state -> state { sTypeGraphErrs = length errs }
 
+
+getSiblings :: Solver Module.Siblings
+getSiblings = State.gets sSiblings
 
 saveLocalEnv :: Solver ()
 saveLocalEnv =

@@ -22,6 +22,7 @@ data Error
     | DuplicateFieldName String
     | DuplicateValueDeclaration String
     | DuplicateTypeDeclaration String
+    | DuplicateSiblingDeclaration String
     | DuplicateDefinition String
     | UnboundTypeVarsInUnion String [String] [String]
     | UnboundTypeVarsInAlias String [String] [String]
@@ -137,6 +138,17 @@ toReport _localizer err =
           ( Help.reflowParagraph $
               "Search through this module, find all the types named `" ++ name
               ++ "`, and give each of them a unique name."
+          )
+
+    DuplicateSiblingDeclaration sibling ->
+        Report.report
+          "DUPLICATE DEFINITION"
+          Nothing
+          ( "There are multiple sibling that state that " ++ sibling ++ " in this module."
+          )
+          ( Help.reflowParagraph $
+              "Search through this module, find all siblings that say " ++ sibling
+              ++ " and remove all but one of them."
           )
 
     DuplicateDefinition name ->

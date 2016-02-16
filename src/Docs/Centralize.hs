@@ -89,6 +89,9 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
     D.Port _ ->
         docs
 
+    D.Sibling _ _ ->
+        docs -- TODO: sibling docs
+
     D.Fixity assoc precedence name ->
         let
           fixity =

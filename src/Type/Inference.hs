@@ -31,7 +31,8 @@ infer interfaces modul =
     do  (header, constraint) <-
             liftIO (genConstraints interfaces modul)
 
-        state <- Solve.solve constraint
+        let siblings = Module.siblings . Module.body $ modul
+        state <- Solve.solve constraint siblings
 
         let header' = Map.delete "::" header
         let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')

@@ -1,6 +1,6 @@
 module AST.Module
     ( Interfaces
-    , Types, Aliases, ADTs
+    , Types, Aliases, ADTs, Sibling, Siblings
     , AdtInfo, CanonicalAdt
     , SourceModule, ValidModule, CanonicalModule, Optimized
     , Module(..), Body(..)
@@ -11,6 +11,7 @@ module AST.Module
 
 import Data.Binary
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
@@ -28,9 +29,11 @@ import qualified Reporting.Annotation as A
 
 type Interfaces = Map.Map Name.Canonical Interface
 
-type Types   = Map.Map String Type.Canonical
-type Aliases = Map.Map String ([String], Type.Canonical)
-type ADTs    = Map.Map String (AdtInfo String)
+type Types      = Map.Map String Type.Canonical
+type Aliases    = Map.Map String ([String], Type.Canonical)
+type ADTs       = Map.Map String (AdtInfo String)
+type Sibling    = Var.Canonical
+type Siblings   = Map.Map Sibling (Set.Set Sibling)
 
 type AdtInfo v = ( [String], [(v, [Type.Canonical])] )
 type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
@@ -75,6 +78,7 @@ data Module docs imports exports body = Module
 data Body expr = Body
     { program   :: expr
     , types     :: Types
+    , siblings  :: Siblings
     , fixities  :: [(Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs

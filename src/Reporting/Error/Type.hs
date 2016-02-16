@@ -32,7 +32,7 @@ data Mismatch = MismatchInfo
     , _leftType :: Type.Canonical
     , _rightType :: Type.Canonical
     , _reason :: Maybe Reason
-    , _siblings :: [(String, String)]
+    , _siblings :: [(Var.Canonical, Var.Canonical)]
     }
     deriving(Show)
 
@@ -133,7 +133,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
 
     sibSuggestions = map (
       \(bad, good) ->
-        "Did you mean `" ++ good ++ "`, instead of `" ++ bad ++ "`?") sibs
+        "Did you mean " ++ prettyName good ++ "`, instead of " ++ prettyName bad ++ "?") sibs
   in
   case hint of
     CaseBranch branchNumber region ->
