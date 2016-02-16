@@ -6,6 +6,7 @@ module Type.Graph.TypeGraph where
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
+import qualified Reporting.Error.Type as Error
 import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
 import qualified Type.Type as T
@@ -32,6 +33,7 @@ data TypeGraph info = TypeGraph
    , possibleErrors             :: [BS.VertexId]
    , constraintNumber           :: Int
    , varNumber                  :: Int
+   , funcMap                    :: M.Map String Var.Canonical
    }
    deriving (Show)
 
@@ -44,6 +46,7 @@ empty = TypeGraph
     , possibleErrors          = []
     , constraintNumber        = 0
     , varNumber               = 0
+    , funcMap                 = M.empty
     }
 
 -- | Adds the given vertex to the list of possible errors.
@@ -261,11 +264,22 @@ fromSchemes (s : ss) i grph =
         (i', grph') <- fromSchemes ss i grph
         fromScheme s i' grph'
 
+updateFuncMap :: Var.Canonical -> TypeGraph a -> TypeGraph a
+updateFuncMap var grph = grph {funcMap = M.insert (Var.toString var) var (funcMap grph)}
+
+updatefuncMapHint :: Error.Hint -> TypeGraph a -> TypeGraph a
+updatefuncMapHint (Error.BinopLeft v _) grph = updateFuncMap v grph
+updatefuncMapHint (Error.BinopRight v _) grph = updateFuncMap v grph
+updatefuncMapHint (Error.UnexpectedArg (Just v) _ _ _) grph = updateFuncMap v grph
+updatefuncMapHint (Error.FunctionArity (Just v) _ _ _) grph = updateFuncMap v grph
+updatefuncMapHint (Error.Function (Just v)) grph = updateFuncMap v grph
+updatefuncMapHint _ grph = grph
+
 -- | Generate a type graph from a constraint
 fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
 fromConstraint T.CTrue i grph = return (i, grph)
 fromConstraint T.CSaveEnv i grph = return (i, grph)
-fromConstraint constr@(T.CEqual _ _ l r) i grph = unifyTypes constr l r i grph
+fromConstraint constr@(T.CEqual err _ l r) i grph = unifyTypes constr l r i . updatefuncMapHint err $ grph
 fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
     where
         helper [] i' grph' = return (i', grph')

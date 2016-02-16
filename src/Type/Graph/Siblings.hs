@@ -13,6 +13,9 @@ import qualified AST.Variable as V
 import qualified Data.Map as M
 import qualified Data.Set as S
 
+import Data.Maybe (isJust, fromJust)
+
+
 import Control.Monad (filterM)
 
 siblingSolvesError :: T.TypeConstraint -> BS.EdgeId -> TG.TypeGraph T.TypeConstraint -> Module.Sibling -> TS.Solver Bool
@@ -40,8 +43,8 @@ siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
 
 
 
-searchSiblings :: Module.Siblings -> Module.Sibling -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
-searchSiblings sbs funcName vid grph =
+searchSiblings :: Module.Siblings -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
+searchSiblings sbs vid grph =
     let
         root :: BS.VertexId
         root = TG.findRoot vid grph
@@ -56,24 +59,32 @@ searchSiblings sbs funcName vid grph =
         cInstanceEdges :: [(BS.EdgeId, T.TypeConstraint)]
         cInstanceEdges = filter isCInstance rootEdges
 
-        siblings :: S.Set Module.Sibling
-        siblings = M.findWithDefault S.empty funcName sbs
+        cInstanceNames :: [(BS.EdgeId, Module.Sibling, T.TypeConstraint)]
+        cInstanceNames =
+            [ (eid, fromJust var, c)
+            | (eid, c@(T.CInstance _ name _)) <- cInstanceEdges
+            ,  let var = M.lookup name (TG.funcMap grph)
+            , isJust var
+            ]
 
-        sibConstraints :: [(Module.Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
-        sibConstraints = [(sib, eid, constr) | sib <- S.toList siblings, (eid, constr) <- cInstanceEdges]
+        siblings :: Module.Sibling -> S.Set Module.Sibling
+        siblings var = M.findWithDefault S.empty var sbs
 
-        sibFits :: (Module.Sibling, BS.EdgeId, T.TypeConstraint) -> TS.Solver Bool
-        sibFits (sib, eid, constr) = siblingSolvesError constr eid grph sib
+        sibConstraints :: [(Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
+        sibConstraints = [(var, sib, eid, constr) | (eid, var, constr) <- cInstanceNames, sib <- S.toList (siblings var)]
 
-        workingSiblings :: TS.Solver [(Module.Sibling, BS.EdgeId, T.TypeConstraint)]
+        sibFits :: (Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint) -> TS.Solver Bool
+        sibFits (_, sib, eid, constr) = siblingSolvesError constr eid grph sib
+
+        workingSiblings :: TS.Solver [(Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint)]
         workingSiblings = filterM sibFits sibConstraints
 
-        fst3 :: (a, b, c) -> a
-        fst3 (a, _, _) = a
+        fst2 :: (a, b, c, d) -> (a, b)
+        fst2 (a, b, _, _) = (a, b)
     in
         do
             workingSibs <- workingSiblings
-            return . S.fromList . map ((,) funcName . fst3) $ workingSibs
+            return . S.fromList . map fst2 $ workingSibs
 
 
 -- | Gives a set of siblings that would resolve the type error
@@ -88,42 +99,11 @@ investigateSiblings sbs (l P.:+: r) grph =
         lsibs <- investigateSiblings sbs l grph
         rsibs <- investigateSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-investigateSiblings sbs (P.Step eid@(BS.EdgeId l r _) (P.Initial constr)) grph =
-    -- An initial edge in the error path mentions a function
-    -- Check whether there is a sibling of that function
-    -- then check whether that function applies.
-    case constr of
-        T.CEqual (Error.BinopLeft v _) _ _ _ ->
-            do
-                leftSibs <- searchSiblings sbs v l grph
-                rightSibs <- searchSiblings sbs v r grph
-                return $ leftSibs `S.union` rightSibs
-        T.CEqual (Error.BinopRight v _) _ _ _ ->
-            do
-                leftSibs <- searchSiblings sbs v l grph
-                rightSibs <- searchSiblings sbs v r grph
-                return $ leftSibs `S.union` rightSibs
-        T.CEqual (Error.UnexpectedArg (Just v) _ _ _) _ _ _ ->
-            do
-                leftSibs <- searchSiblings sbs v l grph
-                rightSibs <- searchSiblings sbs v r grph
-                return $ leftSibs `S.union` rightSibs
-        T.CEqual (Error.FunctionArity (Just v) _ _ _) _ _ _ ->
-            do
-                leftSibs <- searchSiblings sbs v l grph
-                rightSibs <- searchSiblings sbs v r grph
-                return $ leftSibs `S.union` rightSibs
-        T.CEqual (Error.Function (Just v)) _ _ _ ->
-            do
-                leftSibs <- searchSiblings sbs v l grph
-                rightSibs <- searchSiblings sbs v r grph
-                return $ leftSibs `S.union` rightSibs
-        --T.CInstance _ funcName _ ->
-        --    do
-        --        let sibList = S.toList (M.findWithDefault S.empty funcName sbs)
-        --        solvingSibs <- filterM (siblingSolvesError constr eid grph) sibList
-        --        return . S.fromList . map ((,) funcName) $ solvingSibs
-        _ -> return S.empty
+investigateSiblings sbs (P.Step (BS.EdgeId l r _) _) grph =
+    do
+        leftSibs <- searchSiblings sbs l grph
+        rightSibs <- searchSiblings sbs r grph
+        return $ leftSibs `S.union` rightSibs
 investigateSiblings _ _ _ = return S.empty
 
 
