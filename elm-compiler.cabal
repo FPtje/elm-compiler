@@ -131,6 +131,7 @@ Library
         Type.Graph.EQGroup,
         Type.Graph.Path,
         Type.Graph.Siblings,
+        Type.Graph.Heuristics,
         Validate
 
 

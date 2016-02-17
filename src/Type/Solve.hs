@@ -14,7 +14,7 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import qualified Type.Graph.TypeGraph as TG
-import qualified Type.Graph.Siblings as SB
+import qualified Type.Graph.Heuristics as TH
 import Type.Type as Type
 import Type.Unify
 
@@ -162,16 +162,7 @@ invokeTypeGraph constraint =
     tgErrs <- TS.getTypeGraphErrors
     when (length errs > tgErrs) $ do
         (_, graph) <- TG.fromConstraint constraint 0 TG.empty
-        let grphErrs = TG.getErrors graph
-        let inconsistentPaths = map TG.inconsistentTypesPaths grphErrs
-
-        --trace ("GRAPH ERRORS: \n" ++ show grphErrs ++ "\n\n\nINCONSISTENT PATHS: " ++ show inconsistentPaths ++ "\n\n\n\n\n\n\nGRAPH:\n\n" ++ show graph) $ return ()
-
-        sbs <- TS.getSiblings
-        sibSuggestions <- mapM (\ip -> SB.investigateSiblings sbs ip graph) (concat inconsistentPaths)
-
-        SB.addSiblingSuggestions . S.unions $ sibSuggestions
-        --trace ("\n\n\nSIBLING SUGGESTIONS:\n" ++ show (S.unions $ sibSuggestions)) $ return ()
+        TH.applyHeuristics graph
         TS.updateTypeGraphErrs
 
 justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
