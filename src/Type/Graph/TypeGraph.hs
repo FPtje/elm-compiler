@@ -253,7 +253,7 @@ unifyTypeVars info terml termr i grph = do
 
 -- | Generate type graph from a single scheme
 fromScheme :: T.TypeScheme -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
-fromScheme scheme i grph = fromConstraint (T._constraint scheme) i grph
+fromScheme scheme i grph = fromConstraintHelper (T._constraint scheme) i grph
 
 -- | Generate type graph from type scheme
 -- Note: only simple type schmemes
@@ -276,22 +276,25 @@ updatefuncMapHint (Error.Function (Just v)) grph = updateFuncMap v grph
 updatefuncMapHint _ grph = grph
 
 -- | Generate a type graph from a constraint
-fromConstraint :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
-fromConstraint T.CTrue i grph = return (i, grph)
-fromConstraint T.CSaveEnv i grph = return (i, grph)
-fromConstraint constr@(T.CEqual err _ l r) i grph = unifyTypes constr l r i . updatefuncMapHint err $ grph
-fromConstraint (T.CAnd constrs) i grph = helper constrs i grph
+fromConstraint :: T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
+fromConstraint cnstr = snd <$> fromConstraintHelper cnstr 1 empty
+
+fromConstraintHelper :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
+fromConstraintHelper T.CTrue i grph = return (i, grph)
+fromConstraintHelper T.CSaveEnv i grph = return (i, grph)
+fromConstraintHelper constr@(T.CEqual err _ l r) i grph = unifyTypes constr l r i . updatefuncMapHint err $ grph
+fromConstraintHelper (T.CAnd constrs) i grph = helper constrs i grph
     where
         helper [] i' grph' = return (i', grph')
         helper (c : cs) i' grph' = do
-            (i'', grph'') <- fromConstraint c i' grph'
+            (i'', grph'') <- fromConstraintHelper c i' grph'
             helper cs i'' grph''
-fromConstraint (T.CLet schemes constr) i grph =
+fromConstraintHelper (T.CLet schemes constr) i grph =
     do
         (uq, grph') <- fromSchemes schemes i grph
-        fromConstraint constr uq grph'
+        fromConstraintHelper constr uq grph'
 
-fromConstraint constr@(T.CInstance _ name term) i grph = do
+fromConstraintHelper constr@(T.CInstance _ name term) i grph = do
     env <- TS.getEnv
 
     -- Get the type of the thing of which the term is an instance
