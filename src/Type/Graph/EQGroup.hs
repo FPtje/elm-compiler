@@ -62,7 +62,7 @@ split grp =
                 (gs1, gs2) = partition (any ((`elem` is) . fst) . vertices) groups
             in insertClique clique (foldr combine empty gs1) : gs2
 
-        addEdge (edge@(BS.EdgeId v1 v2 _), info) groups =
+        addEdge (edge@(BS.EdgeId v1 v2), info) groups =
             let is         = [v1, v2]
                 (gs1, gs2) = partition (any ((`elem` is) . fst) . vertices) groups
             in insertEdge edge info (foldr combine empty gs1) : gs2
@@ -163,9 +163,9 @@ equalPaths start target eqgroup =
             | otherwise =
                 let
                     -- Edges from this vertex
-                    (edgesFrom, es') = partition (\(BS.EdgeId a _ _, _) -> v1 == a) es
+                    (edgesFrom, es') = partition (\(BS.EdgeId a _, _) -> v1 == a) es
                     -- Edges to this vertex
-                    (edgesTo, es'') = partition (\(BS.EdgeId _ a _, _) -> v1 == a) es'
+                    (edgesTo, es'') = partition (\(BS.EdgeId _ a, _) -> v1 == a) es'
 
                     -- The neighboring cliques of which v1 is a member
                     (neighbourCliques, otherCliques) = partition ((v1 `elem`) . map CLQ.child) cs
@@ -174,13 +174,13 @@ equalPaths start target eqgroup =
                     P.choice $
 
                     -- Add steps to all edges coming from this node
-                    map (\(BS.EdgeId _ neighbour edgeNr, info) ->
-                        P.Step (BS.EdgeId v1 neighbour edgeNr) (P.Initial info)
+                    map (\(BS.EdgeId _ neighbour, info) ->
+                        P.Step (BS.EdgeId v1 neighbour) (P.Initial info)
                         P.:+: rec neighbour rest) edgesFrom
 
                     -- Add steps to all edges going to this node
-                    ++ map (\(BS.EdgeId neighbour _ edgeNr, info) ->
-                        P.Step (BS.EdgeId v1 neighbour edgeNr) (P.Initial info)
+                    ++ map (\(BS.EdgeId neighbour _, info) ->
+                        P.Step (BS.EdgeId v1 neighbour) (P.Initial info)
                         P.:+: rec neighbour rest) edgesTo
 
                     -- Creates all implied edges
@@ -195,7 +195,7 @@ equalPaths start target eqgroup =
                                          , let beginPath = P.choice1 (map makeImplied sourceParents)
                                                restPath = rec neighbour rest
                                                filteredRest = removeStartImplied . P.simplify $ restPath
-                                               makeImplied sp = P.Step (BS.EdgeId v1 neighbour (-1)) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
+                                               makeImplied sp = P.Step (BS.EdgeId v1 neighbour) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
                                          --, not (snd filteredRest) -- prevent detours
                                          ]
                                   in if null sources

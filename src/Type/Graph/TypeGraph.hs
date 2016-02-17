@@ -31,7 +31,6 @@ data TypeGraph info = TypeGraph
    , equivalenceGroupMap        :: M.Map Int (EG.EquivalenceGroup info)
    , equivalenceGroupCounter    :: Int
    , possibleErrors             :: [BS.VertexId]
-   , constraintNumber           :: Int
    , varNumber                  :: Int
    , funcMap                    :: M.Map String Var.Canonical
    }
@@ -44,7 +43,6 @@ empty = TypeGraph
     , equivalenceGroupMap     = M.empty
     , equivalenceGroupCounter = 0
     , possibleErrors          = []
-    , constraintNumber        = 0
     , varNumber               = 0
     , funcMap                 = M.empty
     }
@@ -341,20 +339,16 @@ getVertex vid grph =
 
 -- | Add an edge to the type graph
 addEdge :: BS.EdgeId -> info -> TypeGraph info -> TypeGraph info
-addEdge edge@(BS.EdgeId v1 v2 _) info =
+addEdge edge@(BS.EdgeId v1 v2) info =
  propagateEquality v1 . updateGroupOf v1 (EG.insertEdge edge info) . combineEQGroups [v1, v2]
 
 -- | Adds an edge to the type graph based on vertices
 addNewEdge :: (BS.VertexId, BS.VertexId) -> info -> TypeGraph info -> TypeGraph info
-addNewEdge (v1, v2) info grph =
- let
-    cnr = constraintNumber grph
- in
-    addEdge (BS.EdgeId v1 v2 cnr) info (grph { constraintNumber = cnr + 1})
+addNewEdge (v1, v2) info grph = addEdge (BS.EdgeId v1 v2) info grph
 
 -- | Deletes an edge from the graph
 deleteEdge :: BS.EdgeId -> TypeGraph info -> TypeGraph info
-deleteEdge edge@(BS.EdgeId v1 _ _) =
+deleteEdge edge@(BS.EdgeId v1 _) =
     propagateRemoval v1 . updateGroupOf v1 (EG.removeEdge edge)
 
 -- | addClique in TOP

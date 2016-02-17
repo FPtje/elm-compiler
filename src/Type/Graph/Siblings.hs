@@ -19,7 +19,7 @@ import Data.Maybe (isJust, fromJust)
 import Control.Monad (filterM)
 
 siblingSolvesError :: T.TypeConstraint -> BS.EdgeId -> TG.TypeGraph T.TypeConstraint -> Module.Sibling -> TS.Solver Bool
-siblingSolvesError constr eid@(BS.EdgeId _ r _) grph sib =
+siblingSolvesError constr eid@(BS.EdgeId _ r) grph sib =
     do
         let removedEdge = TG.deleteEdge eid grph
         let sibName = V.toString sib
@@ -99,7 +99,7 @@ investigateSiblings sbs (l P.:+: r) grph =
         lsibs <- investigateSiblings sbs l grph
         rsibs <- investigateSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-investigateSiblings sbs (P.Step (BS.EdgeId l r _) _) grph =
+investigateSiblings sbs (P.Step (BS.EdgeId l r) _) grph =
     do
         leftSibs <- searchSiblings sbs l grph
         rightSibs <- searchSiblings sbs r grph
