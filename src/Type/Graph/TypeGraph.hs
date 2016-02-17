@@ -30,7 +30,6 @@ data TypeGraph info = TypeGraph
    { referenceMap               :: M.Map BS.VertexId Int{- group number -}
    , equivalenceGroupMap        :: M.Map Int (EG.EquivalenceGroup info)
    , equivalenceGroupCounter    :: Int
-   , possibleErrors             :: [BS.VertexId]
    , varNumber                  :: Int
    , funcMap                    :: M.Map String Var.Canonical
    }
@@ -42,14 +41,10 @@ empty = TypeGraph
     { referenceMap            = M.empty
     , equivalenceGroupMap     = M.empty
     , equivalenceGroupCounter = 0
-    , possibleErrors          = []
     , varNumber               = 0
     , funcMap                 = M.empty
     }
 
--- | Adds the given vertex to the list of possible errors.
-addPossibleInconsistentGroup :: BS.VertexId -> TypeGraph info -> TypeGraph info
-addPossibleInconsistentGroup vid stg = stg { possibleErrors = vid : possibleErrors stg }
 
 -- | All VertexIds that are in the given vertex' group.
 -- Includes the given vertex
@@ -71,12 +66,12 @@ representativeInGroupOf i graph =
 combineEQGroups :: [BS.VertexId] -> TypeGraph info -> TypeGraph info
 combineEQGroups is grph =
     case nub (map (`representativeInGroupOf` grph) is) of
-        list@(i:_:_) ->
+        list@(_:_:_) ->
             let
                 eqgroups = map (fromMaybe (error "combineEQGroups: Unexpected non-existing VertexId") . flip getGroupOf grph) list
                 newGroup = foldr EG.combine EG.empty eqgroups
             in
-                addPossibleInconsistentGroup i . createGroup newGroup . foldr removeGroup grph $ eqgroups
+                createGroup newGroup . foldr removeGroup grph $ eqgroups
         _ -> grph
 
 -- | Add an equivalence group to the type graph
