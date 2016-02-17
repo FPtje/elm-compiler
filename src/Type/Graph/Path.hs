@@ -49,3 +49,4 @@ simplify path =
                 (p2   , Empty) -> p2
                 (p1   , p2   ) -> p1 :+: p2
         _ -> path
+

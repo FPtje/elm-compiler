@@ -24,4 +24,4 @@ data VertexKind =
 
 -- | Identifies an edge in the type graph
 data EdgeId = EdgeId VertexId VertexId
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
