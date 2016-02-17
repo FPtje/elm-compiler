@@ -33,7 +33,7 @@ siblingSolvesError constr eid@(BS.EdgeId _ r) grph sib =
               Nothing ->
                   error ("Could not find `" ++ sibName ++ "` when trying out siblings.")
 
-        (_, vidl, grphl) <- TG.addTermGraph (TG.uniqueVertexId removedEdge) freshCopy Nothing removedEdge
+        (vidl, grphl) <- TG.addTermGraph freshCopy Nothing removedEdge
         let updatedGrph = TG.addNewEdge (vidl, r) constr grphl
 
         let grphErrs = TG.getErrors updatedGrph

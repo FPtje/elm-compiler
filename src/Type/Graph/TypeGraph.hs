@@ -17,6 +17,7 @@ import qualified Data.List as List
 import qualified Reporting.Annotation as A
 import qualified Data.Set as S
 import Control.Monad.State (liftIO)
+import Control.Monad (foldM)
 import Data.List (nub)
 import Data.Either (lefts)
 
@@ -45,6 +46,9 @@ empty = TypeGraph
     , funcMap                 = M.empty
     }
 
+-- | Increase the unique counter for type graph variables
+incVarNumber :: TypeGraph info -> TypeGraph info
+incVarNumber grph = grph { varNumber = varNumber grph + 1 }
 
 -- | All VertexIds that are in the given vertex' group.
 -- Includes the given vertex
@@ -145,17 +149,14 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
--- | Retrieves a unique number for adding vertexIds to the graph
-uniqueVertexId :: TypeGraph info -> Int
-uniqueVertexId grph = (+) 1 . BS.unVertexId . fst . M.findMax . referenceMap $ grph
-
 -- | Create a type graph from a single term
-addTermGraph :: Int -> T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
-addTermGraph unique var alias grph = do
+addTermGraph :: T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
+addTermGraph var alias grph = do
+    let unique = varNumber grph
     desc <- liftIO $ UF.descriptor var
     let content = T._content desc
 
-    -- Get and update the vertex id in the representative of this variable
+    -- Get the vertex id in the representative of this variable
     repr <- liftIO $ UF.repr var
     reprDesc <- liftIO $ UF.descriptor repr
     let vertexId = fromMaybe unique (T._typegraphid reprDesc)
@@ -163,99 +164,97 @@ addTermGraph unique var alias grph = do
     case content of
         T.Structure t ->
             if vertexExists (BS.VertexId vertexId) grph then
-                return (unique, BS.VertexId vertexId, grph)
+                return (BS.VertexId vertexId, grph)
             else
                 do
-                    (i, vid, grph') <- addTermGraphStructure unique (T._typegraphid reprDesc) t alias grph
+                    (vid, grph') <- addTermGraphStructure (T._typegraphid reprDesc) t alias grph
                     liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just (BS.unVertexId vid) })
-                    return (i, vid, grph')
+                    return (vid, grph')
         T.Atom name ->
             do
                 let vid = BS.VertexId unique
-                return (unique + 1, vid, addVertex vid (BS.VCon (Var.toString name), alias) grph)
+                return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) $ grph)
 
-        T.Var flex msuper mname -> do
+        T.Var _ _ _ -> do
             let vid = BS.VertexId vertexId
-            let updGrph = grph {
-                varNumber = varNumber grph + 1
-            }
             liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
-            let exists = vertexExists vid updGrph
-            return (if exists then unique else unique + 1, vid, if exists then updGrph else addVertex vid (BS.VVar, alias) updGrph)
-        T.Alias als _ realtype -> addTermGraph unique realtype (Just als) grph
+            let exists = vertexExists vid grph
+
+            return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar, alias) $ grph)
+        T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
         -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
-        T.Error actual -> addTermGraph unique actual alias grph
+        T.Error actual -> addTermGraph actual alias grph
 
 -- | Add a recursive structure type to the type graph
 -- The first parameter is a unique counter, the second parameter a possible reference to a vertexID that already exists in the graph
-addTermGraphStructure :: Int -> Maybe Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (Int, BS.VertexId, TypeGraph info)
-addTermGraphStructure unique vertexId (T.App1 l r) alias grph = do
-    (uql, vidl, gphl) <- addTermGraph unique l Nothing grph
-    (uqr, vidr, gphr) <- addTermGraph uql r Nothing gphl
+addTermGraphStructure :: Maybe Int -> T.Term1 T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
+addTermGraphStructure vertexId (T.App1 l r) alias grph = do
+    (vidl, gphl) <- addTermGraph l Nothing grph
+    (vidr, gphr) <- addTermGraph r Nothing gphl
 
-    let vid = BS.VertexId (fromMaybe uqr vertexId)
-    let updGrph = addVertex vid (BS.VApp vidl vidr, alias) gphr
+    let vid = BS.VertexId (fromMaybe (varNumber gphr) vertexId)
+    let updGrph = addVertex vid (BS.VApp vidl vidr, alias) $ gphr
 
-    return (if isJust vertexId then uqr else uqr + 1, vid, updGrph)
+    return (vid, if isJust vertexId then updGrph else incVarNumber updGrph)
 
-addTermGraphStructure unique vertexId (T.Fun1 l r) alias grph = do
+addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
     -- Add the function constructor to the graph
-    let vid = BS.VertexId unique
-    let (uq', vid', grph') = (unique + 1, vid, addVertex vid (BS.VCon "Function", Nothing) grph)
+    let vid = BS.VertexId (varNumber grph)
+    let grph' = incVarNumber . addVertex vid (BS.VCon "Function", Nothing) $ grph
 
     -- Add the left type's subgraph
-    (uql, vidl, gphl) <- addTermGraph uq' l Nothing grph'
+    (vidl, gphl) <- addTermGraph l Nothing grph'
 
     -- Add the application of the function to the left's type
-    let appLVid = BS.VertexId uql
-    let updGrphL = addVertex appLVid (BS.VApp vid' vidl, Nothing) gphl
-    let uqAppL = uql + 1
+    let appLVid = BS.VertexId (varNumber gphl)
+    let updGrphL = incVarNumber . addVertex appLVid (BS.VApp vid vidl, Nothing) $ gphl
 
     -- Add the right type's subgraph
-    (uqr, vidr, gphr) <- addTermGraph uqAppL r Nothing updGrphL
+    (vidr, gphr) <- addTermGraph r Nothing updGrphL
 
     -- Add the application of (VApp function l) to the right's type
-    let appRVid = BS.VertexId (fromMaybe uqr vertexId)
+    let appRVid = BS.VertexId (fromMaybe (varNumber gphr) vertexId)
     let updGrphR = addVertex appRVid (BS.VApp appLVid vidr, alias) gphr
+    let doInc = if isJust vertexId then id else incVarNumber
 
-    return (if isJust vertexId then uqr else uqr + 1, appRVid, updGrphR)
+    return (appRVid, doInc updGrphR)
 
-addTermGraphStructure unique vertexId T.EmptyRecord1 alias grph = error "Records not implemented"
-addTermGraphStructure unique vertexId T.Record1 {} alias grph = error "Records not implemented"
+addTermGraphStructure vertexId T.EmptyRecord1 alias grph = error "Records not implemented"
+addTermGraphStructure vertexId T.Record1 {} alias grph = error "Records not implemented"
 
 
 -- | Unify two types in the type graph
 -- i.e. state that two types must be equal
-unifyTypes :: info -> T.Type -> T.Type -> Int -> TypeGraph info -> TS.Solver (Int, TypeGraph info)
-unifyTypes info terml termr i grph = do
+unifyTypes :: info -> T.Type -> T.Type -> TypeGraph info -> TS.Solver (TypeGraph info)
+unifyTypes info terml termr grph = do
     tl <- TS.flatten terml
     tr <- TS.flatten termr
 
-    unifyTypeVars info tl tr i grph
+    unifyTypeVars info tl tr grph
 
 
 -- | Unify two types in the type graph
 -- i.e. state that two types must be equal
-unifyTypeVars :: info -> T.Variable -> T.Variable -> Int -> TypeGraph info -> TS.Solver (Int, TypeGraph info)
-unifyTypeVars info terml termr i grph = do
-    (uql, vidl, grphl)  <- addTermGraph i terml Nothing grph
-    (uqr, vidr, grphr)  <- addTermGraph uql termr Nothing grphl
+unifyTypeVars :: info -> T.Variable -> T.Variable -> TypeGraph info -> TS.Solver (TypeGraph info)
+unifyTypeVars info terml termr grph = do
+    (vidl, grphl)  <- addTermGraph terml Nothing grph
+    (vidr, grphr)  <- addTermGraph termr Nothing grphl
 
-    return (uqr, addNewEdge (vidl, vidr) info grphr)
+    return $ addNewEdge (vidl, vidr) info grphr
 
 
 -- | Generate type graph from a single scheme
-fromScheme :: T.TypeScheme -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
-fromScheme scheme i grph = fromConstraintHelper (T._constraint scheme) i grph
+fromScheme :: T.TypeScheme -> TypeGraph T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
+fromScheme scheme grph = fromConstraintHelper (T._constraint scheme) grph
 
 -- | Generate type graph from type scheme
 -- Note: only simple type schmemes
-fromSchemes :: [T.TypeScheme] -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
-fromSchemes [] i grph = return (i, grph)
-fromSchemes (s : ss) i grph =
+fromSchemes :: [T.TypeScheme] -> TypeGraph T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
+fromSchemes [] grph = return grph
+fromSchemes (s : ss) grph =
     do
-        (i', grph') <- fromSchemes ss i grph
-        fromScheme s i' grph'
+        grph' <- fromSchemes ss grph
+        fromScheme s grph'
 
 updateFuncMap :: Var.Canonical -> TypeGraph a -> TypeGraph a
 updateFuncMap var grph = grph {funcMap = M.insert (Var.toString var) var (funcMap grph)}
@@ -270,24 +269,19 @@ updatefuncMapHint _ grph = grph
 
 -- | Generate a type graph from a constraint
 fromConstraint :: T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
-fromConstraint cnstr = snd <$> fromConstraintHelper cnstr 1 empty
+fromConstraint cnstr = fromConstraintHelper cnstr empty
 
-fromConstraintHelper :: T.TypeConstraint -> Int -> TypeGraph T.TypeConstraint -> TS.Solver (Int, TypeGraph T.TypeConstraint)
-fromConstraintHelper T.CTrue i grph = return (i, grph)
-fromConstraintHelper T.CSaveEnv i grph = return (i, grph)
-fromConstraintHelper constr@(T.CEqual err _ l r) i grph = unifyTypes constr l r i . updatefuncMapHint err $ grph
-fromConstraintHelper (T.CAnd constrs) i grph = helper constrs i grph
-    where
-        helper [] i' grph' = return (i', grph')
-        helper (c : cs) i' grph' = do
-            (i'', grph'') <- fromConstraintHelper c i' grph'
-            helper cs i'' grph''
-fromConstraintHelper (T.CLet schemes constr) i grph =
+fromConstraintHelper :: T.TypeConstraint -> TypeGraph T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
+fromConstraintHelper T.CTrue grph = return grph
+fromConstraintHelper T.CSaveEnv grph = return grph
+fromConstraintHelper constr@(T.CEqual err _ l r) grph = unifyTypes constr l r . updatefuncMapHint err $ grph
+fromConstraintHelper (T.CAnd constrs) grph = foldM (flip fromConstraintHelper) grph constrs
+fromConstraintHelper (T.CLet schemes constr) grph =
     do
-        (uq, grph') <- fromSchemes schemes i grph
-        fromConstraintHelper constr uq grph'
+        grph' <- fromSchemes schemes grph
+        fromConstraintHelper constr grph'
 
-fromConstraintHelper constr@(T.CInstance _ name term) i grph = do
+fromConstraintHelper constr@(T.CInstance _ name term) grph = do
     env <- TS.getEnv
 
     -- Get the type of the thing of which the term is an instance
@@ -304,7 +298,7 @@ fromConstraintHelper constr@(T.CInstance _ name term) i grph = do
                   error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
     t <- TS.flatten term
-    unifyTypeVars constr freshCopy t i grph
+    unifyTypeVars constr freshCopy t grph
 
 -- | Find the root of a vertex in a type graph
 findRoot :: BS.VertexId -> TypeGraph info -> BS.VertexId
