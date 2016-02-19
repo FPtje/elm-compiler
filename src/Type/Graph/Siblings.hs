@@ -68,7 +68,7 @@ searchSiblings sbs vid grph =
             ]
 
         siblings :: Module.Sibling -> S.Set Module.Sibling
-        siblings var = M.findWithDefault S.empty var sbs
+        siblings var = M.findWithDefault S.empty var (snd sbs)
 
         sibConstraints :: [(Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
         sibConstraints = [(var, sib, eid, constr) | (eid, var, constr) <- cInstanceNames, sib <- S.toList (siblings var)]

@@ -12,12 +12,13 @@ import qualified AST.Type as Type
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import qualified Type.Constrain.Expression as TcExpr
 import qualified Type.Environment as Env
 import qualified Type.Solve as Solve
 import qualified Type.State as TS
 import qualified Type.Type as T
-import Control.Monad.Except (ExceptT, throwError)
+import Control.Monad.Except (ExceptT)
 
 import System.IO.Unsafe
     -- Maybe possible to switch over to ST instead of IO.
@@ -52,24 +53,25 @@ checkSiblings :: Map.Map String Type.Canonical -> Module.Siblings -> ExceptT [A.
 checkSiblings typeMap sibs =
   let
     sibList :: [(Module.Sibling, [Module.Sibling])]
-    sibList = Map.toList (Map.map Set.toList sibs)
+    sibList = Map.toList (Map.map Set.toList (snd sibs))
   in
-    mapM_ (uncurry (checkSibling typeMap)) sibList
+    mapM_ (uncurry (checkSibling typeMap (fst sibs))) sibList
 
-checkSibling :: Map.Map String Type.Canonical -> Module.Sibling -> [Module.Sibling] -> ExceptT [A.Located Error.Error] IO ()
-checkSibling typeMap sib sibs =
-  mapM_ (checkSiblingHelper typeMap sib) sibs
+checkSibling :: Map.Map String Type.Canonical -> Map.Map (Sibling, Sibling) R.Region -> Module.Sibling -> [Module.Sibling] -> ExceptT [A.Located Error.Error] IO ()
+checkSibling typeMap rgs sib sibs =
+  mapM_ (checkSiblingHelper typeMap rgs sib) sibs
 
-checkSiblingHelper :: Map.Map String Type.Canonical -> Module.Sibling -> Module.Sibling -> ExceptT [A.Located Error.Error] IO ()
-checkSiblingHelper typeMap left right =
+checkSiblingHelper :: Map.Map String Type.Canonical -> Map.Map (Sibling, Sibling) R.Region -> Module.Sibling -> Module.Sibling -> ExceptT [A.Located Error.Error] IO ()
+checkSiblingHelper typeMap rgs left right =
   do
     let leftVar = Var.toString left
     let rightVar = Var.toString right
-    let leftType = Map.findWithDefault (error $ "checkSiblingHelper: existence check already passed") leftVar typeMap
-    let rightType = Map.findWithDefault (error $ "checkSiblingHelper: existence check already passed") rightVar typeMap
+    let leftType = Map.findWithDefault (error "checkSiblingHelper: existence check already passed") leftVar typeMap
+    let rightType = Map.findWithDefault (error "checkSiblingHelper: existence check already passed") rightVar typeMap
+    let sibRegion = Map.findWithDefault (error "Could not find sibling location") (left, right) rgs
 
     if (leftType == rightType)
-      then error ("\nSibling bad " ++ show left ++ "\n\n" ++ show right) -- TODO: proper error
+      then throwError [A.A sibRegion (Error.SameTypeSibling sibRegion left right)]
       else return ()
 
 genConstraints

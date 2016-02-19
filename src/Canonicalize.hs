@@ -116,13 +116,18 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
               Map.fromList [ (name,(vars,ctors)) | D.Datatype name vars ctors <- nakedDecls ]
 
           , siblings =
-              foldl (
-                \mp (from, to) ->
-                  Map.insert from
-                  (to `Set.insert` Map.findWithDefault Set.empty from mp) mp
-                )
-              Map.empty
-              [(from, to) | D.Sibling from to <- map A.drop decls]
+              (
+                Map.fromList
+                [((from, to), rg) | A.A (rg, _) (D.Sibling from to) <- decls]
+              ,
+                foldl (
+                  \mp (from, to) ->
+                    Map.insert from
+                    (to `Set.insert` Map.findWithDefault Set.empty from mp) mp
+                  )
+                Map.empty
+                [(from, to) | D.Sibling from to <- nakedDecls]
+              )
 
           , fixities =
               [ (assoc,level,op) | D.Fixity assoc level op <- nakedDecls ]

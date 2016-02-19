@@ -24,6 +24,7 @@ data Error
     = Mismatch Mismatch
     | BadMain Type.Canonical
     | InfiniteType String Type.Canonical
+    | SameTypeSibling Region.Region Var.Canonical Var.Canonical
     deriving (Show)
 
 
@@ -113,6 +114,21 @@ toReport localizer err =
               , indent 4 (RenderType.toDoc localizer tipe)
               ]
           )
+
+    SameTypeSibling rg left right ->
+        Report.report
+        "BAD SIBLING DEFINITION"
+        (Just rg)
+        "A sibling was defined in which the two resembling functions have the same type."
+        ( Help.stack
+            [ Help.reflowParagraph $
+              "This sibling states that " ++ prettyName left ++ " is similar to " ++ prettyName right ++ ". \
+              \This means that " ++ prettyName left ++ " will be suggested when " ++ prettyName right ++
+              "is involved in a type error. However, siblings are only suggested when \
+              \they actually resolve the type error. When the types of the two \
+              \siblings are exactly the same, you know that one function cannot resolve the type error of the other."
+            ]
+        )
 
 
 

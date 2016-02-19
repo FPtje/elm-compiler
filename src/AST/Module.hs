@@ -23,6 +23,7 @@ import qualified Docs.AST as Docs
 import qualified Elm.Package as Package
 import qualified Elm.Compiler.Version as Compiler
 import qualified Reporting.Annotation as A
+import qualified Reporting.Region as R
 
 
 -- HELPFUL TYPE ALIASES
@@ -33,7 +34,7 @@ type Types      = Map.Map String Type.Canonical
 type Aliases    = Map.Map String ([String], Type.Canonical)
 type ADTs       = Map.Map String (AdtInfo String)
 type Sibling    = Var.Canonical
-type Siblings   = Map.Map Sibling (Set.Set Sibling)
+type Siblings   = (Map.Map (Sibling, Sibling) R.Region, Map.Map Sibling (Set.Set Sibling))
 
 type AdtInfo v = ( [String], [(v, [Type.Canonical])] )
 type CanonicalAdt = (Var.Canonical, AdtInfo Var.Canonical)
