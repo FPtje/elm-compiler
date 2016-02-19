@@ -69,12 +69,17 @@ typePathShare minRatio paths =
         findEdge :: BS.EdgeId -> T.TypeConstraint
         findEdge e = M.findWithDefault (error "Could not find a thing I put in here myself") e edgeMap
 
+        inThreshold :: [(T.TypeConstraint, Double)]
+        inThreshold = takeWhile ((> minRatio) . snd) (tail ratios)
     in
         -- Give only one constraint when it appears in every error path
         if snd (head countList) == nrOfPaths then
-            [head ratios]
+            takeWhile ((>= 0.999) . snd) (tail ratios)
         else
-            head ratios : takeWhile ((> minRatio) . snd) (tail ratios)
+            if null inThreshold then
+                ratios
+            else
+                inThreshold
 
 
 
