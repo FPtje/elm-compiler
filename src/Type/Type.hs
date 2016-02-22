@@ -26,9 +26,6 @@ import System.IO.Unsafe
 type Type =
     TermN Variable
 
-type TrustFactor =
-    Int
-
 
 type Variable =
     UF.Point Descriptor
@@ -145,6 +142,30 @@ getVarNamesMark =
 
 -- CONSTRAINTS
 
+data TrustFactor
+    = Pattern
+    | Literal
+    | Annotation
+    | BuiltInVar
+    | ModuleVar
+    | TopLevelVar
+    | LocalVar
+    | DataInstance
+    | BadParameter
+    | FuncReturnType
+    | ListType
+    | ShaderType
+    | IfType
+    | CaseType
+    | LambdaType
+    | RecordType
+    | IfBranches
+    | IfCondition
+    | CaseBranches
+    | ListValues
+    | ListRange
+    | FunctionArity
+    deriving (Show)
 
 data Constraint a b
     = CTrue
@@ -317,6 +338,32 @@ copyConstraintHelp mp (CInstance rg nm tp trust) =
     return (CInstance rg nm tp' trust, mp')
 
 copyConstraintHelp mp x = return (x, mp)
+
+-- Valuation of trust
+-- Decides how much trust is assigned to each kind of constraint
+trustValuation :: TrustFactor -> Int
+trustValuation Pattern          = 200
+trustValuation Literal          = 800
+trustValuation Annotation       = 500
+trustValuation BuiltInVar       = 1000
+trustValuation ModuleVar        = 700
+trustValuation TopLevelVar      = 400
+trustValuation LocalVar         = 300
+trustValuation DataInstance     = 400
+trustValuation BadParameter     = 200
+trustValuation FuncReturnType   = 100
+trustValuation ListType         = 100
+trustValuation ShaderType       = 100
+trustValuation IfType           = 100
+trustValuation CaseType         = 100
+trustValuation LambdaType       = 100
+trustValuation RecordType       = 100
+trustValuation IfBranches       = 100
+trustValuation IfCondition      = 50
+trustValuation CaseBranches     = 100
+trustValuation ListValues       = 100
+trustValuation ListRange        = 50
+trustValuation FunctionArity    = 150
 
 -- VARIABLE CREATION
 
