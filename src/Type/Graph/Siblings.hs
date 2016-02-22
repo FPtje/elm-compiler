@@ -62,7 +62,7 @@ searchSiblings sbs vid grph =
         cInstanceNames :: [(BS.EdgeId, Module.Sibling, T.TypeConstraint)]
         cInstanceNames =
             [ (eid, fromJust var, c)
-            | (eid, c@(T.CInstance _ name _)) <- cInstanceEdges
+            | (eid, c@(T.CInstance _ name _ _)) <- cInstanceEdges
             ,  let var = M.lookup name (TG.funcMap grph)
             , isJust var
             ]

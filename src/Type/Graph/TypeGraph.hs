@@ -274,14 +274,14 @@ fromConstraint cnstr = fromConstraintHelper cnstr empty
 fromConstraintHelper :: T.TypeConstraint -> TypeGraph T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
 fromConstraintHelper T.CTrue grph = return grph
 fromConstraintHelper T.CSaveEnv grph = return grph
-fromConstraintHelper constr@(T.CEqual err _ l r) grph = unifyTypes constr l r . updatefuncMapHint err $ grph
+fromConstraintHelper constr@(T.CEqual err _ l r _) grph = unifyTypes constr l r . updatefuncMapHint err $ grph
 fromConstraintHelper (T.CAnd constrs) grph = foldM (flip fromConstraintHelper) grph constrs
 fromConstraintHelper (T.CLet schemes constr) grph =
     do
         grph' <- fromSchemes schemes grph
         fromConstraintHelper constr grph'
 
-fromConstraintHelper constr@(T.CInstance _ name term) grph = do
+fromConstraintHelper constr@(T.CInstance _ name term _) grph = do
     env <- TS.getEnv
 
     -- Get the type of the thing of which the term is an instance

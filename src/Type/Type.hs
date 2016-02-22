@@ -26,6 +26,9 @@ import System.IO.Unsafe
 type Type =
     TermN Variable
 
+type TrustFactor =
+    Int
+
 
 type Variable =
     UF.Point Descriptor
@@ -146,10 +149,10 @@ getVarNamesMark =
 data Constraint a b
     = CTrue
     | CSaveEnv
-    | CEqual Error.Hint R.Region a a
+    | CEqual Error.Hint R.Region a a TrustFactor
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
-    | CInstance R.Region SchemeName a
+    | CInstance R.Region SchemeName a TrustFactor
     deriving (Show)
 
 
@@ -282,12 +285,12 @@ copyConstraint cnstr =
     return cnstr'
 
 copyConstraintHelp :: Map.Map Int Variable -> TypeConstraint -> IO (TypeConstraint, Map.Map Int Variable)
-copyConstraintHelp mp (CEqual h rg l r) =
+copyConstraintHelp mp (CEqual h rg l r trust) =
   do
     (l', mp1) <- copyType mp l
     (r', mp2) <- copyType mp1 r
 
-    return $ (CEqual h rg l' r', mp2)
+    return $ (CEqual h rg l' r' trust, mp2)
 
 copyConstraintHelp mp (CAnd cs) = do
   (cnstrs, mp') <- foldr (\cnstr acc -> do
@@ -308,10 +311,10 @@ copyConstraintHelp mp (CLet schemes cnstr) =
 
     return $ (CLet schemes' cnstr', mp2)
 
-copyConstraintHelp mp (CInstance rg nm tp) =
+copyConstraintHelp mp (CInstance rg nm tp trust) =
   do
     (tp', mp') <- copyType mp tp
-    return (CInstance rg nm tp', mp')
+    return (CInstance rg nm tp' trust, mp')
 
 copyConstraintHelp mp x = return (x, mp)
 

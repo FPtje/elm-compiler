@@ -56,12 +56,12 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                 uniform = makeRec Lit.uniform unif
                 varying = makeRec Lit.varying (TermN EmptyRecord1)
             in
-                return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe)
+                return (CEqual Error.Shader region (shaderTipe attribute uniform varying) tipe 100)
 
       E.Var var ->
           let name = V.toString var
           in
-              return (if name == E.saveEnvName then CSaveEnv else name <? tipe)
+              return (if name == E.saveEnvName then CSaveEnv else (name <? tipe) (trustFactor var))
 
       E.Range lowExpr highExpr ->
           existsNumber $ \n ->
@@ -70,7 +70,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                   return $ CAnd
                     [ lowCon
                     , highCon
-                    , CEqual Error.Range region (list n) tipe
+                    , CEqual Error.Range region (list n) tipe 50
                     ]
 
       E.ExplicitList exprs ->
@@ -89,7 +89,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                             (CLet [monoscheme (Fragment.typeEnv fragment)]
                                   (Fragment.typeConstraint fragment /\ bodyCon)
                             )
-                  return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe
+                  return $ con /\ CEqual Error.Lambda region (argType ==> resType) tipe 100
 
       E.App _ _ ->
           let
@@ -107,7 +107,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           do  vars <- Monad.forM exprs $ \_ -> mkVar Nothing
               let pairs = zip exprs (map VarN vars)
               (ctipe, cs) <- Monad.foldM step (tipe, CTrue) (reverse pairs)
-              return $ ex vars (cs /\ name <? ctipe)
+              return $ ex vars (cs /\ (name <? ctipe) 400)
           where
             step (t,c) (e,x) =
                 do  c' <- constrain env e x
@@ -125,7 +125,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
 
                   newVars <- mapM (\_ -> mkVar Nothing) fields
                   let newFields = Map.fromList (zip (map fst fields) (map VarN newVars))
-                  let cNew = CEqual Error.Record region (record newFields t) tipe
+                  let cNew = CEqual Error.Record region (record newFields t) tipe 100
 
                   cs <- Monad.zipWithM (constrain env) (map snd fields) (map VarN newVars)
 
@@ -140,7 +140,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
                       (map VarN vars)
               let fields' = Map.fromList (zip (map fst fields) (map VarN vars))
               let recordType = record fields' (TermN EmptyRecord1)
-              return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe])))
+              return (ex vars (CAnd (fieldCons ++ [CEqual Error.Record region recordType tipe 100])))
 
       E.Let defs body ->
           do  bodyCon <- constrain env body tipe
@@ -185,7 +185,7 @@ constrainApp env region f args tipe =
           argConstraints env maybeName region (length args) funcVar 1 args
 
       let returnCon =
-            CEqual (Error.Function maybeName) region (VarN returnVar) tipe
+            CEqual (Error.Function maybeName) region (VarN returnVar) tipe 100
 
       return $ ex (funcVar : vars) $
         CAnd (funcCon : argCons ++ numberOfArgsCons ++ argMatchCons ++ [returnCon])
@@ -231,6 +231,7 @@ argConstraints env name region totalArgs overallVar index args =
                   region
                   (VarN argIndexVar ==> VarN localReturnVar)
                   (VarN overallVar)
+                  150
 
           let argMatchCon =
                 CEqual
@@ -238,6 +239,7 @@ argConstraints env name region totalArgs overallVar index args =
                   region
                   (VarN argIndexVar)
                   (VarN argVar)
+                  200
 
           return
             ( argVar : argIndexVar : localReturnVar : vars
@@ -278,10 +280,10 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
         ex [leftVar,rightVar,leftVar',rightVar',answerVar] $ CAnd $
           [ leftCon
           , rightCon
-          , CInstance region (V.toString op) opType
-          , CEqual (Error.BinopLeft op leftRegion) region (VarN leftVar') (VarN leftVar)
-          , CEqual (Error.BinopRight op rightRegion) region (VarN rightVar') (VarN rightVar)
-          , CEqual (Error.Binop op) region (VarN answerVar) tipe
+          , CInstance region (V.toString op) opType (trustFactor op)
+          , CEqual (Error.BinopLeft op leftRegion) region (VarN leftVar') (VarN leftVar) 200
+          , CEqual (Error.BinopRight op rightRegion) region (VarN rightVar') (VarN rightVar) 200
+          , CEqual (Error.Binop op) region (VarN answerVar) tipe 100
           ]
 
 
@@ -297,7 +299,7 @@ constrainList env region exprs tipe =
   do  (exprInfo, exprCons) <-
           unzip <$> mapM elementConstraint exprs
 
-      (vars, cons) <- pairCons region Error.ListElement varToCon exprInfo
+      (vars, cons) <- pairCons region Error.ListElement varToCon 100 exprInfo
 
       return $ ex vars (CAnd (exprCons ++ cons))
   where
@@ -307,7 +309,7 @@ constrainList env region exprs tipe =
           return ( (var, region'), con )
 
     varToCon var =
-      CEqual Error.List region (Env.getType env "List" <| VarN var) tipe
+      CEqual Error.List region (Env.getType env "List" <| VarN var) tipe 100
 
 
 -- CONSTRAIN IF EXPRESSIONS
@@ -339,7 +341,7 @@ constrainIf env region branches finally tipe =
     constrainCondition condition@(A.A condRegion _) =
       do  condVar <- mkVar Nothing
           condCon <- constrain env condition (VarN condVar)
-          let boolCon = CEqual Error.IfCondition condRegion (VarN condVar) bool
+          let boolCon = CEqual Error.IfCondition condRegion (VarN condVar) bool 50
           return (condVar, CAnd [ condCon, boolCon ])
 
     constrainBranch expr@(A.A branchRegion _) =
@@ -355,16 +357,17 @@ constrainIf env region branches finally tipe =
         [(thenVar, _), (elseVar, _)] ->
             return
               ( [thenVar,elseVar]
-              , [ CEqual Error.IfBranches region (VarN thenVar) (VarN elseVar)
+              , [ CEqual Error.IfBranches region (VarN thenVar) (VarN elseVar) 100
                 , varToCon thenVar
                 ]
               )
 
         _ ->
-            pairCons region Error.MultiIfBranch varToCon branchInfo
+            pairCons region Error.MultiIfBranch varToCon 100 branchInfo
 
     varToCon var =
-      CEqual Error.If region (VarN var) tipe
+      CEqual Error.If region (VarN var) tipe 100
+
 
 
 -- CONSTRAIN CASE EXPRESSIONS
@@ -383,7 +386,7 @@ constrainCase env region expr branches tipe =
       (branchInfo, branchExprCons) <-
           unzip <$> mapM (branch (VarN exprVar)) branches
 
-      (vars, cons) <- pairCons region Error.CaseBranch varToCon branchInfo
+      (vars, cons) <- pairCons region Error.CaseBranch varToCon 100 branchInfo
 
       return $ ex (exprVar : vars) (CAnd (exprCon : branchExprCons ++ cons))
   where
@@ -397,7 +400,16 @@ constrainCase env region expr branches tipe =
                 )
 
     varToCon var =
-      CEqual Error.Case region tipe (VarN var)
+      CEqual Error.Case region tipe (VarN var) 100
+
+-- | Decide the trust factor for different kinds of variables
+trustFactor :: V.Canonical -> TrustFactor
+trustFactor var =
+  case var of
+    V.Canonical (V.BuiltIn) _ -> 1000
+    V.Canonical (V.Module _) _ -> 700
+    V.Canonical (V.TopLevel _) _ -> 400
+    V.Canonical (V.Local) _ -> 300
 
 
 -- COLLECT PAIRS
@@ -414,12 +426,13 @@ pairCons
     :: R.Region
     -> (Int -> R.Region -> Error.Hint)
     -> (Variable -> TypeConstraint)
+    -> TrustFactor
     -> [(Variable, R.Region)]
     -> IO ([Variable], [TypeConstraint])
-pairCons region pairHint varToCon items =
+pairCons region pairHint varToCon trust items =
   let
     pairToCon (Pair index var1 var2 subregion) =
-      CEqual (pairHint index subregion) region (VarN var1) (VarN var2)
+      CEqual (pairHint index subregion) region (VarN var1) (VarN var2) trust
   in
   case collectPairs 2 items of
     Nothing ->
@@ -534,7 +547,7 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
       var <- mkVar Nothing
       defCon <- constrain env' expr (VarN var)
       let annCon =
-            CEqual (Error.BadTypeAnnotation name) typeRegion typ (VarN var)
+            CEqual (Error.BadTypeAnnotation name) typeRegion typ (VarN var) 500
 
       return $ info
           { iSchemes = scheme : iSchemes info

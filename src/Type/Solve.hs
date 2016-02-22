@@ -168,11 +168,11 @@ invokeTypeGraph constraint =
 justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
 justFlatten CTrue = return CTrue
 justFlatten CSaveEnv = return CSaveEnv
-justFlatten (CEqual hint region term1 term2) =
+justFlatten (CEqual hint region term1 term2 trust) =
     do  t1 <- TS.flatten term1
         t2 <- TS.flatten term2
 
-        return $ CEqual hint region (VarN t1) (VarN t2)
+        return $ CEqual hint region (VarN t1) (VarN t2) trust
 justFlatten (CAnd xs) = helper xs
   where
     helper [] = return (CAnd [])
@@ -184,9 +184,9 @@ justFlatten (CAnd xs) = helper xs
 justFlatten (CLet schemes constraint) = do
   c' <- justFlatten constraint
   return $ CLet schemes c'
-justFlatten (CInstance region name term) = do
+justFlatten (CInstance region name term trust) = do
   t' <- TS.flatten term
-  return $ CInstance region name (VarN t')
+  return $ CInstance region name (VarN t') trust
 
 
 solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO TS.SolverState
@@ -214,7 +214,7 @@ actuallySolve constraint =
     CSaveEnv ->
         TS.saveLocalEnv
 
-    CEqual hint region term1 term2 ->
+    CEqual hint region term1 term2 _ ->
         do  t1 <- TS.flatten term1
             t2 <- TS.flatten term2
             unify hint region t1 t2
@@ -244,7 +244,7 @@ actuallySolve constraint =
             mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
 
-    CInstance region name term ->
+    CInstance region name term _ ->
         do  env <- TS.getEnv
             freshCopy <-
                 case Map.lookup name env of
