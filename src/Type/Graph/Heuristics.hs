@@ -81,7 +81,14 @@ typePathShare minRatio paths =
             else
                 inThreshold
 
+-- | Apply sibling error hints when applicable
+applySiblings :: TG.TypeGraph T.TypeConstraint -> [P.Path T.TypeConstraint] -> TS.Solver ()
+applySiblings grph inconsistentPaths =
+    do
+        sbs <- TS.getSiblings
+        sibSuggestions <- mapM (\ip -> SB.investigateSiblings sbs ip grph) inconsistentPaths
 
+        SB.addSiblingSuggestions . S.unions $ sibSuggestions
 
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
@@ -89,7 +96,7 @@ applyHeuristics grph =
         let grphErrs = TG.getErrors grph
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 
-        sbs <- TS.getSiblings
-        sibSuggestions <- mapM (\ip -> SB.investigateSiblings sbs ip grph) inconsistentPaths
+        --let errorPathShare = map fst $ typePathShare 0.8 inconsistentPaths
 
-        SB.addSiblingSuggestions . S.unions $ sibSuggestions
+        applySiblings grph inconsistentPaths
+
