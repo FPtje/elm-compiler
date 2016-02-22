@@ -10,6 +10,7 @@ import qualified Data.Map as M
 import qualified Type.Type as T
 
 import Data.List (sortBy)
+import Data.Maybe (fromMaybe)
 
 -- | Counts how often Initial edges occur in a set of error paths
 -- Returns the total amount of paths,
@@ -90,13 +91,43 @@ applySiblings grph inconsistentPaths =
 
         SB.addSiblingSuggestions . S.unions $ sibSuggestions
 
+-- | Uses the trust factor assigned to constraints
+-- to sort (and prune) constraints
+trustFactor :: Int -> [T.TypeConstraint] -> [T.TypeConstraint]
+trustFactor prune constrs =
+    let
+        cond :: T.TypeConstraint -> T.TypeConstraint -> Ordering
+        cond l r =
+            case (T.trustFactor l, T.trustFactor r) of
+                (Nothing, Nothing) -> EQ
+                (Nothing, _) -> LT
+                (_, Nothing) -> GT
+                (Just tl, Just tr) -> compare (T.trustValuation tl) (T.trustValuation tr)
+
+        pruneCond :: T.TypeConstraint -> Bool
+        pruneCond constr =
+            let
+                trust = T.trustFactor constr
+            in
+                fromMaybe True ((> prune) . T.trustValuation <$> trust)
+
+        filtered :: [T.TypeConstraint]
+        filtered = filter pruneCond constrs
+    in
+        if (null filtered) then
+            sortBy cond constrs
+        else
+            sortBy cond filtered
+
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
     do
         let grphErrs = TG.getErrors grph
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 
-        --let errorPathShare = map fst $ typePathShare 0.8 inconsistentPaths
+        -- Apply filter
+        let errorPathShare = map fst $ typePathShare 0.8 inconsistentPaths
+        let sortTrusted = trustFactor 800 errorPathShare
 
         applySiblings grph inconsistentPaths
 

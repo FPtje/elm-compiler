@@ -339,6 +339,12 @@ copyConstraintHelp mp (CInstance rg nm tp trust) =
 
 copyConstraintHelp mp x = return (x, mp)
 
+
+trustFactor :: Constraint a b -> Maybe TrustFactor
+trustFactor (CEqual _ _ _ _ t) = Just t
+trustFactor (CInstance _ _ _ t) = Just t
+trustFactor _ = Nothing
+
 -- Valuation of trust
 -- Decides how much trust is assigned to each kind of constraint
 trustValuation :: TrustFactor -> Int
