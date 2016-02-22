@@ -77,6 +77,10 @@ addError :: R.Region -> Error.Error -> Solver ()
 addError region err =
     State.modify $ \state -> state { sError = A.A region err : sError state }
 
+removeErrors :: Int -> Solver ()
+removeErrors i =
+    State.modify $ \state -> state { sError = drop i (sError state) }
+
 
 switchToPool :: Pool -> Solver ()
 switchToPool pool =

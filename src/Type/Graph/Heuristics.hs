@@ -5,12 +5,18 @@ import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.TypeGraph as TG
 import qualified Type.Graph.Siblings as SB
 import qualified Type.Graph.Path as P
+import qualified Reporting.Annotation as A
+import qualified Reporting.Error.Type as Error
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Type.Type as T
 
 import Data.List (sortBy)
 import Data.Maybe (fromMaybe)
+import Control.Monad (when)
+import Control.Monad.Except (liftIO)
+
+import Debug.Trace
 
 -- | Counts how often Initial edges occur in a set of error paths
 -- Returns the total amount of paths,
@@ -119,15 +125,71 @@ trustFactor prune constrs =
         else
             sortBy cond filtered
 
+-- | Find error thrown by normal unify based on the region
+-- Region might not be valid, as multiple errors could have the same region
+findError :: T.TypeConstraint -> [A.Located Error.Error] -> Maybe (A.Located Error.Error)
+findError constr@(T.CEqual _ crg _ _ _) (err@(A.A rg _) : xs)
+    | rg == crg = Just err
+    | otherwise = findError constr xs
+findError constr@(T.CInstance crg _ _ _) (err@(A.A rg _) : xs)
+    | rg == crg = Just err
+    | otherwise = findError constr xs
+findError _ _ = Nothing
+
+-- | Throw an error that is stored in a constraint
+throwErrorFromConstraint :: [A.Located Error.Error] -> T.TypeConstraint -> TS.Solver ()
+throwErrorFromConstraint errs constr =
+    case (findError constr errs, constr) of
+        (Just (A.A rg err), _) -> TS.addError rg err
+        (Nothing, T.CEqual hint rg lt rt _) ->
+            do
+                flt <- TS.flatten lt
+                frt <- TS.flatten rt
+                srcl <- liftIO $ T.toSrcType flt
+                srcr <- liftIO $ T.toSrcType frt
+                let info = Error.MismatchInfo hint srcl srcr Nothing []
+                TS.addError rg (Error.Mismatch info)
+        (Nothing, T.CInstance _ _ _ _) ->
+            error "Didn't expect to see an instance here" -- TODO
+
+-- | Replace the error of this part of the program
+-- with the ones given by the heuristics
+replaceErrors :: [T.TypeConstraint] -> TS.Solver ()
+replaceErrors constrs =
+    do
+        errs <- TS.getError
+        tgErrs <- TS.getTypeGraphErrors
+        let relevantErrs = take tgErrs errs
+        trace ("\n\nElm would have thrown these errors: \n" ++ show tgErrs ++ "\n" ++ show relevantErrs) $ return ()
+
+        TS.removeErrors (length errs - tgErrs)
+
+        mapM_ (throwErrorFromConstraint relevantErrs) constrs
+
+
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
     do
         let grphErrs = TG.getErrors grph
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 
-        -- Apply filter
+        trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
+
+        -- Apply filter heuristics
         let errorPathShare = map fst $ typePathShare 0.8 inconsistentPaths
+        trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 inconsistentPaths)) $ return ()
         let sortTrusted = trustFactor 800 errorPathShare
+
+        trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
+
+        when (not . null $ sortTrusted) $ do
+            -- The classic "eh just pick the first one" heuristic
+            -- Called the "Constraint number heuristic" in Top.
+            let throwable = head sortTrusted
+
+            replaceErrors [throwable]
+
+
 
         applySiblings grph inconsistentPaths
 

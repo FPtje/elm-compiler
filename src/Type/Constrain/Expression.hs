@@ -61,7 +61,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
       E.Var var ->
           let name = V.toString var
           in
-              return (if name == E.saveEnvName then CSaveEnv else (name <? tipe) (trustFactor var))
+              return (if name == E.saveEnvName then CSaveEnv else (name <? tipe) (varTrustFactor var))
 
       E.Range lowExpr highExpr ->
           existsNumber $ \n ->
@@ -280,7 +280,7 @@ constrainBinop env region op leftExpr@(A.A leftRegion _) rightExpr@(A.A rightReg
         ex [leftVar,rightVar,leftVar',rightVar',answerVar] $ CAnd $
           [ leftCon
           , rightCon
-          , CInstance region (V.toString op) opType (trustFactor op)
+          , CInstance region (V.toString op) opType (varTrustFactor op)
           , CEqual (Error.BinopLeft op leftRegion) region (VarN leftVar') (VarN leftVar) BadParameter
           , CEqual (Error.BinopRight op rightRegion) region (VarN rightVar') (VarN rightVar) BadParameter
           , CEqual (Error.Binop op) region (VarN answerVar) tipe FuncReturnType
@@ -403,8 +403,8 @@ constrainCase env region expr branches tipe =
       CEqual Error.Case region tipe (VarN var) CaseType
 
 -- | Decide the trust factor for different kinds of variables
-trustFactor :: V.Canonical -> TrustFactor
-trustFactor var =
+varTrustFactor :: V.Canonical -> TrustFactor
+varTrustFactor var =
   case var of
     V.Canonical (V.BuiltIn) _ -> BuiltInVar
     V.Canonical (V.Module _) _ -> ModuleVar
