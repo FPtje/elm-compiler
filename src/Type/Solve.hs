@@ -162,7 +162,6 @@ invokeTypeGraph constraint =
     tgErrs <- TS.getTypeGraphErrors
     when (length errs > tgErrs) $ do
         graph <- TG.fromConstraint constraint
-        trace ("\n\napplying heuristics: " ++ show (length errs)) $ return ()
         TH.applyHeuristics graph
         TS.updateTypeGraphErrs
 

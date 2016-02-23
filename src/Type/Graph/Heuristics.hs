@@ -77,11 +77,11 @@ typePathShare minRatio paths =
         findEdge e = M.findWithDefault (error "Could not find a thing I put in here myself") e edgeMap
 
         inThreshold :: [(T.TypeConstraint, Double)]
-        inThreshold = takeWhile ((> minRatio) . snd) (tail ratios)
+        inThreshold = takeWhile ((> minRatio) . snd) ratios
     in
         -- Give only one constraint when it appears in every error path
         if snd (head countList) == nrOfPaths then
-            takeWhile ((>= 0.999) . snd) (tail ratios)
+            takeWhile ((>= 0.999) . snd) ratios
         else
             if null inThreshold then
                 ratios
@@ -159,7 +159,7 @@ replaceErrors constrs =
     do
         errs <- TS.getError
         tgErrs <- TS.getTypeGraphErrors
-        let relevantErrs = take tgErrs errs
+        let relevantErrs = drop tgErrs errs
         trace ("\n\nElm would have thrown these errors: \n" ++ show tgErrs ++ "\n" ++ show relevantErrs) $ return ()
 
         TS.removeErrors (length errs - tgErrs)
