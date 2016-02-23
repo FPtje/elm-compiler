@@ -197,6 +197,7 @@ solve constraint siblings =
           newConstr <- justFlatten constraint
           trace (show newConstr) $ return ()
           ) TS.initialState)-}
+      trace ("\n\n\nFULL CONSTRAINT: " ++ show constraint) $ return ()
       state <-
           liftIO (execStateT (actuallySolve constraint) (TS.initialState siblings))
       case TS.sError state of

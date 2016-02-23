@@ -68,7 +68,9 @@ data TermN a
     | AliasN Var.Canonical [(String, TermN a)] (TermN a)
     | VarN a
     | TermN (Term1 (TermN a))
-    deriving (Show)
+
+instance Show (TermN a) where
+    show _ = "TermN"
 
 record :: Map.Map String (TermN a) -> TermN a -> TermN a
 record fs rec =
@@ -179,8 +181,8 @@ instance (Show a, Show b) => Show (Constraint a b) where
   show CTrue = "CTrue"
   show CSaveEnv = "CSaveEnv"
   show (CEqual h _ _ _ trust) = "CEqual " ++ (show h) ++ " " ++ show trust
-  show (CAnd cs) = "CAnd " ++ (concat . List.intersperse ", " . map show $ cs)
-  show (CLet schs constr) = "CLet (" ++ show schs ++ "). CLetConstr: (" ++ show constr ++ ")"
+  show (CAnd cs) = "CAnd {" ++ (concat . List.intersperse ", " . map show $ cs) ++ "}"
+  show (CLet schs constr) = "CLet (" ++ show schs ++ ". CLetConstr: (" ++ show constr ++ "))"
   show (CInstance _ name _ trust) = "CInstance " ++ name ++ " " ++ show trust
 
 
@@ -193,7 +195,9 @@ data Scheme a b = Scheme
     , _constraint :: Constraint a b
     , _header :: Map.Map String (A.Located a)
     }
-    deriving (Show)
+
+instance (Show a, Show b) => Show (Scheme a b) where
+  show schm = "SCHEME { header = " ++ show (_header schm) ++ ", constraint: {" ++ show (_constraint schm) ++ "}}"
 
 instance Show a => Show (A.Annotated R.Region a) where
     show (A.A _ t) = "Annotated (" ++ show t ++ ")"

@@ -79,14 +79,10 @@ typePathShare minRatio paths =
         inThreshold :: [(T.TypeConstraint, Double)]
         inThreshold = takeWhile ((> minRatio) . snd) ratios
     in
-        -- Give only one constraint when it appears in every error path
-        if snd (head countList) == nrOfPaths then
-            takeWhile ((>= 0.999) . snd) ratios
+        if null inThreshold then
+            ratios
         else
-            if null inThreshold then
-                ratios
-            else
-                inThreshold
+            inThreshold
 
 -- | Apply sibling error hints when applicable
 applySiblings :: TG.TypeGraph T.TypeConstraint -> [P.Path T.TypeConstraint] -> TS.Solver ()
@@ -179,7 +175,7 @@ applyHeuristics grph =
         trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
 
         -- Apply filter heuristics
-        let errorPathShare = map fst $ typePathShare 0.8 inconsistentPaths
+        let errorPathShare = map fst $ typePathShare 0 inconsistentPaths
         trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 inconsistentPaths)) $ return ()
         let sortTrusted = trustFactor 800 errorPathShare
 
