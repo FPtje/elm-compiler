@@ -189,6 +189,5 @@ applyHeuristics grph =
             replaceErrors [throwable]
 
 
-
         applySiblings grph inconsistentPaths
 

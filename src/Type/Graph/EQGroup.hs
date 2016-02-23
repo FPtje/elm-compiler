@@ -118,9 +118,7 @@ removeClique cl grp =
 -- Will give the conflicting vertices when a type conflict is found
 typeOfGroup :: EquivalenceGroup info -> Either [(BS.VertexId, BS.VertexId)] (BS.VertexId, BS.VertexInfo)
 typeOfGroup eqgroup
-    | length allConstants > 1                           = Left combinations
-    | not (null allConstants) && not (null allApplies)  = Left combinations
-
+    | not (null combinations)  =  Left combinations -- pairs of vertices with different base types
     | not (null allConstants)  =  Right . head $ allConstants
     | not (null allApplies)    =  Right . head $ allApplies
     | otherwise                =  Right . head . vertices $ eqgroup
@@ -145,10 +143,10 @@ typeOfGroup eqgroup
         insert mp (vid, (knd, _)) = M.insertWith (++) knd [vid] mp
 
         groupMap :: M.Map BS.VertexKind [BS.VertexId]
-        groupMap = foldl insert (foldl insert M.empty allConstants) allApplies
+        groupMap = foldl insert M.empty allConstants
 
         conflictGroups :: [[BS.VertexId]]
-        conflictGroups = map snd . M.toList $ groupMap
+        conflictGroups = map fst allApplies : (map snd . M.toList $ groupMap)
 
         allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
