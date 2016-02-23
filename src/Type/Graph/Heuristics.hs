@@ -170,6 +170,7 @@ replaceErrors constrs =
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
     do
+        trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
         let grphErrs = TG.getErrors grph
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 

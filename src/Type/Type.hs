@@ -174,7 +174,14 @@ data Constraint a b
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance R.Region SchemeName a TrustFactor
-    deriving (Show)
+
+instance (Show a, Show b) => Show (Constraint a b) where
+  show CTrue = "CTrue"
+  show CSaveEnv = "CSaveEnv"
+  show (CEqual h _ _ _ trust) = "CEqual " ++ (show h) ++ " " ++ show trust
+  show (CAnd cs) = "CAnd " ++ (concat . List.intersperse ", " . map show $ cs)
+  show (CLet schs constr) = "CLet (" ++ show schs ++ "). CLetConstr: (" ++ show constr ++ ")"
+  show (CInstance _ name _ trust) = "CInstance " ++ name ++ " " ++ show trust
 
 
 type SchemeName = String
