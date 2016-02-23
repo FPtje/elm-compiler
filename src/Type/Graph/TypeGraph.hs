@@ -401,7 +401,7 @@ childrenInGroupOf i graph =
 
 data SubstitutionError info =
       InfiniteType BS.VertexId
-    | InconsistentType (EG.EquivalenceGroup info) [BS.VertexId]
+    | InconsistentType (EG.EquivalenceGroup info) [(BS.VertexId, BS.VertexId)]
     deriving (Show)
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
@@ -474,4 +474,4 @@ allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
 -- | Get the equality paths between inconsistent types
 inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
 inconsistentTypesPaths (InfiniteType vid) = trace ("inconsistentTypesPaths: InfiniteType given. Not supported. " ++ show vid) []
-inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | l <- vids, r <- vids, l < r]
+inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | (l, r) <- vids]

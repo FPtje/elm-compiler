@@ -172,6 +172,8 @@ applyHeuristics grph =
     do
         trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
         let grphErrs = TG.getErrors grph
+
+        trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 
         trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()

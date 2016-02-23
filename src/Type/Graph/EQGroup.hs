@@ -6,8 +6,10 @@ import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
-import Data.List (partition, nub, nubBy, find)
-import Data.Maybe (listToMaybe, isJust, mapMaybe)
+import qualified Data.Map as M
+import Data.List (partition, nub)
+import Data.Maybe (listToMaybe, mapMaybe)
+
 
 -- | Equivalence groups, TODO
 data EquivalenceGroup info = EQGroup
@@ -114,22 +116,43 @@ removeClique cl grp =
 
 -- | Returns the type of a group in the form in which it is stored
 -- Will give the conflicting vertices when a type conflict is found
-typeOfGroup :: EquivalenceGroup info -> Either [BS.VertexId] (BS.VertexId, BS.VertexInfo)
+typeOfGroup :: EquivalenceGroup info -> Either [(BS.VertexId, BS.VertexId)] (BS.VertexId, BS.VertexInfo)
 typeOfGroup eqgroup
-    | length allConstants > 1                           = Left $ map fst allConstants ++ map fst allApplies
-    | not (null allConstants) && not (null allApplies)  = Left $ map fst allConstants ++ map fst allApplies
-    -- TODO: Multiple different applications?
+    | length allConstants > 1                           = Left combinations
+    | not (null allConstants) && not (null allApplies)  = Left combinations
 
     | not (null allConstants)  =  Right . head $ allConstants
     | not (null allApplies)    =  Right . head $ allApplies
     | otherwise                =  Right . head . vertices $ eqgroup
 
     where
-        cmp :: (BS.VertexId, BS.VertexInfo) -> (BS.VertexId, BS.VertexInfo) -> Bool
-        cmp (_, (l, _)) (_, (r, _)) = l == r
+        -- combine
+        cmbn :: [BS.VertexId] -> [BS.VertexId] -> [(BS.VertexId, BS.VertexId)]
+        cmbn l r = [(l', r') | l' <- l, r' <- r]
 
-        allConstants  = nubBy cmp [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
-        allApplies    =           [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
+        pairs :: [a] -> [(a, a)]
+        pairs [] = []
+        pairs (_ : []) = []
+        pairs (x : y : xs) = (x, y) : (pairs (x : xs) ++ pairs (y : xs))
+
+        combinations :: [(BS.VertexId, BS.VertexId)]
+        combinations = concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups]
+
+
+        insert :: M.Map BS.VertexKind [BS.VertexId]
+            -> (BS.VertexId, BS.VertexInfo)
+            -> M.Map BS.VertexKind [BS.VertexId]
+        insert mp (vid, (knd, _)) = M.insertWith (++) knd [vid] mp
+
+        groupMap :: M.Map BS.VertexKind [BS.VertexId]
+        groupMap = foldl insert (foldl insert M.empty allConstants) allApplies
+
+        conflictGroups :: [[BS.VertexId]]
+        conflictGroups = map snd . M.toList $ groupMap
+
+        allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
+        allConstants  = [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
+        allApplies    = [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info
