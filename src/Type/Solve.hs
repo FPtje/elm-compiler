@@ -165,45 +165,17 @@ invokeTypeGraph constraint =
         TH.applyHeuristics graph
         TS.updateTypeGraphErrs
 
-justFlatten :: TypeConstraint -> TS.Solver TypeConstraint
-justFlatten CTrue = return CTrue
-justFlatten CSaveEnv = return CSaveEnv
-justFlatten (CEqual hint region term1 term2 trust) =
-    do  t1 <- TS.flatten term1
-        t2 <- TS.flatten term2
-
-        return $ CEqual hint region (VarN t1) (VarN t2) trust
-justFlatten (CAnd xs) = helper xs
-  where
-    helper [] = return (CAnd [])
-    helper (c : cs) = do
-      c' <- justFlatten c
-      (CAnd cs') <- helper cs
-      return $ CAnd (c' : cs')
-
-justFlatten (CLet schemes constraint) = do
-  c' <- justFlatten constraint
-  return $ CLet schemes c'
-justFlatten (CInstance region name term trust) = do
-  t' <- TS.flatten term
-  return $ CInstance region name (VarN t') trust
-
 
 solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO TS.SolverState
 solve constraint siblings =
   do
-      {-liftIO (execStateT (
-        do
-          newConstr <- justFlatten constraint
-          trace (show newConstr) $ return ()
-          ) TS.initialState)-}
       state <-
           liftIO (execStateT (actuallySolve constraint) (TS.initialState siblings))
       case TS.sError state of
         [] ->
             return state
         errors ->
-            {-trace ("ORIGINAL ERRORS: \n\n" ++ show errors) trace (show constraint) $-} throwError errors
+            throwError errors
 
 actuallySolve :: TypeConstraint -> TS.Solver ()
 actuallySolve constraint =
