@@ -390,6 +390,11 @@ propagateRemoval i grph =
         else
             new
 
+-- | Replace implicit edges with their sets of children edges
+-- TODO
+expandPath :: TypeGraph info -> P.Path info -> P.Path info
+expandPath grph pth = undefined
+
 -- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])
 childrenInGroupOf i graph =
