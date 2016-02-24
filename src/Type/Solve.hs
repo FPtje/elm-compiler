@@ -170,15 +170,30 @@ solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO
 solve constraint siblings =
   do
       state <-
-          liftIO (execStateT (actuallySolve constraint) (TS.initialState siblings))
+          liftIO (execStateT (actuallySolve [] constraint) (TS.initialState siblings))
       case TS.sError state of
         [] ->
             return state
         errors ->
             throwError errors
 
-actuallySolve :: TypeConstraint -> TS.Solver ()
-actuallySolve constraint =
+
+-- | Decides whether a later constraint should be passed down
+-- into the tree of an earlier constraint
+-- This gives type graphs extra information to work with
+shouldPassConstrDown :: TypeConstraint -> Bool
+shouldPassConstrDown CEqual {} = True
+shouldPassConstrDown (CLet _ CTrue) = True
+shouldPassConstrDown _ = False
+
+-- | Decides whether a later constraint should be passed to neighbors
+shouldPassConstrForwards :: TypeConstraint -> Bool
+shouldPassConstrForwards CEqual {} = True
+shouldPassConstrForwards _ = False
+
+
+actuallySolve :: [TypeConstraint] -> TypeConstraint -> TS.Solver ()
+actuallySolve extraConstrs constraint =
   case constraint of
     CTrue ->
         return ()
@@ -191,26 +206,33 @@ actuallySolve constraint =
             t2 <- TS.flatten term2
             unify hint region t1 t2
 
-    CAnd cs ->
-        mapM_ actuallySolve cs
+    CAnd [] -> return ()
+    CAnd (c : cs) ->
+        do
+          let passDown = filter shouldPassConstrDown cs ++ extraConstrs
+          actuallySolve passDown c
+
+          let passFwd = if shouldPassConstrForwards c then (c:) else id
+
+          actuallySolve (passFwd extraConstrs) (CAnd cs)
 
     CLet [Scheme [] fqs constraint' _] CTrue ->
         do  oldEnv <- TS.getEnv
             mapM TS.introduce fqs
 
-            copy <- liftIO $ copyConstraint constraint'
-            actuallySolve constraint'
+            copy <- liftIO $ copyConstraint (CAnd $ constraint' : extraConstrs)
+            actuallySolve extraConstrs constraint'
             invokeTypeGraph copy
 
             TS.modifyEnv (\_ -> oldEnv)
 
     CLet schemes constraint' ->
         do  oldEnv <- TS.getEnv
-            headers <- Map.unions <$> mapM solveScheme schemes
+            headers <- Map.unions <$> mapM (solveScheme extraConstrs) schemes
             TS.modifyEnv $ \env -> Map.union headers env
 
-            copy <- liftIO $ copyConstraint constraint'
-            actuallySolve constraint'
+            copy <- liftIO $ copyConstraint (CAnd $ constraint' : extraConstrs)
+            actuallySolve extraConstrs constraint'
             invokeTypeGraph copy
 
             mapM occurs $ Map.toList headers
@@ -234,8 +256,8 @@ actuallySolve constraint =
             unify (Error.Instance name) region freshCopy t
 
 
-solveScheme :: TypeScheme -> TS.Solver (Map.Map String (A.Located Variable))
-solveScheme scheme =
+solveScheme :: [TypeConstraint] -> TypeScheme -> TS.Solver (Map.Map String (A.Located Variable))
+solveScheme extraConstrs scheme =
   let
     flatten (A.A region term) =
       A.A region <$> TS.flatten term
@@ -243,8 +265,8 @@ solveScheme scheme =
   case scheme of
     Scheme [] [] constraint header ->
         do
-            copy <- liftIO $ copyConstraint constraint
-            actuallySolve constraint
+            copy <- liftIO $ copyConstraint (CAnd $ constraint : extraConstrs)
+            actuallySolve extraConstrs constraint
             invokeTypeGraph copy
 
             T.traverse flatten header
@@ -260,8 +282,8 @@ solveScheme scheme =
             header' <- T.traverse flatten header
 
 
-            copy <- liftIO $ copyConstraint constraint
-            actuallySolve constraint
+            copy <- liftIO $ copyConstraint (CAnd $ constraint : extraConstrs)
+            actuallySolve extraConstrs constraint
             invokeTypeGraph copy
 
             allDistinct rigidQuantifiers
