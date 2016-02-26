@@ -20,6 +20,7 @@ import Control.Monad.State (liftIO)
 import Control.Monad (foldM)
 import Data.List (nub)
 import Data.Either (lefts)
+import Control.Applicative ((<|>))
 
 import Data.Maybe (fromMaybe, maybeToList, isJust)
 
@@ -402,7 +403,7 @@ expandPath grph (l P.:+: r) =
         l' <- expandPath grph l
         r' <- expandPath grph r
         return $ l' P.:+: r'
-expandPath grph (P.Step eid P.Implied {}) = expandStep grph eid
+expandPath grph st@(P.Step eid P.Implied {}) = expandStep grph eid <|> Just st
 expandPath _     x = Just x
 
 

@@ -147,7 +147,7 @@ initialEdgePath (BS.EdgeId l r) grp =
                 in
                     foldl1 (<|>) recCalls
     in
-        rec edgeMap l P.Empty
+        P.simplify <$> rec edgeMap l P.Empty
 
 -- | Returns the type of a group in the form in which it is stored
 -- Will give the conflicting vertices when a type conflict is found
