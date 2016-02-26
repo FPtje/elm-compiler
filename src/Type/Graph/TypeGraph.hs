@@ -22,7 +22,7 @@ import Data.List (nub)
 import Data.Either (lefts)
 import Control.Applicative ((<|>))
 
-import Data.Maybe (fromMaybe, maybeToList, isJust)
+import Data.Maybe (fromMaybe, maybeToList, isJust, listToMaybe)
 
 import Debug.Trace
 
@@ -407,9 +407,41 @@ expandPath grph st@(P.Step eid P.Implied {}) = expandStep grph eid <|> Just st
 expandPath _     x = Just x
 
 
+-- | When the expansion of an implicit edge (say (a, b)) fails,
+-- there might be a different pair of vertices (say (c, d))
+-- in the same equivalence group that are connected by an initial edge
+-- By expanding the two implicit edges (a, c) (b, d) or (a, d) (b, c)
+-- The implicit edge from a to b will be expanded to go from a to c, then
+-- the initial edge from c to d, and then the expanded implicit edge between d and b.
+expandSplitStep :: forall info . TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
+expandSplitStep grph (BS.EdgeId a b) =
+    do
+        grp <- getGroupOf a grph
+        let edges = EG.edges grp
+
+        -- The edges it attempts to perform a split on
+        let splitAttempts =
+                [(BS.EdgeId a c, BS.EdgeId d b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges] ++
+                [(BS.EdgeId a d, BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges]
+
+        let performAttempts =
+                [(expandStepHelper False grph e1, expandStepHelper False grph e2, stp) | (e1, e2, stp) <- splitAttempts]
+
+        -- A path was found!
+        let splitPath :: [P.Path info]
+            splitPath = [(ac P.:+: stp P.:+: bd) | (Just ac, Just bd, stp) <- performAttempts]
+
+        listToMaybe splitPath
+
+
 -- | Expand an implied step
-expandStep :: forall info . TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
-expandStep grph eid@(BS.EdgeId l r) =
+expandStep :: TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
+expandStep = expandStepHelper True
+
+-- | Expand step helper, contains bool that indicates
+-- whether it should try to split on failure
+expandStepHelper :: forall info . Bool -> TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
+expandStepHelper trySplit grph eid@(BS.EdgeId l r) =
     do
         grp <- getGroupOf l grph
         let initPath = EG.initialEdgePath eid grp
@@ -423,7 +455,10 @@ expandStep grph eid@(BS.EdgeId l r) =
                 do
                     -- Look for parents
                     (eid'@(BS.EdgeId lp rp), childSide) <- CLQ.edgeParent eid cliques
-                    rec <- expandStep grph eid'
+
+                    -- recurse into parents, try to split the step on failure
+                    rec <- expandStepHelper trySplit grph eid' <|>
+                            (if trySplit then expandSplitStep grph eid' else Nothing)
 
                     -- Go up the tree and record the process
                     return $
