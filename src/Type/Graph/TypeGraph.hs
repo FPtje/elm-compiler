@@ -391,9 +391,44 @@ propagateRemoval i grph =
             new
 
 -- | Replace implicit edges with their sets of children edges
--- TODO
-expandPath :: TypeGraph info -> P.Path info -> P.Path info
-expandPath grph pth = undefined
+expandPath :: forall info . TypeGraph info -> P.Path info -> Maybe (P.Path info)
+expandPath grph (l P.:|: r) =
+    do
+        l' <- expandPath grph l
+        r' <- expandPath grph r
+        return $ l' P.:|: r'
+expandPath grph (l P.:+: r) =
+    do
+        l' <- expandPath grph l
+        r' <- expandPath grph r
+        return $ l' P.:+: r'
+expandPath grph (P.Step eid P.Implied {}) = expandStep grph eid
+expandPath _     x = Just x
+
+
+-- | Expand an implied step
+expandStep :: forall info . TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
+expandStep grph eid@(BS.EdgeId l r) =
+    do
+        grp <- getGroupOf l grph
+        let initPath = EG.initialEdgePath eid grp
+        let cliques = EG.cliques grp
+
+        case initPath of
+            Just p ->
+                -- There is an initial constraint path on this level
+                return p
+            Nothing ->
+                do
+                    -- Look for parents
+                    (eid'@(BS.EdgeId lp rp), childSide) <- CLQ.edgeParent eid cliques
+                    rec <- expandStep grph eid'
+
+                    -- Go up the tree and record the process
+                    return $
+                        P.Step (BS.EdgeId l lp) (P.Parent childSide) P.:+:
+                        rec P.:+:
+                        P.Step (BS.EdgeId rp r) (P.Child childSide)
 
 -- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])

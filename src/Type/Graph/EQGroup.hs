@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Type.Graph.EQGroup where
@@ -9,6 +10,7 @@ import qualified AST.Variable as Var
 import qualified Data.Map as M
 import Data.List (partition, nub)
 import Data.Maybe (listToMaybe, mapMaybe)
+import Control.Applicative ((<|>))
 
 
 -- | Equivalence groups, TODO
@@ -113,6 +115,39 @@ insertClique cl grp =
 removeClique :: CLQ.Clique -> EquivalenceGroup info -> EquivalenceGroup info
 removeClique cl grp =
     grp { cliques = filter (not . (`CLQ.isSubsetClique` cl)) (cliques grp) }
+
+
+-- | Try to find a path of initial edges between two elements of the same EQGroup
+initialEdgePath :: forall info . BS.EdgeId -> EquivalenceGroup info -> Maybe (P.Path info)
+initialEdgePath (BS.EdgeId l r) grp =
+    let
+        edgeMap :: M.Map BS.VertexId [(BS.VertexId, info)]
+        edgeMap = M.fromListWith (++)
+                    (  [(l', [(r', inf)]) | ((BS.EdgeId l' r'), inf) <- edges grp]
+                    ++ [(r', [(l', inf)]) | ((BS.EdgeId l' r'), inf) <- edges grp])
+
+        rec :: M.Map BS.VertexId [(BS.VertexId, info)] -> BS.VertexId -> P.Path info -> Maybe (P.Path info)
+        rec mp i p
+            | i == r = Just p -- the path has been found
+            | not (i `M.member` mp) = Nothing
+            | otherwise =
+                let
+                    nextEdges :: [(BS.VertexId, info)]
+                    nextEdges = M.findWithDefault undefined i mp
+
+                    -- make sure we don't loop edges
+                    nextMap :: M.Map BS.VertexId [(BS.VertexId, info)]
+                    nextMap = M.delete i mp
+
+                    nextSteps :: [P.Path info]
+                    nextSteps = [p P.:+: (P.Step (BS.EdgeId i i') (P.Initial inf)) | (i', inf) <- nextEdges]
+
+                    recCalls :: [Maybe (P.Path info)]
+                    recCalls = zipWith (\(i', _) p' -> rec nextMap i' p') nextEdges nextSteps
+                in
+                    foldl1 (<|>) recCalls
+    in
+        rec edgeMap l P.Empty
 
 -- | Returns the type of a group in the form in which it is stored
 -- Will give the conflicting vertices when a type conflict is found

@@ -178,6 +178,8 @@ applyHeuristics grph =
         trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
 
+        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show (map (TG.expandPath grph) inconsistentPaths)) $ return ()
+
         trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
 
         -- Apply filter heuristics

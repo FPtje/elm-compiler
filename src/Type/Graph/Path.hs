@@ -19,6 +19,7 @@ data Step info =
       Initial info
     | Implied CLQ.ChildSide BS.VertexId BS.VertexId
     | Child CLQ.ChildSide
+    | Parent CLQ.ChildSide
     deriving (Eq, Show)
 
 

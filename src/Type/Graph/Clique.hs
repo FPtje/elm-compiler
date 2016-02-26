@@ -3,6 +3,7 @@
 module Type.Graph.Clique where
 
 import qualified Type.Graph.Basics as BS
+import Control.Applicative ((<|>))
 import Data.List (partition, sort, find)
 
 -- | Indicates whether a child is the left or right child of a parent
@@ -52,7 +53,11 @@ representative (Clique xs) =
 
 -- | Get the parent of a vertex that lives in this clique
 getParent :: BS.VertexId -> Clique -> Maybe BS.VertexId
-getParent v (Clique pcs) = find (\pc -> child pc == v) pcs >>= return . parent
+getParent v clq = getParentChild v clq >>= return . parent
+
+-- | Get the clique in which this
+getParentChild :: BS.VertexId -> Clique -> Maybe ParentChild
+getParentChild v (Clique pcs) = find (\pc -> child pc == v) pcs
 
 
 -- | Returns true when the first clique is a subset of the second
@@ -102,3 +107,13 @@ combine (x:xs) ys =
     in
         merge (x : overlapping) : combine xs disjoint
 
+-- | Try to find a parent implicit edge from a given implicit edge
+edgeParentSingle :: BS.EdgeId -> Clique -> Maybe (BS.EdgeId, ChildSide)
+edgeParentSingle (BS.EdgeId l r) clq = do
+    lpc <- getParentChild l clq
+    rpc <- getParentChild r clq
+    return (BS.EdgeId (parent lpc) (parent rpc), childSide rpc)
+
+-- | Try to find a parent implicit edge from a given implicit edge
+edgeParent :: BS.EdgeId -> [Clique] -> Maybe (BS.EdgeId, ChildSide)
+edgeParent eid = foldl1 (<|>) . map (edgeParentSingle eid)
