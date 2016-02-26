@@ -161,23 +161,6 @@ equalPaths start target eqgroup =
         cliqueList :: [[CLQ.ParentChild]]
         cliqueList = map CLQ.unclique . cliques $ eqgroup
 
-
-        -- Filter the paths that do not start with implied edges
-        -- This removes detour equality paths
-        removeStartImplied :: P.Path info -> (P.Path info, Bool)
-        removeStartImplied (l P.:|: r) =
-            case (removeStartImplied l, removeStartImplied r) of
-                ((_, True), (_, True))    -> (P.Fail, True)
-                ((_, True), r')           -> r'
-                (l',        (_, True))    -> l'
-                (_,         _)            -> ((l P.:|: r), False)
-        removeStartImplied s@(l P.:+: _) =
-            case removeStartImplied l of
-                (_, True) -> (P.Fail, True)
-                _          -> (s, False)
-        removeStartImplied s@(P.Step _ P.Implied {}) = (s, True)
-        removeStartImplied s = (s, False)
-
         rec :: BS.VertexId -> ([(BS.EdgeId, info)], [[CLQ.ParentChild]]) -> P.Path info
         rec v1 (es, cs)
             | v1 == target = P.Empty -- Path to itself is empty
@@ -210,14 +193,15 @@ equalPaths start target eqgroup =
                                       sourceParents     = map CLQ.parent sources
                                       neighbours        = nub (map CLQ.child others)
                                       f neighbour       = P.choice
-                                         [ beginPath P.:+: restPath--(fst filteredRest)
+                                         [ beginPath P.:+: restPath
                                          | pc <- others
                                          , CLQ.child pc == neighbour
                                          , let beginPath = P.choice1 (map makeImplied sourceParents)
                                                restPath = rec neighbour rest
-                                               filteredRest = removeStartImplied . P.simplify $ restPath
-                                               makeImplied sp = P.Step (BS.EdgeId v1 neighbour) (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
-                                         --, not (snd filteredRest) -- prevent detours
+                                               makeImplied sp =
+                                                P.Step
+                                                    (BS.EdgeId v1 neighbour)
+                                                    (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
                                          ]
                                   in if null sources
                                        then []
