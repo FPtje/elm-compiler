@@ -79,10 +79,16 @@ typePathShare minRatio paths =
         inThreshold :: [(T.TypeConstraint, Double)]
         inThreshold = takeWhile ((> minRatio) . snd) ratios
     in
-        if null inThreshold then
-            ratios
+        -- Give only the constraints that appear in every error path
+        -- when they exist
+        if snd (head countList) == nrOfPaths then
+            takeWhile ((>= 0.999) . snd) ratios
         else
-            inThreshold
+            if null inThreshold then
+                ratios
+            else
+                inThreshold
+
 
 -- | Apply sibling error hints when applicable
 applySiblings :: TG.TypeGraph T.TypeConstraint -> [P.Path T.TypeConstraint] -> TS.Solver ()
