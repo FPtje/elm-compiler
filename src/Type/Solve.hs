@@ -161,9 +161,13 @@ invokeTypeGraph constraint =
     errs <- TS.getError
     tgErrs <- TS.getTypeGraphErrors
     when (length errs > tgErrs) $ do
+        oldEnv <- TS.getEnv
+
         graph <- TG.fromConstraint constraint
         TH.applyHeuristics graph
         TS.updateTypeGraphErrs
+
+        TS.modifyEnv (const oldEnv)
 
 
 solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO TS.SolverState

@@ -16,6 +16,7 @@ import qualified Data.UnionFind.IO as UF
 import qualified Data.List as List
 import qualified Reporting.Annotation as A
 import qualified Data.Set as S
+import qualified Data.Traversable as TR
 import Control.Monad.State (liftIO)
 import Control.Monad (foldM)
 import Data.List (nub)
@@ -246,7 +247,15 @@ unifyTypeVars info terml termr grph = do
 
 -- | Generate type graph from a single scheme
 fromScheme :: T.TypeScheme -> TypeGraph T.TypeConstraint -> TS.Solver (TypeGraph T.TypeConstraint)
-fromScheme scheme grph = fromConstraintHelper (T._constraint scheme) grph
+fromScheme scheme grph =
+    do
+        -- Update the headers
+        let flatten (A.A region term) = A.A region <$> TS.flatten term
+        updHeaders <- TR.traverse flatten (T._header scheme)
+        TS.modifyEnv $ \env -> M.union updHeaders env
+
+        -- Build nested constraints into type graph
+        fromConstraintHelper (T._constraint scheme) grph
 
 -- | Generate type graph from type scheme
 -- Note: only simple type schmemes
