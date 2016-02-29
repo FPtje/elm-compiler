@@ -173,7 +173,7 @@ addTermGraph var alias grph = do
                     let structureId = varNumber grph
                     liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just structureId })
 
-                    (vid, grph') <- addTermGraphStructure structureId t alias grph
+                    (vid, grph') <- addTermGraphStructure structureId t alias (incVarNumber grph)
 
                     return (vid, grph')
         T.Atom name ->
