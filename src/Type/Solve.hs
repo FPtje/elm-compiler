@@ -237,9 +237,9 @@ actuallySolve extraConstrs constraint =
 
             copy <- liftIO $ copyConstraint (CAnd $ constraint' : extraConstrs)
             actuallySolve extraConstrs constraint'
+            mapM occurs $ Map.toList headers
             invokeTypeGraph copy
 
-            mapM occurs $ Map.toList headers
             TS.modifyEnv (\_ -> oldEnv)
 
     CInstance region name term _ ->
@@ -367,7 +367,7 @@ occursHelp :: [Variable] -> Variable -> IO Bool
 occursHelp seen var =
   if elem var seen then
       do  infiniteDescriptor <- UF.descriptor var
-          UF.setDescriptor var (infiniteDescriptor { _content = Error var })
+          --UF.setDescriptor var (infiniteDescriptor { _content = Error var })
           return True
 
   else
