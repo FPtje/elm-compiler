@@ -81,11 +81,11 @@ typePathShare minRatio paths =
     in
         -- Give only the constraints that appear in every error path
         -- when they exist
-        if snd (head countList) == nrOfPaths then
-            takeWhile ((>= 0.999) . snd) ratios
+        if null inThreshold then
+            ratios
         else
-            if null inThreshold then
-                ratios
+            if snd (head countList) == nrOfPaths then
+                takeWhile ((>= 0.999) . snd) ratios
             else
                 inThreshold
 
