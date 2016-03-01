@@ -97,7 +97,7 @@ data Content
     | Atom Var.Canonical
     | Var Flex (Maybe Super) (Maybe String)
     | Alias Var.Canonical [(String,Variable)] Variable
-    | Error Variable
+    | Error Content
     deriving(Show, Eq)
 
 

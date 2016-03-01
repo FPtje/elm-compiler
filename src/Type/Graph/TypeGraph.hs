@@ -122,7 +122,7 @@ getGroupOf vid grph =
 
 -- | Same as getGroupOf, but errors when the vertex oes not exist
 getVertexGroup :: BS.VertexId -> TypeGraph info -> EG.EquivalenceGroup info
-getVertexGroup vi grph = fromMaybe (error "substituteVariable: Vertex has no group!") $ getGroupOf vi grph
+getVertexGroup vi grph = fromMaybe (error "getVertexGroup: Vertex has no group!") $ getGroupOf vi grph
 
 -- | Updates the equivalence group that contains a given VertexId
 -- Throws error when the VertexId doesn't exist
@@ -151,44 +151,53 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
+
 -- | Create a type graph from a single term
 addTermGraph :: T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
 addTermGraph var alias grph = do
-    let unique = varNumber grph
     desc <- liftIO $ UF.descriptor var
     let content = T._content desc
 
     -- Get the vertex id in the representative of this variable
     repr <- liftIO $ UF.repr var
-    reprDesc <- liftIO $ UF.descriptor repr
-    let vertexId = fromMaybe unique (T._typegraphid reprDesc)
+    addContentGraph repr content alias grph
 
-    case content of
-        T.Structure t ->
-            if isJust (T._typegraphid reprDesc) then
-                return (BS.VertexId vertexId, grph)
-            else
+
+-- | Create a type graph based on a variable's content
+addContentGraph :: T.Variable -> T.Content -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
+addContentGraph var content alias grph =
+    do
+        reprDesc <- liftIO $ UF.descriptor var
+        let unique = varNumber grph
+        let vertexId = fromMaybe unique (T._typegraphid reprDesc)
+
+        case content of
+            T.Structure t ->
+                if isJust (T._typegraphid reprDesc) then
+                    return (BS.VertexId vertexId, grph)
+                else
+                    do
+                        -- the vertexId given to the top of this structure
+                        liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just unique })
+
+                        (vid, grph') <- addTermGraphStructure unique t alias (incVarNumber grph)
+
+                        return (vid, grph')
+            T.Atom name ->
                 do
-                    -- the vertexId given to the top of this structure
-                    liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just unique })
+                    let vid = BS.VertexId unique
+                    return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) $ grph)
 
-                    (vid, grph') <- addTermGraphStructure unique t alias (incVarNumber grph)
+            T.Var _ _ _ -> do
+                let vid = BS.VertexId vertexId
+                liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just vertexId })
+                let exists = vertexExists vid grph
 
-                    return (vid, grph')
-        T.Atom name ->
-            do
-                let vid = BS.VertexId unique
-                return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) $ grph)
+                return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar, alias) $ grph)
+            T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
+            -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
+            T.Error original -> addContentGraph var original alias grph
 
-        T.Var _ _ _ -> do
-            let vid = BS.VertexId vertexId
-            liftIO $ UF.modifyDescriptor repr (\d -> d { T._typegraphid = Just vertexId })
-            let exists = vertexExists vid grph
-
-            return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar, alias) $ grph)
-        T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
-        -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
-        T.Error actual -> addTermGraph actual alias grph
 
 -- | Add a recursive structure type to the type graph
 -- The first parameter is a unique counter, the second parameter a possible reference to a vertexID that already exists in the graph
@@ -223,8 +232,8 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 
     return (appRVid, updGrphR)
 
-addTermGraphStructure vertexId T.EmptyRecord1 alias grph = error "Records not implemented"
-addTermGraphStructure vertexId T.Record1 {} alias grph = error "Records not implemented"
+addTermGraphStructure _ T.EmptyRecord1 _ _ = error "Records not implemented"
+addTermGraphStructure _ T.Record1 {} _ _ = error "Records not implemented"
 
 
 -- | Unify two types in the type graph
@@ -492,7 +501,7 @@ data SubstitutionError info =
     deriving (Show)
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
-substituteVariable :: forall info . BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
+substituteVariable :: forall info . Show info => BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
         -- Recursive variable substitution
@@ -518,19 +527,22 @@ substituteVariable vid grph =
                     Right _ -> Right (vi, inf)
                     Left conflicts -> Left (InconsistentType eg conflicts)
 
-        rec history vi (BS.VApp l r, alias) =
-            do
-                let lVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex l grph
-                (lVId, _) <- rec history l lVinf
+        rec history vi (BS.VApp l r, alias)
+            | vi `S.member` history = Left (InfiniteType vi)
+            | otherwise =
+                do
+                    let present = S.insert vi history
+                    let lVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex l grph
+                    (lVId, _) <- rec present l lVinf
 
-                let rVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex r grph
-                (rVId, _) <- rec history r rVinf
+                    let rVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex r grph
+                    (rVId, _) <- rec present r rVinf
 
-                let eg = getVertexGroup vid grph
+                    let eg = getVertexGroup vid grph
 
-                case EG.typeOfGroup eg of
-                    Right _ -> Right (vi, (BS.VApp lVId rVId, alias))
-                    Left conflicts -> Left (InconsistentType eg conflicts)
+                    case EG.typeOfGroup eg of
+                        Right _ -> Right (vi, (BS.VApp lVId rVId, alias))
+                        Left conflicts -> Left (InconsistentType eg conflicts)
 
         vertexInfo :: BS.VertexInfo
         vertexInfo = fromMaybe (error "substituteVariable: Vertex does not exist") (getVertex vid grph)
@@ -540,7 +552,7 @@ substituteVariable vid grph =
             return (snd res)
 
 -- | Gets all the errors in the type graph
-getErrors :: forall info . TypeGraph info -> [SubstitutionError info]
+getErrors :: forall info . Show info => TypeGraph info -> [SubstitutionError info]
 getErrors grph =
     let
         eGroups :: [EG.EquivalenceGroup info]

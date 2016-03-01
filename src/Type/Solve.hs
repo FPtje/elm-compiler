@@ -367,7 +367,7 @@ occursHelp :: [Variable] -> Variable -> IO Bool
 occursHelp seen var =
   if elem var seen then
       do  infiniteDescriptor <- UF.descriptor var
-          --UF.setDescriptor var (infiniteDescriptor { _content = Error var })
+          UF.setDescriptor var (infiniteDescriptor { _content = Error (_content infiniteDescriptor) })
           return True
 
   else
