@@ -121,29 +121,29 @@ removeClique cl grp =
 initialEdgePath :: forall info . BS.EdgeId -> EquivalenceGroup info -> Maybe (P.Path info)
 initialEdgePath (BS.EdgeId l r) grp =
     let
-        edgeMap :: M.Map BS.VertexId [(BS.VertexId, info)]
+        edgeMap :: M.Map BS.VertexId [(BS.VertexId, BS.EdgeId, info)]
         edgeMap = M.fromListWith (++)
-                    (  [(l', [(r', inf)]) | ((BS.EdgeId l' r'), inf) <- edges grp]
-                    ++ [(r', [(l', inf)]) | ((BS.EdgeId l' r'), inf) <- edges grp])
+                    (  [(l', [(r', eid, inf)]) | (eid@(BS.EdgeId l' r'), inf) <- edges grp]
+                    ++ [(r', [(l', eid, inf)]) | (eid@(BS.EdgeId l' r'), inf) <- edges grp])
 
-        rec :: M.Map BS.VertexId [(BS.VertexId, info)] -> BS.VertexId -> P.Path info -> Maybe (P.Path info)
+        rec :: M.Map BS.VertexId [(BS.VertexId, BS.EdgeId, info)] -> BS.VertexId -> P.Path info -> Maybe (P.Path info)
         rec mp i p
             | i == r = Just p -- the path has been found
             | not (i `M.member` mp) = Nothing
             | otherwise =
                 let
-                    nextEdges :: [(BS.VertexId, info)]
+                    nextEdges :: [(BS.VertexId, BS.EdgeId, info)]
                     nextEdges = M.findWithDefault undefined i mp
 
                     -- make sure we don't loop edges
-                    nextMap :: M.Map BS.VertexId [(BS.VertexId, info)]
+                    nextMap :: M.Map BS.VertexId [(BS.VertexId, BS.EdgeId, info)]
                     nextMap = M.delete i mp
 
                     nextSteps :: [P.Path info]
-                    nextSteps = [p P.:+: (P.Step (BS.EdgeId i i') (P.Initial inf)) | (i', inf) <- nextEdges]
+                    nextSteps = [p P.:+: (P.Step eid (P.Initial inf)) | (_, eid, inf) <- nextEdges]
 
                     recCalls :: [Maybe (P.Path info)]
-                    recCalls = zipWith (\(i', _) p' -> rec nextMap i' p') nextEdges nextSteps
+                    recCalls = zipWith (\(i', _, _) p' -> rec nextMap i' p') nextEdges nextSteps
                 in
                     foldl1 (<|>) recCalls
     in
