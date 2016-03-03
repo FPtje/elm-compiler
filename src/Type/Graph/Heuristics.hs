@@ -12,7 +12,7 @@ import qualified Data.Map as M
 import qualified Type.Type as T
 
 import Data.List (sortBy)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, catMaybes)
 import Control.Monad (when)
 import Control.Monad.Except (liftIO)
 
@@ -177,8 +177,9 @@ applyHeuristics grph =
 
         trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
+        let expandedPaths = map (TG.expandPath grph) inconsistentPaths
 
-        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show (map (TG.expandPath grph) inconsistentPaths)) $ return ()
+        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
 
         trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
 
@@ -197,5 +198,5 @@ applyHeuristics grph =
             replaceErrors [throwable]
 
 
-        applySiblings grph inconsistentPaths
+        applySiblings grph (catMaybes expandedPaths)
 

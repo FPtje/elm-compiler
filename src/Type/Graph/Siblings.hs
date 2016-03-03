@@ -41,50 +41,27 @@ siblingSolvesError constr eid@(BS.EdgeId _ r) grph sib =
 
         return $ null grphErrs
 
-
-
-searchSiblings :: Module.Siblings -> BS.VertexId -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
-searchSiblings sbs vid grph =
+checkForSibling :: Module.Siblings -> BS.EdgeId -> T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
+checkForSibling sbs eid constr@(T.CInstance _ name _ _) grph =
     let
-        root :: BS.VertexId
-        root = TG.findRoot vid grph
+        varM :: Maybe V.Canonical
+        varM = M.lookup name . TG.funcMap $ grph
 
-        rootEdges :: [(BS.EdgeId, T.TypeConstraint)]
-        rootEdges = EG.edges . TG.getVertexGroup root $ grph
+        var :: V.Canonical
+        var = fromJust varM
 
-        isCInstance :: (BS.EdgeId, T.TypeConstraint) -> Bool
-        isCInstance (_, T.CInstance {}) = True
-        isCInstance _ = False
+        siblings :: [Module.Sibling]
+        siblings = S.toList $ M.findWithDefault S.empty var (snd sbs)
 
-        cInstanceEdges :: [(BS.EdgeId, T.TypeConstraint)]
-        cInstanceEdges = filter isCInstance rootEdges
-
-        cInstanceNames :: [(BS.EdgeId, Module.Sibling, T.TypeConstraint)]
-        cInstanceNames =
-            [ (eid, fromJust var, c)
-            | (eid, c@(T.CInstance _ name _ _)) <- cInstanceEdges
-            ,  let var = M.lookup name (TG.funcMap grph)
-            , isJust var
-            ]
-
-        siblings :: Module.Sibling -> S.Set Module.Sibling
-        siblings var = M.findWithDefault S.empty var (snd sbs)
-
-        sibConstraints :: [(Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint)] -- (T.CInstance rg name _)
-        sibConstraints = [(var, sib, eid, constr) | (eid, var, constr) <- cInstanceNames, sib <- S.toList (siblings var)]
-
-        sibFits :: (Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint) -> TS.Solver Bool
-        sibFits (_, sib, eid, constr) = siblingSolvesError constr eid grph sib
-
-        workingSiblings :: TS.Solver [(Module.Sibling, Module.Sibling, BS.EdgeId, T.TypeConstraint)]
-        workingSiblings = filterM sibFits sibConstraints
-
-        fst2 :: (a, b, c, d) -> (a, b)
-        fst2 (a, b, _, _) = (a, b)
+        workingSiblings :: TS.Solver [Module.Sibling]
+        workingSiblings = filterM (siblingSolvesError constr eid grph) siblings
     in
-        do
-            workingSibs <- workingSiblings
-            return . S.fromList . map fst2 $ workingSibs
+        if isJust varM then
+            workingSiblings >>= return . S.fromList . zip (repeat var)
+        else
+            return S.empty
+
+checkForSibling _ _ _ _ = return S.empty
 
 
 -- | Gives a set of siblings that would resolve the type error
@@ -99,11 +76,8 @@ investigateSiblings sbs (l P.:+: r) grph =
         lsibs <- investigateSiblings sbs l grph
         rsibs <- investigateSiblings sbs r grph
         return $ lsibs `S.union` rsibs
-investigateSiblings sbs (P.Step (BS.EdgeId l r) _) grph =
-    do
-        leftSibs <- searchSiblings sbs l grph
-        rightSibs <- searchSiblings sbs r grph
-        return $ leftSibs `S.union` rightSibs
+investigateSiblings sbs (P.Step eid (P.Initial constr@(T.CInstance {}))) grph =
+    checkForSibling sbs eid constr grph
 investigateSiblings _ _ _ = return S.empty
 
 
