@@ -23,7 +23,7 @@ import Data.List (nub)
 import Data.Either (lefts)
 import Control.Applicative ((<|>))
 
-import Data.Maybe (fromMaybe, maybeToList, isJust, listToMaybe)
+import Data.Maybe (fromMaybe, maybeToList, isJust, listToMaybe, catMaybes)
 
 import Debug.Trace
 
@@ -433,6 +433,8 @@ expandPath _     x = Just x
 -- By expanding the two implicit edges (a, c) (b, d) or (a, d) (b, c)
 -- The implicit edge from a to b will be expanded to go from a to c, then
 -- the initial edge from c to d, and then the expanded implicit edge between d and b.
+-- Note that it can also happen that only one node has to move over an initial edge
+-- e.g. (a, b) failing, there is an edge (b, c), and (a, c) doesn't fail
 expandSplitStep :: forall info . TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
 expandSplitStep grph (BS.EdgeId a b) =
     do
@@ -441,27 +443,37 @@ expandSplitStep grph (BS.EdgeId a b) =
 
         -- The edges it attempts to perform a split on
         let splitAttempts =
-                [(BS.EdgeId a c, BS.EdgeId d b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges] ++
-                [(BS.EdgeId a d, BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges]
+                [(BS.EdgeId a c, BS.EdgeId d b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges, a /= c, a /= d, b /= c, b /= d] ++
+                [(BS.EdgeId a d, BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c d), inf) <- edges, a /= c, a /= d, b /= c, b /= d]
 
-        let performAttempts =
-                [(expandStepHelper False grph e1, expandStepHelper False grph e2, stp) | (e1, e2, stp) <- splitAttempts]
+        -- The edges to perform a half split on (have one side move over an initial edge)
+        let halfSplitAttemptsR =
+                [(BS.EdgeId a c, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId b' c), inf) <- edges, b == b'] ++
+                [(BS.EdgeId a c, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c b'), inf) <- edges, b == b']
+
+        let halfSplitAttemptsL =
+                [(BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId a' c), inf) <- edges, a == a'] ++
+                [(BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c a'), inf) <- edges, a == a']
+
+        let attemptSplits =
+                [(expandStep grph e1, expandStep grph e2, stp) | (e1, e2, stp) <- splitAttempts]
+
+        let attemptHalfSplits =
+                [(stp P.:+:) <$> expandStep grph eid | (eid, stp) <- halfSplitAttemptsL] ++
+                [(P.:+: stp) <$> expandStep grph eid | (eid, stp) <- halfSplitAttemptsR]
 
         -- A path was found!
         let splitPath :: [P.Path info]
-            splitPath = [(ac P.:+: stp P.:+: bd) | (Just ac, Just bd, stp) <- performAttempts]
+            splitPath =
+                    [(ac P.:+: stp P.:+: bd) | (Just ac, Just bd, stp) <- attemptSplits] ++
+                    catMaybes attemptHalfSplits
 
         listToMaybe splitPath
 
 
 -- | Expand an implied step
-expandStep :: TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
-expandStep = expandStepHelper True
-
--- | Expand step helper, contains bool that indicates
--- whether it should try to split on failure
-expandStepHelper :: forall info . Bool -> TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
-expandStepHelper trySplit grph eid@(BS.EdgeId l r) =
+expandStep :: forall info . TypeGraph info -> BS.EdgeId -> Maybe (P.Path info)
+expandStep grph eid@(BS.EdgeId l r) =
     do
         grp <- getGroupOf l grph
         let initPath = EG.initialEdgePath eid grp
@@ -477,8 +489,8 @@ expandStepHelper trySplit grph eid@(BS.EdgeId l r) =
                     (eid'@(BS.EdgeId lp rp), childSide) <- CLQ.edgeParent eid cliques
 
                     -- recurse into parents, try to split the step on failure
-                    rec <- expandStepHelper trySplit grph eid' <|>
-                            (if trySplit then expandSplitStep grph eid' else Nothing)
+                    rec <- expandStep grph eid' <|>
+                            expandSplitStep grph eid'
 
                     -- Go up the tree and record the process
                     return $
