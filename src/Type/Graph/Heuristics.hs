@@ -179,13 +179,13 @@ applyHeuristics grph =
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
         let expandedPaths = map (TG.expandPath grph) inconsistentPaths
 
-        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
-
         trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
 
+        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
+
         -- Apply filter heuristics
-        let errorPathShare = map fst $ typePathShare 0 inconsistentPaths
-        trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 inconsistentPaths)) $ return ()
+        let errorPathShare = map fst $ typePathShare 0 expandedPaths
+        trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
         let sortTrusted = trustFactor 800 errorPathShare
 
         trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
@@ -198,5 +198,5 @@ applyHeuristics grph =
             replaceErrors [throwable]
 
 
-        applySiblings grph (catMaybes expandedPaths)
+        applySiblings grph expandedPaths
 

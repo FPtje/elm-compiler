@@ -412,19 +412,11 @@ propagateRemoval i grph =
             new
 
 -- | Replace implicit edges with their sets of children edges
-expandPath :: forall info . TypeGraph info -> P.Path info -> Maybe (P.Path info)
-expandPath grph (l P.:|: r) =
-    do
-        l' <- expandPath grph l
-        r' <- expandPath grph r
-        return $ l' P.:|: r'
-expandPath grph (l P.:+: r) =
-    do
-        l' <- expandPath grph l
-        r' <- expandPath grph r
-        return $ l' P.:+: r'
-expandPath grph st@(P.Step eid P.Implied {}) = expandStep grph eid <|> Just st
-expandPath _     x = Just x
+expandPath :: forall info . TypeGraph info -> P.Path info -> P.Path info
+expandPath grph (l P.:|: r) = expandPath grph l P.:|: expandPath grph r
+expandPath grph (l P.:+: r) = expandPath grph l P.:+: expandPath grph r
+expandPath grph st@(P.Step eid P.Implied {}) = fromMaybe st $ expandStep grph eid
+expandPath _     x = x
 
 
 -- | When the expansion of an implicit edge (say (a, b)) fails,
