@@ -184,7 +184,7 @@ applyHeuristics grph =
         trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
 
         -- Apply filter heuristics
-        let errorPathShare = map fst $ typePathShare 0 expandedPaths
+        let errorPathShare = map fst $ typePathShare 0.8 expandedPaths
         trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
         let sortTrusted = trustFactor 800 errorPathShare
 
