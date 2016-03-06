@@ -225,19 +225,8 @@ equalPaths start target eqgroup =
                     -- Creates all implied edges
                     ++ concatMap (\list ->
                                   let (sources, others) = partition ((v1==) . CLQ.child) list
-                                      sourceParents     = map CLQ.parent sources
                                       neighbours        = nub (map CLQ.child others)
-                                      f neighbour       = P.choice
-                                         [ beginPath P.:+: restPath
-                                         | pc <- others
-                                         , CLQ.child pc == neighbour
-                                         , let beginPath = P.choice1 (map makeImplied sourceParents)
-                                               restPath = rec neighbour rest
-                                               makeImplied sp =
-                                                P.Step
-                                                    (BS.EdgeId v1 neighbour)
-                                                    (P.Implied (CLQ.childSide pc) sp (CLQ.parent pc))
-                                         ]
+                                      f neighbour       = P.Step (BS.EdgeId v1 neighbour) P.Implied P.:+: rec neighbour rest
                                   in if null sources
                                        then []
                                        else map f neighbours) neighbourCliques

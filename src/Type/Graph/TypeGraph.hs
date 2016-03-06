@@ -415,7 +415,7 @@ propagateRemoval i grph =
 expandPath :: forall info . TypeGraph info -> P.Path info -> P.Path info
 expandPath grph (l P.:|: r) = expandPath grph l P.:|: expandPath grph r
 expandPath grph (l P.:+: r) = expandPath grph l P.:+: expandPath grph r
-expandPath grph st@(P.Step eid P.Implied {}) = fromMaybe st $ expandStep grph eid
+expandPath grph st@(P.Step eid P.Implied) = fromMaybe st $ expandStep grph eid
 expandPath _     x = x
 
 

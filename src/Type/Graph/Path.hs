@@ -17,7 +17,7 @@ data Path info =
 -- | Describes one step in a path
 data Step info =
       Initial info
-    | Implied CLQ.ChildSide BS.VertexId BS.VertexId
+    | Implied
     | Child CLQ.ChildSide
     | Parent CLQ.ChildSide
     deriving (Eq, Show)
