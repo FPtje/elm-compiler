@@ -504,50 +504,7 @@ data SubstitutionError info =
     | InconsistentType (EG.EquivalenceGroup info) [(BS.VertexId, BS.VertexId)]
     deriving (Show)
 
-findInfiniteTypes :: forall info . TypeGraph info -> [SubstitutionError info]
-findInfiniteTypes grph =
-    let
-        eqgroups :: [EG.EquivalenceGroup info]
-        eqgroups = map snd . M.toList . equivalenceGroupMap $ grph
 
-        -- All type applications
-        apps :: [(BS.VertexId, BS.VertexInfo)]
-        apps = [app | grp <- eqgroups, app <- [app | app@(_, (BS.VApp _ _, _)) <- EG.vertices grp]]
-
-        --
-        rec :: BS.VertexId -> (BS.VertexId, BS.VertexInfo) -> S.Set BS.VertexId -> P.Path info -> [SubstitutionError info]
-        rec start (vid, (BS.VApp l r, _)) history pth
-            | vid `S.member` history =
-                [InfiniteType vid pth | vid == start]
-            | otherwise =
-                let
-                    present :: S.Set BS.VertexId
-                    present = S.insert vid history
-
-                    leftPath :: P.Path info
-                    leftPath = pth P.:+: (P.Step (BS.EdgeId vid l) (P.Child CLQ.LeftChild))
-
-                    rightPath :: P.Path info
-                    rightPath = pth P.:+: (P.Step (BS.EdgeId vid r) (P.Child CLQ.RightChild))
-
-                    egl :: EG.EquivalenceGroup info
-                    egl = getVertexGroup l grph
-
-                    egr :: EG.EquivalenceGroup info
-                    egr = getVertexGroup r grph
-
-                    linf = fromJust . lookup l . EG.vertices $ egl
-                    rinf = fromJust . lookup r . EG.vertices $ egr
-                in
-                    case (linf, rinf) of
-                        ((BS.VApp _ _, _), (BS.VApp _ _, _)) ->
-                            rec start (l, linf) present leftPath ++
-                            rec start (r, rinf) present rightPath
-                        ((BS.VApp _ _, _), _) -> rec start (l, linf) present leftPath
-                        (_, (BS.VApp _ _, _)) -> rec start (r, rinf) present rightPath
-                        _ -> []
-    in
-        concat [rec vid app S.empty P.Empty | app@(vid, _) <- apps]
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
 substituteVariable :: forall info . Show info => BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
@@ -560,7 +517,7 @@ substituteVariable vid grph =
             | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
                 do
-                    let eg = getVertexGroup vid grph
+                    let eg = getVertexGroup vi grph
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
@@ -570,7 +527,7 @@ substituteVariable vid grph =
 
         rec _ vi inf@(BS.VCon _, _) =
             let
-                eg = getVertexGroup vid grph
+                eg = getVertexGroup vi grph
             in
                 case EG.typeOfGroup eg of
                     Right _ -> Right (vi, inf)
@@ -587,7 +544,7 @@ substituteVariable vid grph =
                     let rVinf = fromMaybe (error "substituteVariable: left app does not exist!") $ getVertex r grph
                     (rVId, _) <- rec present r rVinf
 
-                    let eg = getVertexGroup vid grph
+                    let eg = getVertexGroup vi grph
 
                     case EG.typeOfGroup eg of
                         Right _ -> Right (vi, (BS.VApp lVId rVId, alias))
@@ -614,7 +571,7 @@ getErrors grph =
         substVars = map (`substituteVariable` grph) reprs
 
         infiniteErrors :: [SubstitutionError info]
-        infiniteErrors = findInfiniteTypes grph
+        infiniteErrors = [] --findInfiniteTypes grph
     in
         if null infiniteErrors then
             lefts substVars
