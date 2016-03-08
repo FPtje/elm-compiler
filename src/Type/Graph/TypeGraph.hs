@@ -23,7 +23,7 @@ import Data.List (nub)
 import Data.Either (lefts)
 import Control.Applicative ((<|>))
 
-import Data.Maybe (fromMaybe, maybeToList, isJust, listToMaybe, catMaybes)
+import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
 
 import Debug.Trace
 
@@ -500,9 +500,54 @@ childrenInGroupOf i graph =
             ]
 
 data SubstitutionError info =
-      InfiniteType BS.VertexId
+      InfiniteType BS.VertexId (P.Path info)
     | InconsistentType (EG.EquivalenceGroup info) [(BS.VertexId, BS.VertexId)]
     deriving (Show)
+
+findInfiniteTypes :: forall info . TypeGraph info -> [SubstitutionError info]
+findInfiniteTypes grph =
+    let
+        eqgroups :: [EG.EquivalenceGroup info]
+        eqgroups = map snd . M.toList . equivalenceGroupMap $ grph
+
+        -- All type applications
+        apps :: [(BS.VertexId, BS.VertexInfo)]
+        apps = [app | grp <- eqgroups, app <- [app | app@(_, (BS.VApp _ _, _)) <- EG.vertices grp]]
+
+        --
+        rec :: BS.VertexId -> (BS.VertexId, BS.VertexInfo) -> S.Set BS.VertexId -> P.Path info -> [SubstitutionError info]
+        rec start (vid, (BS.VApp l r, _)) history pth
+            | vid `S.member` history =
+                [InfiniteType vid pth | vid == start]
+            | otherwise =
+                let
+                    present :: S.Set BS.VertexId
+                    present = S.insert vid history
+
+                    leftPath :: P.Path info
+                    leftPath = pth P.:+: (P.Step (BS.EdgeId vid l) (P.Child CLQ.LeftChild))
+
+                    rightPath :: P.Path info
+                    rightPath = pth P.:+: (P.Step (BS.EdgeId vid r) (P.Child CLQ.RightChild))
+
+                    egl :: EG.EquivalenceGroup info
+                    egl = getVertexGroup l grph
+
+                    egr :: EG.EquivalenceGroup info
+                    egr = getVertexGroup r grph
+
+                    linf = fromJust . lookup l . EG.vertices $ egl
+                    rinf = fromJust . lookup r . EG.vertices $ egr
+                in
+                    case (linf, rinf) of
+                        ((BS.VApp _ _, _), (BS.VApp _ _, _)) ->
+                            rec start (l, linf) present leftPath ++
+                            rec start (r, rinf) present rightPath
+                        ((BS.VApp _ _, _), _) -> rec start (l, linf) present leftPath
+                        (_, (BS.VApp _ _, _)) -> rec start (r, rinf) present rightPath
+                        _ -> []
+    in
+        concat [rec vid app S.empty P.Empty | app@(vid, _) <- apps]
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
 substituteVariable :: forall info . Show info => BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
@@ -512,7 +557,7 @@ substituteVariable vid grph =
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
         rec history vi (BS.VVar, _)
-            | vi `S.member` history = Left (InfiniteType vi)
+            | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
                 do
                     let eg = getVertexGroup vid grph
@@ -532,7 +577,7 @@ substituteVariable vid grph =
                     Left conflicts -> Left (InconsistentType eg conflicts)
 
         rec history vi (BS.VApp l r, alias)
-            | vi `S.member` history = Left (InfiniteType vi)
+            | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
                 do
                     let present = S.insert vi history
@@ -567,8 +612,14 @@ getErrors grph =
 
         substVars :: [Either (SubstitutionError info) BS.VertexInfo]
         substVars = map (`substituteVariable` grph) reprs
+
+        infiniteErrors :: [SubstitutionError info]
+        infiniteErrors = findInfiniteTypes grph
     in
-        lefts substVars
+        if null infiniteErrors then
+            lefts substVars
+        else
+            infiniteErrors
 
 -- | All equivalence paths from one vertex to another
 allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)
@@ -576,5 +627,5 @@ allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
 
 -- | Get the equality paths between inconsistent types
 inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
-inconsistentTypesPaths (InfiniteType vid) = trace ("inconsistentTypesPaths: InfiniteType given. Not supported. " ++ show vid) []
+inconsistentTypesPaths (InfiniteType _ p) = [p]
 inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | (l, r) <- vids]
