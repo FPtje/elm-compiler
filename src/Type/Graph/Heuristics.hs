@@ -185,21 +185,21 @@ infinitePathShare errs =
 
 -- | Infinite paths always have a vertex that is the left side of a CInstance edge
 -- When the infinite types are reconstructed, we'll know what variables they belong to
-infinitePathRoots :: [TG.SubstitutionError T.TypeConstraint] -> TG.TypeGraph T.TypeConstraint -> [(BS.VertexId, T.SchemeName)]
+infinitePathRoots :: [TG.SubstitutionError T.TypeConstraint] -> TG.TypeGraph T.TypeConstraint -> [(BS.VertexId, A.Located T.SchemeName)]
 infinitePathRoots errs grph =
     let
-        vertexInstance :: BS.VertexId -> M.Map BS.VertexId T.SchemeName
+        vertexInstance :: BS.VertexId -> M.Map BS.VertexId (A.Located T.SchemeName)
         vertexInstance vid =
             let
                 grp :: EG.EquivalenceGroup T.TypeConstraint
                 grp = TG.getVertexGroup vid grph
 
-                rightEdges :: [(BS.VertexId, T.SchemeName)]
-                rightEdges = [(vid, name) | (BS.EdgeId l _, T.CInstance _ name _ _) <- EG.edges grp, l == vid]
+                rightEdges :: [(BS.VertexId, A.Located T.SchemeName)]
+                rightEdges = [(vid, A.A rg name) | (BS.EdgeId l _, T.CInstance rg name _ _) <- EG.edges grp, l == vid]
             in
                 M.fromList rightEdges
 
-        pathInstances :: P.Path T.TypeConstraint -> M.Map BS.VertexId T.SchemeName
+        pathInstances :: P.Path T.TypeConstraint -> M.Map BS.VertexId (A.Located T.SchemeName)
         pathInstances (l P.:|: r) = pathInstances l `M.union` pathInstances r
         pathInstances (l P.:+: r) = pathInstances l `M.union` pathInstances r
         pathInstances (P.Step (BS.EdgeId l _) _) = vertexInstance l
@@ -211,9 +211,9 @@ infinitePathRoots errs grph =
         M.toList . M.unions . map pathInstances $ paths
 
 -- | Try to reconstruct as much of the infinite types as we can
-reconstructInfiniteTypes :: S.Set BS.VertexId -> [(BS.VertexId, T.SchemeName)] -> TG.TypeGraph info -> [(AT.Canonical, T.SchemeName)]
+reconstructInfiniteTypes :: S.Set BS.VertexId -> [(BS.VertexId, A.Located T.SchemeName)] -> TG.TypeGraph info -> [(A.Located T.SchemeName, AT.Canonical)]
 reconstructInfiniteTypes infs roots grph =
-        map (\(vid, nm) -> (TG.reconstructInfiniteType vid infs grph, nm)) roots
+        map (\(vid, nm) -> (nm, TG.reconstructInfiniteType vid infs grph)) roots
 
 -- | Find error thrown by normal unify based on the region
 -- Region might not be valid, as multiple errors could have the same region
@@ -241,6 +241,15 @@ throwErrorFromConstraint errs constr =
                 TS.addError rg (Error.Mismatch info)
         (Nothing, T.CInstance _ _ _ _) ->
             error "Didn't expect to see an instance here" -- TODO
+
+-- | Throw infinite type errors
+throwErrorFromInfinite :: [(A.Located T.SchemeName, AT.Canonical)] -> TS.Solver ()
+throwErrorFromInfinite errs =
+    let
+        throwErr :: (A.Located T.SchemeName, AT.Canonical) -> TS.Solver ()
+        throwErr (A.A rg name, tp) = TS.addError rg (Error.InfiniteType name tp)
+    in
+        mapM_ throwErr errs
 
 -- | Replace the error of this part of the program
 -- with the ones given by the heuristics
@@ -285,6 +294,8 @@ applyHeuristics grph =
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
         trace ("\n\nINFINITE: RECONSTRUCTED: \n" ++ show reconstr) $ return ()
 
+
+
         when (not . null $ sortTrusted) $ do
             -- The classic "eh just pick the first one" heuristic
             -- Called the "Constraint number heuristic" in Top.
@@ -292,6 +303,7 @@ applyHeuristics grph =
 
             replaceErrors [throwable]
 
+        throwErrorFromInfinite reconstr
 
         applySiblings grph expandedPaths
 
