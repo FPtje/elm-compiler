@@ -4,6 +4,7 @@ module Type.Graph.Heuristics where
 import qualified Type.State as TS
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.TypeGraph as TG
+import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Siblings as SB
 import qualified Type.Graph.Path as P
 import qualified Reporting.Annotation as A
@@ -13,7 +14,7 @@ import qualified Data.Map as M
 import qualified Type.Type as T
 
 import Data.List (sortBy)
-import Data.Maybe (fromMaybe, catMaybes)
+import Data.Maybe (fromMaybe)
 import Control.Monad (when)
 import Control.Monad.Except (liftIO)
 
@@ -157,7 +158,7 @@ infinitePathShare errs =
         pathSet _ = S.empty
 
         pathSets :: [S.Set BS.VertexId]
-        pathSets = [pathSet path | (TG.InfiniteType _ path) <- errs]
+        pathSets = filter (not . S.null) [pathSet path | (TG.InfiniteType _ path) <- errs]
 
         -- Ordered list of most occurring vertexIds
         -- The list of paths that haven't been removed
@@ -180,6 +181,34 @@ infinitePathShare errs =
         -- The (heuristically defined) minimal amount of nodes that need to
         -- be replaced with an infinite type marker to solve all infinite types
         rec sortedNodes pathSets []
+
+-- Infinite paths always have a vertex that is the left side of a CInstance edge
+-- When the infinite types are reconstructed, we'll know what variables they belong to
+infinitePathRoots :: [TG.SubstitutionError T.TypeConstraint] -> TG.TypeGraph T.TypeConstraint -> [(BS.VertexId, T.SchemeName)]
+infinitePathRoots errs grph =
+    let
+        vertexInstance :: BS.VertexId -> M.Map BS.VertexId T.SchemeName
+        vertexInstance vid =
+            let
+                grp :: EG.EquivalenceGroup T.TypeConstraint
+                grp = TG.getVertexGroup vid grph
+
+                rightEdges :: [(BS.VertexId, T.SchemeName)]
+                rightEdges = [(vid, name) | (BS.EdgeId l _, T.CInstance _ name _ _) <- EG.edges grp, l == vid]
+            in
+                M.fromList rightEdges
+
+        pathInstances :: P.Path T.TypeConstraint -> M.Map BS.VertexId T.SchemeName
+        pathInstances (l P.:|: r) = pathInstances l `M.union` pathInstances r
+        pathInstances (l P.:+: r) = pathInstances l `M.union` pathInstances r
+        pathInstances (P.Step (BS.EdgeId l _) _) = vertexInstance l
+        pathInstances _ = M.empty
+
+        paths :: [P.Path T.TypeConstraint]
+        paths = [path | (TG.InfiniteType _ path) <- errs]
+    in
+        M.toList . M.unions . map pathInstances $ paths
+
 
 -- | Find error thrown by normal unify based on the region
 -- Region might not be valid, as multiple errors could have the same region
@@ -243,6 +272,9 @@ applyHeuristics grph =
         let sortTrusted = trustFactor 800 errorPathShare
 
         trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
+
+        trace ("\n\nINFINITE: PATH ROOTS\n" ++ show (infinitePathRoots grphErrs grph)) $ return ()
+        trace ("\n\nINFINITE: REMOVE NODES \n" ++ show (infinitePathShare grphErrs)) $ return ()
 
         when (not . null $ sortTrusted) $ do
             -- The classic "eh just pick the first one" heuristic
