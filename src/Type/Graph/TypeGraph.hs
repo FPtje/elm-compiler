@@ -573,7 +573,7 @@ reconstructInfiniteType vid infs grph =
             Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
             Just (BS.VCon "Function", _) -> AT.Var "Function"
             Just (BS.VCon name, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
-            Just (BS.VVar, _) -> AT.Var ("a" ++ show vid)
+            Just (BS.VVar, _) -> AT.Var ("a" ++ show (BS.unVertexId vid))
             Nothing -> AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph
