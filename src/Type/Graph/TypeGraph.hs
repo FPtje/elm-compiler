@@ -187,7 +187,7 @@ addContentGraph var content alias grph =
             T.Atom name ->
                 do
                     let vid = BS.VertexId unique
-                    return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) $ grph)
+                    return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) . updateFuncMap name $ grph)
 
             T.Var _ _ _ -> do
                 let vid = BS.VertexId vertexId
