@@ -12,6 +12,7 @@ import qualified Reporting.Error.Type as Error
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Type.Type as T
+import qualified AST.Type as AT
 
 import Data.List (sortBy)
 import Data.Maybe (fromMaybe)
@@ -129,7 +130,7 @@ trustFactor prune constrs =
         else
             sortBy cond filtered
 
--- Find the smallest set of nodes to remove to resolve an infinite type
+-- | Find the smallest set of nodes to remove to resolve an infinite type
 infinitePathShare :: forall info . [TG.SubstitutionError info] -> [BS.VertexId]
 infinitePathShare errs =
     let
@@ -182,7 +183,7 @@ infinitePathShare errs =
         -- be replaced with an infinite type marker to solve all infinite types
         rec sortedNodes pathSets []
 
--- Infinite paths always have a vertex that is the left side of a CInstance edge
+-- | Infinite paths always have a vertex that is the left side of a CInstance edge
 -- When the infinite types are reconstructed, we'll know what variables they belong to
 infinitePathRoots :: [TG.SubstitutionError T.TypeConstraint] -> TG.TypeGraph T.TypeConstraint -> [(BS.VertexId, T.SchemeName)]
 infinitePathRoots errs grph =
@@ -209,6 +210,10 @@ infinitePathRoots errs grph =
     in
         M.toList . M.unions . map pathInstances $ paths
 
+-- | Try to reconstruct as much of the infinite types as we can
+reconstructInfiniteTypes :: S.Set BS.VertexId -> [(BS.VertexId, T.SchemeName)] -> TG.TypeGraph info -> [(AT.Canonical, T.SchemeName)]
+reconstructInfiniteTypes infs roots grph =
+        map (\(vid, nm) -> (TG.reconstructInfiniteType vid infs grph, nm)) roots
 
 -- | Find error thrown by normal unify based on the region
 -- Region might not be valid, as multiple errors could have the same region
@@ -273,8 +278,12 @@ applyHeuristics grph =
 
         trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
 
+        let infiniteRoots = infinitePathRoots grphErrs grph
+        let infiniteShare = S.fromList $ infinitePathShare grphErrs
         trace ("\n\nINFINITE: PATH ROOTS\n" ++ show (infinitePathRoots grphErrs grph)) $ return ()
         trace ("\n\nINFINITE: REMOVE NODES \n" ++ show (infinitePathShare grphErrs)) $ return ()
+        let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
+        trace ("\n\nINFINITE: RECONSTRUCTED: \n" ++ show reconstr) $ return ()
 
         when (not . null $ sortTrusted) $ do
             -- The classic "eh just pick the first one" heuristic

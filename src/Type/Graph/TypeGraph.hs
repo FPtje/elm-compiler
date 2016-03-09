@@ -9,6 +9,7 @@ import qualified Type.Graph.Clique as CLQ
 import qualified Reporting.Error.Type as Error
 import qualified Type.Graph.Path as P
 import qualified AST.Variable as Var
+import qualified AST.Type as AT
 import qualified Type.Type as T
 import qualified Type.State as TS
 import qualified Data.Map as M
@@ -23,7 +24,7 @@ import Data.List (nub)
 import Data.Either (lefts)
 import Control.Applicative ((<|>))
 
-import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
+import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes, maybe)
 
 import Debug.Trace
 
@@ -197,7 +198,6 @@ addContentGraph var content alias grph =
             T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
             -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
             T.Error original -> addContentGraph var original alias grph
-
 
 -- | Add a recursive structure type to the type graph
 -- The first parameter is a unique counter, the second parameter a possible reference to a vertexID that already exists in the graph
@@ -555,6 +555,36 @@ findInfiniteTypes grph =
     in
         concat [rec vid app S.empty P.Empty | app@(vid, _) <- apps]
 
+-- | Try to reconstruct an infinite type to the best of the type graph's ability
+reconstructInfiniteType :: forall info . BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> AT.Canonical
+reconstructInfiniteType vid infs grph =
+    let
+        eg :: EG.EquivalenceGroup info
+        eg = getVertexGroup vid grph
+
+        rec :: BS.VertexId -> AT.Canonical
+        rec vid' =
+            if vid' `S.member` infs then
+                AT.Var "∞"
+            else
+                reconstructInfiniteType vid' infs grph
+    in
+        case lookup vid (EG.vertices eg) of
+            Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
+            Just (BS.VCon "Function", _) -> AT.Var "Function"
+            Just (BS.VCon name, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
+            Just (BS.VVar, _) -> AT.Var ("a" ++ show vid)
+            Nothing -> AT.Var "?"
+
+-- | Flattens the type created by reconstructing the type of something in the type graph
+flattenGraphType :: AT.Canonical -> AT.Canonical
+flattenGraphType (AT.App (AT.App (AT.Var "Function") [l]) [r]) = AT.Lambda (flattenGraphType l) (flattenGraphType r)
+flattenGraphType (AT.App l [r]) =
+    case flattenGraphType l of
+        t@(AT.Type _) -> AT.App t [flattenGraphType r]
+        t@(AT.Var _) -> AT.App t [flattenGraphType r]
+        AT.App l' r' -> AT.App l' (r' ++ [flattenGraphType r])
+flattenGraphType x = x
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
 substituteVariable :: forall info . Show info => BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
