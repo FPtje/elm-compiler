@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Type.Graph.Heuristics where
 
 import qualified Type.State as TS
@@ -126,6 +127,59 @@ trustFactor prune constrs =
             sortBy cond constrs
         else
             sortBy cond filtered
+
+-- Find the smallest set of nodes to remove to resolve an infinite type
+infinitePathShare :: forall info . [TG.SubstitutionError info] -> [BS.VertexId]
+infinitePathShare errs =
+    let
+
+        addCount :: P.Path info -> M.Map BS.VertexId Int -> M.Map BS.VertexId Int
+        addCount (l P.:|: r) mp = M.unionWith (+) (addCount l mp) (addCount r mp)
+        addCount (l P.:+: r) mp = M.unionWith (+) (addCount l mp) (addCount r mp)
+        addCount (P.Step (BS.EdgeId l _) _) mp = M.insertWith (+) l 1 mp
+        addCount _ mp = mp
+
+        countMap :: M.Map BS.VertexId Int
+        countMap = M.unionsWith (+) [addCount path M.empty | (TG.InfiniteType _ path) <- errs]
+
+        sortCond :: (BS.VertexId, Int) -> (BS.VertexId, Int) -> Ordering
+        sortCond (_, l) (_, r) = compare r l
+
+        -- We're not interested in how often they really occur
+        -- just which ones occur the most often
+        sortedNodes :: [(BS.VertexId)]
+        sortedNodes = map fst . sortBy sortCond . M.toList $ countMap
+
+        pathSet :: P.Path info -> S.Set BS.VertexId
+        pathSet (l P.:|: r) = pathSet l `S.union` pathSet r
+        pathSet (l P.:+: r) = pathSet l `S.union` pathSet r
+        pathSet (P.Step (BS.EdgeId l _) _) = S.insert l S.empty
+        pathSet _ = S.empty
+
+        pathSets :: [S.Set BS.VertexId]
+        pathSets = [pathSet path | (TG.InfiniteType _ path) <- errs]
+
+        -- Ordered list of most occurring vertexIds
+        -- The list of paths that haven't been removed
+        -- Returns the list of vertices that need to be removed
+        rec :: [BS.VertexId] -> [S.Set BS.VertexId] -> [BS.VertexId] -> [BS.VertexId]
+        rec [] _ _ = error "This should not be reachable"
+        rec (vid : vids) paths accum =
+            let
+                filteredPaths :: [S.Set BS.VertexId]
+                filteredPaths = filter (not . S.member vid) paths
+
+                res :: [BS.VertexId]
+                res = vid : accum
+            in
+                if null filteredPaths then
+                    res
+                else
+                    rec vids filteredPaths res
+    in
+        -- The (heuristically defined) minimal amount of nodes that need to
+        -- be replaced with an infinite type marker to solve all infinite types
+        rec sortedNodes pathSets []
 
 -- | Find error thrown by normal unify based on the region
 -- Region might not be valid, as multiple errors could have the same region
