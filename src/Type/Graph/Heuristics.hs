@@ -165,7 +165,7 @@ infinitePathShare errs =
         -- The list of paths that haven't been removed
         -- Returns the list of vertices that need to be removed
         rec :: [BS.VertexId] -> [S.Set BS.VertexId] -> [BS.VertexId] -> [BS.VertexId]
-        rec [] _ _ = error "This should not be reachable"
+        rec [] _ _ = []
         rec (vid : vids) paths accum =
             let
                 filteredPaths :: [S.Set BS.VertexId]
