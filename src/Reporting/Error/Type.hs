@@ -78,7 +78,7 @@ data Hint
     | Range
     | Lambda
     | Record
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 data Pattern
@@ -86,7 +86,7 @@ data Pattern
     | PAlias String
     | PData String
     | PRecord
-    deriving (Show)
+    deriving (Eq, Show)
 
 
 

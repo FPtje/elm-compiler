@@ -299,7 +299,8 @@ applyHeuristics grph =
 
             replaceErrors [throwable]
 
-            applySiblings grph expandedPaths
+            let siblinggablePaths = filter (P.contains throwable) expandedPaths
+            applySiblings grph siblinggablePaths
 
         -- Only throw infinite errors when
         -- there are no other errors to report

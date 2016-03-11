@@ -68,6 +68,7 @@ data TermN a
     | AliasN Var.Canonical [(String, TermN a)] (TermN a)
     | VarN a
     | TermN (Term1 (TermN a))
+    deriving (Eq)
 
 instance Show (TermN a) where
     show _ = "TermN"
@@ -167,7 +168,7 @@ data TrustFactor
     | ListValues
     | ListRange
     | FunctionArity
-    deriving (Show)
+    deriving (Eq, Ord, Show)
 
 data Constraint a b
     = CTrue
@@ -176,6 +177,7 @@ data Constraint a b
     | CAnd [Constraint a b]
     | CLet [Scheme a b] (Constraint a b)
     | CInstance R.Region SchemeName a TrustFactor
+    deriving (Eq)
 
 instance (Show a, Show b) => Show (Constraint a b) where
   show CTrue = "CTrue"
@@ -195,6 +197,7 @@ data Scheme a b = Scheme
     , _constraint :: Constraint a b
     , _header :: Map.Map String (A.Located a)
     }
+    deriving (Eq)
 
 instance (Show a, Show b) => Show (Scheme a b) where
   show schm = "SCHEME { header = " ++ show (_header schm) ++ ", constraint: {" ++ show (_constraint schm) ++ "}}"

@@ -51,3 +51,8 @@ simplify path =
                 (p1   , p2   ) -> p1 :+: p2
         _ -> path
 
+contains :: Eq info => info -> Path info -> Bool
+contains info (l :|: r) = contains info l && contains info r
+contains info (l :+: r) = contains info l || contains info r
+contains info (Step _ (Initial info')) = info == info'
+contains _ _ = False
