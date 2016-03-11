@@ -21,10 +21,9 @@ import qualified Data.Traversable as TR
 import Control.Monad.State (liftIO)
 import Control.Monad (foldM)
 import Data.List (nub)
-import Data.Either (lefts)
 import Control.Applicative ((<|>))
 
-import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes, maybe)
+import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
 
 import Debug.Trace
 
@@ -644,16 +643,16 @@ getErrors grph =
         eGroups :: [EG.EquivalenceGroup info]
         eGroups = map snd . M.toList . equivalenceGroupMap $ grph
 
-        reprs :: [BS.VertexId]
-        reprs = map EG.representative eGroups
+        grpTypes :: [Either [(BS.VertexId, BS.VertexId)] (BS.VertexId, BS.VertexInfo)]
+        grpTypes = map EG.typeOfGroup eGroups
 
-        substVars :: [Either (SubstitutionError info) BS.VertexInfo]
-        substVars = map (`substituteVariable` grph) reprs
+        errTypes :: [SubstitutionError info]
+        errTypes = [InconsistentType eg errs | (eg, Left errs) <- zip eGroups grpTypes]
 
         infiniteErrors :: [SubstitutionError info]
         infiniteErrors = findInfiniteTypes grph
     in
-        infiniteErrors ++ lefts substVars
+        infiniteErrors ++ errTypes
 
 -- | All equivalence paths from one vertex to another
 allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)
