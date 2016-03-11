@@ -3,7 +3,6 @@ module Type.Graph.Siblings where
 import qualified AST.Module as Module
 import qualified Type.Type as T
 import qualified Type.Graph.TypeGraph as TG
-import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
 import qualified Type.State as TS
@@ -37,9 +36,13 @@ siblingSolvesError constr eid@(BS.EdgeId _ r) grph sib =
         let updatedGrph = TG.addNewEdge (vidl, r) constr grphl
 
         let grphErrs = TG.getErrors updatedGrph
+        let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
+        let expandedPaths = map (TG.expandPath updatedGrph) inconsistentPaths
+        -- This sibling does NOT solve the error if its CInstance
+        -- constraint remains present in any of the expanded error paths
+        let constrPresent = or . map (P.contains constr) $ expandedPaths
 
-
-        return $ null grphErrs
+        return . not $ constrPresent
 
 checkForSibling :: Module.Siblings -> BS.EdgeId -> T.TypeConstraint -> TG.TypeGraph T.TypeConstraint -> TS.Solver (S.Set (Module.Sibling, Module.Sibling))
 checkForSibling sbs eid constr@(T.CInstance _ name _ _) grph =
