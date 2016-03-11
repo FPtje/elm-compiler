@@ -299,7 +299,11 @@ applyHeuristics grph =
 
             replaceErrors [throwable]
 
-        throwErrorFromInfinite reconstr
+            applySiblings grph expandedPaths
 
-        applySiblings grph expandedPaths
+        -- Only throw infinite errors when
+        -- there are no other errors to report
+        when (null sortTrusted) $ do
+            replaceErrors []
+            throwErrorFromInfinite reconstr
 
