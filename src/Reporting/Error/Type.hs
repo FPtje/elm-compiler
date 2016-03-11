@@ -161,9 +161,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               ("The " ++ Help.ordinalize (branchNumber -1) ++ " branch has this type:")
               ("But the " ++ Help.ordinalize branchNumber ++ " is:")
-              [ "All branches in a `case` must have the same type. So no matter\
+              ([ "All branches in a `case` must have the same type. So no matter\
                 \ which one we take, we always get back the same type of value."
-              ]
+              ] ++ sibSuggestions)
           )
 
     Case ->
@@ -175,7 +175,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The `case` evaluates to something of type:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
+              sibSuggestions
           )
 
     IfCondition ->
@@ -185,9 +185,12 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "You have given me a condition with this type:"
               "But I need it to be:"
-              [ "Elm does not have \"truthiness\" such that ints and strings and lists\
-                \ are automatically converted to booleans. Do that conversion explicitly."
-              ]
+              (if null sibSuggestions then
+                  [ "Elm does not have \"truthiness\" such that ints and strings and lists\
+                      \ are automatically converted to booleans. Do that conversion explicitly."
+                  ]
+              else
+                  sibSuggestions)
           )
 
     IfBranches ->
@@ -197,9 +200,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The `then` branch has type:"
               "But the `else` branch is:"
-              [ "These need to match so that no matter which branch we take, we\
+              ([ "These need to match so that no matter which branch we take, we\
                 \ always get back the same type of value."
-              ]
+              ] ++ sibSuggestions)
           )
 
     MultiIfBranch branchNumber region ->
@@ -211,9 +214,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               ("The " ++ Help.ordinalize (branchNumber - 1) ++ " branch has this type:")
               ("But the "++ Help.ordinalize branchNumber ++ " is:")
-              [ "All the branches of an `if` need to match so that no matter which\
+              ([ "All the branches of an `if` need to match so that no matter which\
                 \ one we take, we get back the same type of value overall."
-              ]
+              ] ++ sibSuggestions)
           )
 
     If ->
@@ -224,7 +227,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The `if` evaluates to something of type:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
+              sibSuggestions
           )
 
     ListElement elementNumber region ->
@@ -234,9 +237,9 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               ("The " ++ Help.ordinalize (elementNumber - 1) ++ " element has this type:")
               ("But the "++ Help.ordinalize elementNumber ++ " is:")
-              [ "All elements should be the same type of value so that we can\
+              ([ "All elements should be the same type of value so that we can\
                 \ iterate through the list without running into unexpected values."
-              ]
+              ] ++ sibSuggestions)
           )
 
     List ->
@@ -248,7 +251,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The list has type:"
               "Which is fine, but the surrounding context wants it to be:"
-              []
+              sibSuggestions
           )
 
     BinopLeft op region ->
@@ -383,7 +386,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The type annotation is saying:"
               "But I am inferring that the definition has this type:"
-              []
+              sibSuggestions
           )
 
     Instance name ->
@@ -393,7 +396,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               ("Based on its definition, " ++ Help.functionName name ++ " has this type:")
               "But you are trying to use it as:"
-              []
+              sibSuggestions
           )
 
     Literal name ->
@@ -404,7 +407,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               ("The " ++ name ++ " definitely has this type:")
               ("But it is being used as:")
-              []
+              sibSuggestions
           )
 
     Pattern patErr ->
@@ -423,7 +426,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
             ( cmpHint
                 "This pattern matches things of type:"
                 "But the values it will actually be trying to match are:"
-                []
+                sibSuggestions
             )
 
     Shader ->
@@ -443,7 +446,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The low end of the range has type:"
               "But the high end is:"
-              []
+              sibSuggestions
           )
 
     Lambda ->
@@ -453,7 +456,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The anonymous function has type:"
               "But you are trying to use it as:"
-              []
+              sibSuggestions
           )
 
     Record ->
