@@ -289,11 +289,7 @@ applyHeuristics grph =
 
         let infiniteRoots = infinitePathRoots grphErrs grph
         let infiniteShare = S.fromList $ infinitePathShare grphErrs
-        trace ("\n\nINFINITE: PATH ROOTS\n" ++ show (infinitePathRoots grphErrs grph)) $ return ()
-        trace ("\n\nINFINITE: REMOVE NODES \n" ++ show (infinitePathShare grphErrs)) $ return ()
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
-        trace ("\n\nINFINITE: RECONSTRUCTED: \n" ++ show reconstr) $ return ()
-
 
 
         when (not . null $ sortTrusted) $ do
