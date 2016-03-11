@@ -4,6 +4,7 @@ module Type.Graph.Path where
 
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Clique as CLQ
+import Control.Applicative ((<|>))
 
 -- | Describes the path of constraints between two equal (sub) types
 data Path info =
@@ -56,3 +57,12 @@ contains info (l :|: r) = contains info l && contains info r
 contains info (l :+: r) = contains info l || contains info r
 contains info (Step _ (Initial info')) = info == info'
 contains _ _ = False
+
+edgeIdOf :: Eq info => info -> Path info -> Maybe BS.EdgeId
+edgeIdOf info (l :|: r) = edgeIdOf info l <|> edgeIdOf info r
+edgeIdOf info (l :+: r) = edgeIdOf info l <|> edgeIdOf info r
+edgeIdOf info (Step eid (Initial info')) = if info == info' then Just eid else Nothing
+edgeIdOf _ _ = Nothing
+
+edgeIdOfList :: Eq info => info -> [Path info] -> Maybe BS.EdgeId
+edgeIdOfList info pths = foldl1 (<|>) . map (edgeIdOf info) $ pths

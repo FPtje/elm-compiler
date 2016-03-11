@@ -98,7 +98,7 @@ insertEdge eid info grp =
 
 -- | Removes an Edge from an equivalence group
 removeEdge :: BS.EdgeId -> EquivalenceGroup info -> EquivalenceGroup info
-removeEdge eid grp = grp { edges = filter ((/= eid) . fst) $ edges grp }
+removeEdge eid grp = grp { edges = filter ((/= BS.undirected eid) . BS.undirected . fst) $ edges grp }
 
 -- | Inserts a clique into an equivalence group
 -- Merges the clique with potentially overlapping cliques

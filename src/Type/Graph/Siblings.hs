@@ -14,7 +14,6 @@ import qualified Data.Set as S
 
 import Data.Maybe (isJust, fromJust)
 
-
 import Control.Monad (filterM)
 
 siblingSolvesError :: T.TypeConstraint -> BS.EdgeId -> TG.TypeGraph T.TypeConstraint -> Module.Sibling -> TS.Solver Bool
@@ -84,22 +83,11 @@ investigateSiblings sbs (P.Step eid (P.Initial constr@(T.CInstance {}))) grph =
 investigateSiblings _ _ _ = return S.empty
 
 
-addHintToError :: [A.Located Error.Error] -> [(Module.Sibling, Module.Sibling)] -> [A.Located Error.Error]
-addHintToError [] _ = []
-addHintToError ((A.A rg (Error.Mismatch mism)) : xs) sibs =
-    A.A rg (Error.Mismatch mism { Error._siblings = sibs }) : addHintToError xs sibs
-addHintToError (x : xs) sibs = x : addHintToError xs sibs
+addHintToError :: [(Module.Sibling, Module.Sibling)] -> Error.Error -> Error.Error
+addHintToError sibs (Error.Mismatch mism) = Error.Mismatch mism { Error._siblings = sibs }
+addHintToError _ x = x
 
--- | Add sibling suggestions to the errors that have been thrown by the original unify algorithm
-addSiblingSuggestions :: S.Set (Module.Sibling, Module.Sibling) -> TS.Solver ()
-addSiblingSuggestions sibs =
-    do
-        let sibList = S.toList sibs
-
-        errs <- TS.getError
-        tgErrs <- TS.getTypeGraphErrors
-        let (otherErrs, neededErrs) = splitAt tgErrs errs
-
-        TS.setError $ otherErrs ++ (addHintToError neededErrs sibList)
-
-        return ()
+addHintToErrors :: [A.Located Error.Error] -> [(Module.Sibling, Module.Sibling)] -> [A.Located Error.Error]
+addHintToErrors [] _ = []
+addHintToErrors ((A.A rg err) : xs) sibs = A.A rg (addHintToError sibs err) : addHintToErrors xs sibs
+addHintToErrors (x : xs) sibs = x : addHintToErrors xs sibs

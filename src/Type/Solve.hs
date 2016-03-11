@@ -165,7 +165,6 @@ invokeTypeGraph constraint =
 
         graph <- TG.fromConstraint constraint
         TH.applyHeuristics graph
-        TS.updateTypeGraphErrs
 
         TS.modifyEnv (const oldEnv)
 

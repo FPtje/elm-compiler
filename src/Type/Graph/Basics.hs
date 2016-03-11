@@ -25,3 +25,8 @@ data VertexKind =
 -- | Identifies an edge in the type graph
 data EdgeId = EdgeId VertexId VertexId
     deriving (Eq, Ord, Show)
+
+undirected :: EdgeId -> EdgeId
+undirected (EdgeId l r)
+    | l < r = EdgeId l r
+    | otherwise = EdgeId r l

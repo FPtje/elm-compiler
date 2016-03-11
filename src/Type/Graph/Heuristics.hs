@@ -13,9 +13,10 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Type.Type as T
 import qualified AST.Type as AT
+import qualified AST.Module as AST
 
 import Data.List (sortBy)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, fromJust)
 import Control.Monad (when)
 import Control.Monad.Except (liftIO)
 
@@ -94,13 +95,13 @@ typePathShare minRatio paths =
 
 
 -- | Apply sibling error hints when applicable
-applySiblings :: TG.TypeGraph T.TypeConstraint -> [P.Path T.TypeConstraint] -> TS.Solver ()
-applySiblings grph inconsistentPaths =
+getSiblings :: TG.TypeGraph T.TypeConstraint -> [P.Path T.TypeConstraint] -> TS.Solver (S.Set (AST.Sibling, AST.Sibling))
+getSiblings grph inconsistentPaths =
     do
         sbs <- TS.getSiblings
         sibSuggestions <- mapM (\ip -> SB.investigateSiblings sbs ip grph) inconsistentPaths
 
-        SB.addSiblingSuggestions . S.unions $ sibSuggestions
+        return . S.unions $ sibSuggestions
 
 -- | Uses the trust factor assigned to constraints
 -- to sort (and prune) constraints
@@ -227,18 +228,19 @@ findError constr@(T.CInstance crg _ _ _) (err@(A.A rg _) : xs)
 findError _ _ = Nothing
 
 -- | Throw an error that is stored in a constraint
-throwErrorFromConstraint :: [A.Located Error.Error] -> T.TypeConstraint -> TS.Solver ()
-throwErrorFromConstraint errs constr =
+throwErrorFromConstraint :: [(AST.Sibling, AST.Sibling)] -> [A.Located Error.Error] -> T.TypeConstraint -> TS.Solver ()
+throwErrorFromConstraint sibs errs constr =
     case (findError constr errs, constr) of
-        (Just (A.A rg err), _) -> TS.addError rg err
-        (Nothing, T.CEqual hint rg lt rt _) ->
+        (_, T.CEqual hint rg lt rt _) ->
             do
                 flt <- TS.flatten lt
                 frt <- TS.flatten rt
                 srcl <- liftIO $ T.toSrcType flt
                 srcr <- liftIO $ T.toSrcType frt
                 let info = Error.MismatchInfo hint srcl srcr Nothing []
-                TS.addError rg (Error.Mismatch info)
+                let err = SB.addHintToError sibs . Error.Mismatch $ info
+                TS.addError rg err
+        (Just (A.A rg err), _) -> trace "\n\nWARNING: NOT DIRECTLY THROWING ERROR FROM CONSTRAINT!" $ TS.addError rg . SB.addHintToError sibs $ err
         (Nothing, T.CInstance _ _ _ _) ->
             error "Didn't expect to see an instance here" -- TODO
 
@@ -253,58 +255,62 @@ throwErrorFromInfinite errs =
 
 -- | Replace the error of this part of the program
 -- with the ones given by the heuristics
-replaceErrors :: [T.TypeConstraint] -> TS.Solver ()
-replaceErrors constrs =
+replaceErrors :: [(AST.Sibling, AST.Sibling)] -> [T.TypeConstraint] -> TS.Solver ()
+replaceErrors sibs constrs =
     do
         errs <- TS.getError
         tgErrs <- TS.getTypeGraphErrors
         let relevantErrs = drop tgErrs errs
-        trace ("\n\nElm would have thrown these errors: \n" ++ show tgErrs ++ "\n" ++ show relevantErrs) $ return ()
+        --trace ("\n\nElm would have thrown these errors: \n" ++ show tgErrs ++ "\n" ++ show relevantErrs) $ return ()
 
         TS.removeErrors (length errs - tgErrs)
 
-        mapM_ (throwErrorFromConstraint relevantErrs) constrs
+        mapM_ (throwErrorFromConstraint sibs relevantErrs) constrs
 
 
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
     do
-        trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
         let grphErrs = TG.getErrors grph
 
-        trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
         let expandedPaths = map (TG.expandPath grph) inconsistentPaths
 
-        trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
-
-        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
-
         -- Apply filter heuristics
         let errorPathShare = map fst $ typePathShare 0.6 expandedPaths
-        trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
         let sortTrusted = trustFactor 800 errorPathShare
-
-        trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
 
         let infiniteRoots = infinitePathRoots grphErrs grph
         let infiniteShare = S.fromList $ infinitePathShare grphErrs
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
 
+        --trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
+        --trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
+        --trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
+        --trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
+        --trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
+        --trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
 
         when (not . null $ sortTrusted) $ do
             -- The classic "eh just pick the first one" heuristic
             -- Called the "Constraint number heuristic" in Top.
             let throwable = head sortTrusted
-
-            replaceErrors [throwable]
-
             let siblinggablePaths = filter (P.contains throwable) expandedPaths
-            applySiblings grph siblinggablePaths
+            let throwableEdge = P.edgeIdOfList throwable siblinggablePaths
+            let withEdgeRemoved = TG.deleteEdge (fromJust throwableEdge) grph
+
+            sibs <- getSiblings grph siblinggablePaths
+            replaceErrors (S.toList sibs) [throwable]
+
+            TS.updateTypeGraphErrs
+
+            when (length expandedPaths > length siblinggablePaths) $
+                applyHeuristics withEdgeRemoved
 
         -- Only throw infinite errors when
         -- there are no other errors to report
         when (null sortTrusted) $ do
-            replaceErrors []
+            replaceErrors [] []
             throwErrorFromInfinite reconstr
+            TS.updateTypeGraphErrs
 
