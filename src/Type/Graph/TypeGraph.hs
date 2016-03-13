@@ -566,13 +566,20 @@ reconstructInfiniteType vid infs grph =
             if vid' `S.member` infs then
                 AT.Var "∞"
             else
-                reconstructInfiniteType vid' infs grph
+                reconstructInfiniteType vid' (S.insert vid' infs) grph
     in
         case lookup vid (EG.vertices eg) of
             Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
             Just (BS.VCon "Function", _) -> AT.Var "Function"
             Just (BS.VCon name, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
-            Just (BS.VVar, _) -> AT.Var ("a" ++ show (BS.unVertexId vid))
+            Just (BS.VVar, _) ->
+                case EG.typeOfGroup eg of
+                    Right (vid', _) ->
+                        if vid' == vid then
+                            AT.Var ("a" ++ show (BS.unVertexId vid))
+                        else
+                            rec vid'
+                    Left _ -> AT.Var ("a" ++ show (BS.unVertexId vid))
             Nothing -> AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph

@@ -52,10 +52,10 @@ simplify path =
                 (p1   , p2   ) -> p1 :+: p2
         _ -> path
 
-contains :: Eq info => info -> Path info -> Bool
-contains info (l :|: r) = contains info l && contains info r
-contains info (l :+: r) = contains info l || contains info r
-contains info (Step _ (Initial info')) = info == info'
+contains :: BS.EdgeId -> Path info -> Bool
+contains eid (l :|: r) = contains eid l && contains eid r
+contains eid (l :+: r) = contains eid l || contains eid r
+contains eid (Step eid' _) = eid == eid'
 contains _ _ = False
 
 edgeIdOf :: Eq info => info -> Path info -> Maybe BS.EdgeId

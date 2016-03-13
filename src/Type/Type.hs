@@ -370,7 +370,7 @@ trustValuation ModuleVar        = 700
 trustValuation TopLevelVar      = 400
 trustValuation LocalVar         = 300
 trustValuation DataInstance     = 400
-trustValuation BadParameter     = 200
+trustValuation BadParameter     = 100
 trustValuation FuncReturnType   = 100
 trustValuation ListType         = 100
 trustValuation ShaderType       = 100
@@ -383,7 +383,7 @@ trustValuation IfCondition      = 50
 trustValuation CaseBranches     = 100
 trustValuation ListValues       = 100
 trustValuation ListRange        = 50
-trustValuation FunctionArity    = 150
+trustValuation FunctionArity    = 200
 
 -- VARIABLE CREATION
 

@@ -18,7 +18,6 @@ import qualified AST.Module as AST
 import Data.List (sortBy)
 import Data.Maybe (fromMaybe, fromJust)
 import Control.Monad (when)
-import Control.Monad.Except (liftIO)
 
 import Debug.Trace
 
@@ -56,7 +55,7 @@ participationMap path =
 -- When one constraint appears in all error paths, only that constraint is returned
 -- Otherwise, all the constraints are returned, ordered by how often they occur
 -- Limited by a minimum ratio.
-typePathShare :: Double -> [P.Path T.TypeConstraint] -> [(T.TypeConstraint, Double)]
+typePathShare :: Double -> [P.Path T.TypeConstraint] -> [((BS.EdgeId, T.TypeConstraint), Double)]
 typePathShare _ [] = []
 typePathShare minRatio paths =
     let
@@ -74,13 +73,13 @@ typePathShare minRatio paths =
         fNrOfPaths :: Double
         fNrOfPaths = fromInteger nrOfPaths
 
-        ratios :: [(T.TypeConstraint, Double)]
+        ratios :: [((BS.EdgeId, T.TypeConstraint), Double)]
         ratios = map (\(e, c) -> (findEdge e, fromInteger c / fNrOfPaths)) countList
 
-        findEdge :: BS.EdgeId -> T.TypeConstraint
-        findEdge e = M.findWithDefault (error "Could not find a thing I put in here myself") e edgeMap
+        findEdge :: BS.EdgeId -> (BS.EdgeId, T.TypeConstraint)
+        findEdge e = (,) e $ M.findWithDefault (error "Could not find a thing I put in here myself") e edgeMap
 
-        inThreshold :: [(T.TypeConstraint, Double)]
+        inThreshold :: [((BS.EdgeId, T.TypeConstraint), Double)]
         inThreshold = takeWhile ((> minRatio) . snd) ratios
     in
         -- Give only the constraints that appear in every error path
@@ -105,25 +104,25 @@ getSiblings grph inconsistentPaths =
 
 -- | Uses the trust factor assigned to constraints
 -- to sort (and prune) constraints
-trustFactor :: Int -> [T.TypeConstraint] -> [T.TypeConstraint]
+trustFactor :: Int -> [(BS.EdgeId, T.TypeConstraint)] -> [(BS.EdgeId, T.TypeConstraint)]
 trustFactor prune constrs =
     let
-        cond :: T.TypeConstraint -> T.TypeConstraint -> Ordering
-        cond l r =
+        cond :: (BS.EdgeId, T.TypeConstraint) -> (BS.EdgeId, T.TypeConstraint) -> Ordering
+        cond (_, l) (_, r) =
             case (T.trustFactor l, T.trustFactor r) of
                 (Nothing, Nothing) -> EQ
                 (Nothing, _) -> LT
                 (_, Nothing) -> GT
                 (Just tl, Just tr) -> compare (T.trustValuation tl) (T.trustValuation tr)
 
-        pruneCond :: T.TypeConstraint -> Bool
-        pruneCond constr =
+        pruneCond :: (BS.EdgeId, T.TypeConstraint) -> Bool
+        pruneCond (_, constr) =
             let
                 trust = T.trustFactor constr
             in
                 fromMaybe True ((> prune) . T.trustValuation <$> trust)
 
-        filtered :: [T.TypeConstraint]
+        filtered :: [(BS.EdgeId, T.TypeConstraint)]
         filtered = filter pruneCond constrs
     in
         if (null filtered) then
@@ -227,17 +226,16 @@ findError constr@(T.CInstance crg _ _ _) (err@(A.A rg _) : xs)
     | otherwise = findError constr xs
 findError _ _ = Nothing
 
+
 -- | Throw an error that is stored in a constraint
-throwErrorFromConstraint :: [(AST.Sibling, AST.Sibling)] -> [A.Located Error.Error] -> T.TypeConstraint -> TS.Solver ()
-throwErrorFromConstraint sibs errs constr =
+throwErrorFromConstraint :: [(AST.Sibling, AST.Sibling)] -> [A.Located Error.Error] -> BS.EdgeId -> TG.TypeGraph info -> T.TypeConstraint -> TS.Solver ()
+throwErrorFromConstraint sibs errs (BS.EdgeId l r) grph constr =
     case (findError constr errs, constr) of
-        (_, T.CEqual hint rg lt rt _) ->
+        (_, T.CEqual hint rg _ _ _) ->
             do
-                flt <- TS.flatten lt
-                frt <- TS.flatten rt
-                srcl <- liftIO $ T.toSrcType flt
-                srcr <- liftIO $ T.toSrcType frt
-                let info = Error.MismatchInfo hint srcl srcr Nothing []
+                let leftT = TG.reconstructInfiniteType l S.empty grph
+                let rightT = TG.reconstructInfiniteType r S.empty grph
+                let info = Error.MismatchInfo hint leftT rightT Nothing []
                 let err = SB.addHintToError sibs . Error.Mismatch $ info
                 TS.addError rg err
         (Just (A.A rg err), _) -> trace "\n\nWARNING: NOT DIRECTLY THROWING ERROR FROM CONSTRAINT!" $ TS.addError rg . SB.addHintToError sibs $ err
@@ -255,8 +253,8 @@ throwErrorFromInfinite errs =
 
 -- | Replace the error of this part of the program
 -- with the ones given by the heuristics
-replaceErrors :: [(AST.Sibling, AST.Sibling)] -> [T.TypeConstraint] -> TS.Solver ()
-replaceErrors sibs constrs =
+replaceErrors :: [(AST.Sibling, AST.Sibling)] -> [(BS.EdgeId, T.TypeConstraint)] -> TG.TypeGraph info -> TS.Solver ()
+replaceErrors sibs constrs grph =
     do
         errs <- TS.getError
         tgErrs <- TS.getTypeGraphErrors
@@ -265,7 +263,7 @@ replaceErrors sibs constrs =
 
         TS.removeErrors (length errs - tgErrs)
 
-        mapM_ (throwErrorFromConstraint sibs relevantErrs) constrs
+        mapM_ (\(eid, c) -> throwErrorFromConstraint sibs relevantErrs eid grph c) constrs
 
 
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
@@ -294,13 +292,14 @@ applyHeuristics grph =
         when (not . null $ sortTrusted) $ do
             -- The classic "eh just pick the first one" heuristic
             -- Called the "Constraint number heuristic" in Top.
-            let throwable = head sortTrusted
-            let siblinggablePaths = filter (P.contains throwable) expandedPaths
-            let throwableEdge = P.edgeIdOfList throwable siblinggablePaths
-            let withEdgeRemoved = TG.deleteEdge (fromJust throwableEdge) grph
+            let (throwableEdge, throwable) = head sortTrusted
+
+            -- The paths that contain the throwable edge
+            let siblinggablePaths = filter (P.contains throwableEdge) expandedPaths
+            let withEdgeRemoved = TG.deleteEdge throwableEdge grph
 
             sibs <- getSiblings grph siblinggablePaths
-            replaceErrors (S.toList sibs) [throwable]
+            replaceErrors (S.toList sibs) [(throwableEdge, throwable)] withEdgeRemoved
 
             TS.updateTypeGraphErrs
 
@@ -310,7 +309,7 @@ applyHeuristics grph =
         -- Only throw infinite errors when
         -- there are no other errors to report
         when (null sortTrusted) $ do
-            replaceErrors [] []
+            replaceErrors [] [] grph
             throwErrorFromInfinite reconstr
             TS.updateTypeGraphErrs
 

@@ -13,7 +13,7 @@ import Data.Maybe (listToMaybe, mapMaybe)
 import Control.Applicative ((<|>))
 
 
--- | Equivalence groups, TODO
+-- | Equivalence groups
 data EquivalenceGroup info = EQGroup
     { vertices                  :: [(BS.VertexId, BS.VertexInfo)]     -- ^ Vertices in this equivalence group
     , edges                     :: [(BS.EdgeId, info)]             -- ^ (Initial) edges in this equivalence group
@@ -219,7 +219,7 @@ equalPaths start target eqgroup =
 
                     -- Add steps to all edges going to this node
                     ++ map (\(BS.EdgeId neighbour _, info) ->
-                        P.Step (BS.EdgeId v1 neighbour) (P.Initial info)
+                        P.Step (BS.EdgeId neighbour v1) (P.Initial info)
                         P.:+: rec neighbour rest) edgesTo
 
                     -- Creates all implied edges

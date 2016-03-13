@@ -39,7 +39,7 @@ siblingSolvesError constr eid@(BS.EdgeId _ r) grph sib =
         let expandedPaths = map (TG.expandPath updatedGrph) inconsistentPaths
         -- This sibling does NOT solve the error if its CInstance
         -- constraint remains present in any of the expanded error paths
-        let constrPresent = or . map (P.contains constr) $ expandedPaths
+        let constrPresent = or . map (P.contains eid) $ expandedPaths
 
         return . not $ constrPresent
 
