@@ -238,9 +238,14 @@ throwErrorFromConstraint sibs errs (BS.EdgeId l r) grph constr =
                 let info = Error.MismatchInfo hint leftT rightT Nothing []
                 let err = SB.addHintToError sibs . Error.Mismatch $ info
                 TS.addError rg err
+        (Nothing, T.CInstance rg nm _ _) ->
+            do
+                let leftT = TG.reconstructInfiniteType l S.empty grph
+                let rightT = TG.reconstructInfiniteType r S.empty grph
+                let info = Error.MismatchInfo (Error.Instance nm) leftT rightT Nothing []
+                let err = SB.addHintToError sibs . Error.Mismatch $ info
+                TS.addError rg err
         (Just (A.A rg err), _) -> trace "\n\nWARNING: NOT DIRECTLY THROWING ERROR FROM CONSTRAINT!" $ TS.addError rg . SB.addHintToError sibs $ err
-        (Nothing, T.CInstance _ _ _ _) ->
-            error "Didn't expect to see an instance here" -- TODO
 
 -- | Throw infinite type errors
 throwErrorFromInfinite :: [(A.Located T.SchemeName, AT.Canonical)] -> TS.Solver ()
