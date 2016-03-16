@@ -238,8 +238,15 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 addTermGraphStructure vertexId T.EmptyRecord1 alias grph =
     return (BS.VertexId vertexId, addVertex (BS.VertexId vertexId) (BS.VCon "1Record" [], alias) grph)
 
-addTermGraphStructure _ r@(T.Record1 members _) _ _ = do
-    error $ "Record \n" ++ show r
+addTermGraphStructure vertexId (T.Record1 members var) alias grph = do
+    let recordVid = BS.VertexId vertexId
+    let grph1 = addVertex recordVid (BS.VCon "1Record" [{-TODO-}], Nothing) $ grph
+
+    (vid, grph2) <- addTermGraph var alias grph1
+
+    (_, grph3) <- foldM (\(_, grph') var' -> addTermGraph var' Nothing grph') (vid, grph2) (map snd . M.toList $ members)
+
+    return (recordVid, grph3)
 
 
 -- | Unify two types in the type graph
