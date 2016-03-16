@@ -235,8 +235,11 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 
     return (appRVid, updGrphR)
 
-addTermGraphStructure _ T.EmptyRecord1 _ _ = error "Records not implemented"
-addTermGraphStructure _ T.Record1 {} _ _ = error "Records not implemented"
+addTermGraphStructure vertexId T.EmptyRecord1 alias grph =
+    return (BS.VertexId vertexId, addVertex (BS.VertexId vertexId) (BS.VCon "1Record" [], alias) grph)
+
+addTermGraphStructure _ r@(T.Record1 members _) _ _ = do
+    error $ "Record \n" ++ show r
 
 
 -- | Unify two types in the type graph
