@@ -6,6 +6,7 @@ module Type.Graph.EQGroup where
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
+import qualified Type.Graph.Qualified as Q
 import qualified AST.Variable as Var
 import qualified Data.Map as M
 import Data.List (partition, nub)
@@ -169,7 +170,7 @@ typeOfGroup eqgroup
         pairs (x : y : xs) = (x, y) : (pairs (x : xs) ++ pairs (y : xs))
 
         combinations :: [(BS.VertexId, BS.VertexId)]
-        combinations = concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups]
+        combinations = concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] ++ evidenceLackingCons
 
 
         insert :: M.Map BS.VertexKind [BS.VertexId]
@@ -183,9 +184,15 @@ typeOfGroup eqgroup
         conflictGroups :: [[BS.VertexId]]
         conflictGroups = map fst allApplies : (map snd . M.toList $ groupMap)
 
+        allPredicates :: [(BS.VertexId, [Q.Predicate])]
+        allPredicates = [(vid, preds) | (vid, (BS.VVar preds@(_:_), _)) <- vertices eqgroup]
+
+        evidenceLackingCons :: [(BS.VertexId, BS.VertexId)]
+        evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ Q.matchEvidence preds evidence]
+
         allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
-        allConstants  = [ c       |  c@(_, (BS.VCon _ _, _))    <- vertices eqgroup  ] -- TODO: Check evidence, gather predicates
-        allApplies    = [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
+        allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]
+        allApplies    = [a | a@(_, (BS.VApp {}, _)) <- vertices eqgroup]
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info

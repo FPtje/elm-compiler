@@ -238,14 +238,15 @@ throwErrorFromConstraint sibs errs (BS.EdgeId l r) grph constr =
                 let info = Error.MismatchInfo hint leftT rightT Nothing []
                 let err = SB.addHintToError sibs . Error.Mismatch $ info
                 TS.addError rg err
-        (Nothing, T.CInstance rg nm _ _) ->
+        (_, T.CInstance rg nm _ _) ->
             do
                 let leftT = TG.reconstructInfiniteType l S.empty grph
                 let rightT = TG.reconstructInfiniteType r S.empty grph
                 let info = Error.MismatchInfo (Error.Instance nm) leftT rightT Nothing []
                 let err = SB.addHintToError sibs . Error.Mismatch $ info
                 TS.addError rg err
-        (Just (A.A rg err), _) -> trace "\n\nWARNING: NOT DIRECTLY THROWING ERROR FROM CONSTRAINT!" $ TS.addError rg . SB.addHintToError sibs $ err
+        (Just (A.A rg err), _) -> trace ("\n\nWARNING: NOT DIRECTLY THROWING ERROR FROM CONSTRAINT!\n" ++ show constr) $ TS.addError rg . SB.addHintToError sibs $ err
+        (Nothing, _) -> error "No constraint found whatsoever"
 
 -- | Throw infinite type errors
 throwErrorFromInfinite :: [(A.Located T.SchemeName, AT.Canonical)] -> TS.Solver ()
@@ -288,7 +289,7 @@ applyHeuristics grph =
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
 
         --trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
-        trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
+        --trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         --trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
         --trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
         --trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
