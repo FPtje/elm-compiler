@@ -21,3 +21,17 @@ matchEvidence (p : ps) es =
     else
         p : (matchEvidence ps es)
 matchEvidence [] _ = []
+
+-- | Checks whether sets of predicates are consistent with one another
+-- returns the inconsistent pairs by their identification
+-- Doesn't check internal consistency
+consistent :: [(a, [Predicate])] -> [(a, a)]
+consistent ps =
+    let
+        -- Currently the only inconsistency can come from
+        -- the super class of one thing being number, and
+        -- that of another thing being Appendable
+        numbers = [a | (a, pr) <- ps, Super T.Number `elem` pr]
+        appendables = [a | (a, pr) <- ps, Super T.Appendable `elem` pr]
+    in
+        [(n, ap) | n <- numbers, ap <- appendables]

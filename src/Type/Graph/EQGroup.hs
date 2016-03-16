@@ -170,7 +170,10 @@ typeOfGroup eqgroup
         pairs (x : y : xs) = (x, y) : (pairs (x : xs) ++ pairs (y : xs))
 
         combinations :: [(BS.VertexId, BS.VertexId)]
-        combinations = concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] ++ evidenceLackingCons
+        combinations =
+               Q.consistent allPredicates -- Consistency between predicates
+            ++ concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] -- Inconsistent types
+            ++ evidenceLackingCons -- Constructors that have no evidence for required predicates
 
 
         insert :: M.Map BS.VertexKind [BS.VertexId]
