@@ -6,12 +6,14 @@ module Type.Graph.TypeGraph where
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
-import qualified Reporting.Error.Type as Error
+import qualified Type.Graph.Qualified as Q
 import qualified Type.Graph.Path as P
+import qualified Reporting.Error.Type as Error
 import qualified AST.Variable as Var
 import qualified AST.Type as AT
 import qualified Type.Type as T
 import qualified Type.State as TS
+import qualified Type.Unify as U
 import qualified Data.Map as M
 import qualified Data.UnionFind.IO as UF
 import qualified Data.List as List
@@ -167,13 +169,13 @@ addTermGraph var alias grph = do
 addContentGraph :: T.Variable -> T.Content -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
 addContentGraph var content alias grph =
     do
-        reprDesc <- liftIO $ UF.descriptor var
+        desc <- liftIO $ UF.descriptor var
         let unique = varNumber grph
-        let vertexId = fromMaybe unique (T._typegraphid reprDesc)
+        let vertexId = fromMaybe unique (T._typegraphid desc)
 
         case content of
             T.Structure t ->
-                if isJust (T._typegraphid reprDesc) then
+                if isJust (T._typegraphid desc) then
                     return (BS.VertexId vertexId, grph)
                 else
                     do
@@ -186,14 +188,16 @@ addContentGraph var content alias grph =
             T.Atom name ->
                 do
                     let vid = BS.VertexId unique
-                    return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name), alias) . updateFuncMap name $ grph)
+                    let evidence = [Q.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name]
+                    return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name) evidence, alias) . updateFuncMap name $ grph)
 
-            T.Var _ _ _ -> do
+            T.Var _ msuper _ -> do
                 let vid = BS.VertexId vertexId
                 liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just vertexId })
                 let exists = vertexExists vid grph
+                let predicates = maybe [] ((:[]) . Q.Super) msuper
 
-                return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar, alias) $ grph)
+                return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar predicates, alias) $ grph)
             T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
             -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
             T.Error original -> addContentGraph var original alias grph
@@ -213,7 +217,7 @@ addTermGraphStructure vertexId (T.App1 l r) alias grph = do
 addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
     -- Add the function constructor to the graph
     let vid = BS.VertexId (varNumber grph)
-    let grph' = incVarNumber . addVertex vid (BS.VCon "Function", Nothing) $ grph
+    let grph' = incVarNumber . addVertex vid (BS.VCon "Function" [], Nothing) $ grph
 
     -- Add the left type's subgraph
     (vidl, gphl) <- addTermGraph l Nothing grph'
@@ -570,9 +574,9 @@ reconstructInfiniteType vid infs grph =
     in
         case lookup vid (EG.vertices eg) of
             Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
-            Just (BS.VCon "Function", _) -> AT.Var "Function"
-            Just (BS.VCon name, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
-            Just (BS.VVar, _) ->
+            Just (BS.VCon "Function" _, _) -> AT.Var "Function"
+            Just (BS.VCon name _, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
+            Just (BS.VVar _, _) -> -- TODO: Represent qualified types in reconstructed type?
                 case EG.typeOfGroup eg of
                     Right (vid', _) ->
                         if vid' == vid then
@@ -593,13 +597,14 @@ flattenGraphType (AT.App l [r]) =
 flattenGraphType x = x
 
 -- | Gives the type graph inferred type of a vertex that contains a type variable
+-- TODO: Qualified types?
 substituteVariable :: forall info . Show info => BS.VertexId -> TypeGraph info -> Either (SubstitutionError info) BS.VertexInfo
 substituteVariable vid grph =
     let
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
-        rec history vi (BS.VVar, _)
+        rec history vi (BS.VVar _, _)
             | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
                 do
@@ -607,11 +612,11 @@ substituteVariable vid grph =
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
-                        Right (vi', vinfo@(BS.VVar, _)) -> if vi == vi' then Right (vi, vinfo) else rec present vi' vinfo
+                        Right (vi', vinfo@(BS.VVar _, _)) -> if vi == vi' then Right (vi, vinfo) else rec present vi' vinfo
                         Right (_, tp) -> Right (vi, tp)
                         Left conflicts -> Left (InconsistentType eg conflicts)
 
-        rec _ vi inf@(BS.VCon _, _) =
+        rec _ vi inf@(BS.VCon _ _, _) =
             let
                 eg = getVertexGroup vi grph
             in

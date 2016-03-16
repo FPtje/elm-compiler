@@ -184,7 +184,7 @@ typeOfGroup eqgroup
         conflictGroups = map fst allApplies : (map snd . M.toList $ groupMap)
 
         allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
-        allConstants  = [ c       |  c@(_, (BS.VCon _, _))    <- vertices eqgroup  ]
+        allConstants  = [ c       |  c@(_, (BS.VCon _ _, _))    <- vertices eqgroup  ] -- TODO: Check evidence, gather predicates
         allApplies    = [ a       |  a@(_, (BS.VApp {}, _))   <- vertices eqgroup  ]
 
 -- | All equality paths between two vertices.

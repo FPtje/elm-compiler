@@ -3,6 +3,7 @@
 module Type.Graph.Basics where
 
 import qualified AST.Variable as Var
+import qualified Type.Graph.Qualified as Q
 
 -- | Identifies vertices in the type graph
 newtype VertexId =
@@ -17,8 +18,8 @@ type VertexInfo = (VertexKind, Maybe Var.Canonical)
 -- | The types that a vertex can contain
 -- A simplification of the actual types
 data VertexKind =
-      VVar                                                      -- ^ Type variable
-    | VCon String                                               -- ^ Type constructor
+      VVar [Q.Predicate]                                        -- ^ Type variable
+    | VCon String [Q.Evidence]                                  -- ^ Type constructor
     | VApp VertexId VertexId                                    -- ^ Type application
     deriving (Eq, Ord, Show)
 

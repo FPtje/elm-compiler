@@ -113,7 +113,7 @@ data Super
     | Comparable
     | Appendable
     | CompAppend
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)
 
 
 noRank :: Int

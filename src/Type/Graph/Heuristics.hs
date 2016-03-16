@@ -16,7 +16,7 @@ import qualified AST.Type as AT
 import qualified AST.Module as AST
 
 import Data.List (sortBy)
-import Data.Maybe (fromMaybe, fromJust)
+import Data.Maybe (fromMaybe)
 import Control.Monad (when)
 
 import Debug.Trace
@@ -288,7 +288,7 @@ applyHeuristics grph =
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
 
         --trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
-        --trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
+        trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
         --trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
         --trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
         --trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()

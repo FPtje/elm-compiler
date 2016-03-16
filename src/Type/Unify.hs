@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.Unify (unify) where
+module Type.Unify (unify, atomMatchesSuper) where
 
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)

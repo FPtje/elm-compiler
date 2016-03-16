@@ -90,4 +90,3 @@ addHintToError _ x = x
 addHintToErrors :: [A.Located Error.Error] -> [(Module.Sibling, Module.Sibling)] -> [A.Located Error.Error]
 addHintToErrors [] _ = []
 addHintToErrors ((A.A rg err) : xs) sibs = A.A rg (addHintToError sibs err) : addHintToErrors xs sibs
-addHintToErrors (x : xs) sibs = x : addHintToErrors xs sibs
