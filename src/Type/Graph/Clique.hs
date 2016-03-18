@@ -5,12 +5,19 @@ module Type.Graph.Clique where
 import qualified Type.Graph.Basics as BS
 import Control.Applicative ((<|>))
 import Data.List (partition, sort, find)
+import Data.Maybe (catMaybes, listToMaybe)
+
+import Debug.Trace
 
 -- | Indicates whether a child is the left or right child of a parent
 data ChildSide =
       LeftChild
     | RightChild
-    deriving (Eq, Show)
+    deriving (Eq)
+
+instance Show ChildSide where
+    show LeftChild = "L"
+    show RightChild = "R"
 
 -- | Describes the parent-child relationship
 -- Used in composite types (functions, data structures, etc.)
@@ -19,7 +26,10 @@ data ParentChild = ParentChild
     , child                     :: BS.VertexId                  -- ^ Vertex id of the child
     , childSide                 :: ChildSide                    -- ^ On which side the child resides
     }
-   deriving (Eq, Show)
+   deriving (Eq)
+
+instance Show ParentChild where
+    show pc = show (BS.unVertexId . parent $ pc) ++ show (childSide pc) ++ show (BS.unVertexId . child $ pc)
 
 instance Ord ParentChild where
    compare pc1 pc2 = compare (child pc1, parent pc1) (child pc2, parent pc2)
@@ -117,3 +127,27 @@ edgeParentSingle (BS.EdgeId l r) clq = do
 -- | Try to find a parent implicit edge from a given implicit edge
 edgeParent :: BS.EdgeId -> [Clique] -> Maybe (BS.EdgeId, ChildSide)
 edgeParent eid = foldl1 (<|>) . map (edgeParentSingle eid)
+
+
+-- | Returns the clique of a vertex
+cliqueOf :: BS.VertexId -> [Clique] -> Maybe Clique
+cliqueOf _ [] = Nothing
+cliqueOf vid (c : cqs) =
+    case getParentChild vid c of
+        Just _ -> Just c
+        Nothing -> cliqueOf vid cqs
+
+-- | For two vertices a and b, this function gives all the vertices that both a and b have in the same clique
+commonInClique :: BS.VertexId -> BS.VertexId -> [Clique] -> [BS.VertexId]
+commonInClique a b clqs =
+    case (cliqueOf a clqs, cliqueOf b clqs) of
+        (Just aClq, Just bClq) ->
+            [ child aPc
+            | aPc <- unclique aClq
+            , bPc <- unclique bClq
+            , child aPc /= a
+            , child bPc /= b
+            , child aPc == child bPc
+            ]
+        _ -> []
+

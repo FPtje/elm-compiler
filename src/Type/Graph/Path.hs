@@ -6,6 +6,8 @@ import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Clique as CLQ
 import Control.Applicative ((<|>))
 
+import Debug.Trace
+
 -- | Describes the path of constraints between two equal (sub) types
 data Path info =
       Path info :|: Path info
@@ -65,4 +67,4 @@ edgeIdOf info (Step eid (Initial info')) = if info == info' then Just eid else N
 edgeIdOf _ _ = Nothing
 
 edgeIdOfList :: Eq info => info -> [Path info] -> Maybe BS.EdgeId
-edgeIdOfList info pths = foldl1 (<|>) . map (edgeIdOf info) $ pths
+edgeIdOfList info pths = trace ("EDGE ID OF LIST") $ foldl1 (<|>) . map (edgeIdOf info) $ pths

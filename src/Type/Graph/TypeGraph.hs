@@ -428,7 +428,7 @@ propagateRemoval i grph =
 expandPath :: forall info . TypeGraph info -> P.Path info -> P.Path info
 expandPath grph (l P.:|: r) = expandPath grph l P.:|: expandPath grph r
 expandPath grph (l P.:+: r) = expandPath grph l P.:+: expandPath grph r
-expandPath grph st@(P.Step eid P.Implied) = fromMaybe st $ expandStep grph eid S.empty
+expandPath grph st@(P.Step eid P.Implied) = fst . fromMaybe (st, undefined) $ expandStep grph eid S.empty
 expandPath _     x = x
 
 
@@ -440,7 +440,7 @@ expandPath _     x = x
 -- the initial edge from c to d, and then the expanded implicit edge between d and b.
 -- Note that it can also happen that only one node has to move over an initial edge
 -- e.g. (a, b) failing, there is an edge (b, c), and (a, c) doesn't fail
-expandSplitStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info)
+expandSplitStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info, M.Map BS.EdgeId (P.Path info))
 expandSplitStep grph (BS.EdgeId a b) set =
     do
         grp <- getGroupOf a grph
@@ -460,51 +460,119 @@ expandSplitStep grph (BS.EdgeId a b) set =
                 [(BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId a' c), inf) <- edges, a == a'] ++
                 [(BS.EdgeId c b, P.Step eid (P.Initial inf)) | (eid@(BS.EdgeId c a'), inf) <- edges, a == a']
 
+        let attemptSplit (ac, bd, stp) =
+                do
+                    (acPth, acM) <- expandStep grph ac set
+                    (bdPth, bdM) <- expandStep grph bd set
+
+                    return (acPth P.:+: stp P.:+: bdPth, M.union acM bdM)
+
         let attemptSplits =
-                [(expandStep grph e1 set, expandStep grph e2 set, stp) | (e1, e2, stp) <- splitAttempts]
+                map attemptSplit splitAttempts
+                --[(expandStep grph e1 set, expandStep grph e2 set, stp) | (e1, e2, stp) <- splitAttempts]
 
         let attemptHalfSplits =
-                [(stp P.:+:) <$> expandStep grph eid set | (eid, stp) <- halfSplitAttemptsL] ++
-                [(P.:+: stp) <$> expandStep grph eid set | (eid, stp) <- halfSplitAttemptsR]
+                [(\(p, mp) -> (stp P.:+: p, mp)) <$> expandStep grph eid set | (eid, stp) <- halfSplitAttemptsL] ++
+                [(\(p, mp) -> (p P.:+: stp, mp)) <$> expandStep grph eid set | (eid, stp) <- halfSplitAttemptsR]
+
+        let attemptDoubleSplit (ac1, cstep, c2d2, dstep, d1b) =
+                do
+                    (ac1Path, mAc1) <- expandStep grph ac1 set
+                    (c2d2Path, mC2d2) <- expandStep grph c2d2 set
+                    (d1bPath, mD1b) <- expandStep grph d1b set
+
+                    return
+                        (     ac1Path
+                        P.:+: cstep
+                        P.:+: c2d2Path
+                        P.:+: dstep
+                        P.:+: d1bPath
+                        , M.unions [mAc1, mC2d2, mD1b]
+                        )
+
+        let doubleSplits = map attemptDoubleSplit . concat $
+                [
+                    [ (BS.EdgeId a c1, P.Step cEdge (P.Initial cInf), BS.EdgeId c2 d2, P.Step dEdge (P.Initial dInf), BS.EdgeId d1 b)
+                    , (BS.EdgeId a c1, P.Step cEdge (P.Initial cInf), BS.EdgeId c2 d1, P.Step dEdge (P.Initial dInf), BS.EdgeId d2 b)
+                    , (BS.EdgeId a c2, P.Step cEdge (P.Initial cInf), BS.EdgeId c1 d2, P.Step dEdge (P.Initial dInf), BS.EdgeId d1 b)
+                    , (BS.EdgeId a c2, P.Step cEdge (P.Initial cInf), BS.EdgeId c1 d1, P.Step dEdge (P.Initial dInf), BS.EdgeId d2 b)
+                    ]
+                    | (cEdge@(BS.EdgeId c1 c2), cInf) <- edges
+                    , (dEdge@(BS.EdgeId d1 d2), dInf) <- edges
+                    , c1 /= a
+                    , c2 /= a
+                    , d1 /= a
+                    , d2 /= a
+                    , c1 /= b
+                    , c2 /= b
+                    , d1 /= b
+                    , d2 /= b
+                    , cEdge /= dEdge
+                ]
+
 
         -- A path was found!
-        let splitPath :: [P.Path info]
+        let splitPath :: [(P.Path info, M.Map BS.EdgeId (P.Path info))]
             splitPath =
-                    [(ac P.:+: stp P.:+: bd) | (Just ac, Just bd, stp) <- attemptSplits] ++
-                    catMaybes attemptHalfSplits
+                    catMaybes attemptSplits ++
+                    catMaybes attemptHalfSplits -- ++
+                    -- catMaybes doubleSplits
 
         listToMaybe splitPath
 
+expandZeroSplitStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info, M.Map BS.EdgeId (P.Path info))
+expandZeroSplitStep grph (BS.EdgeId a b) set =
+    do
+        grp <- getGroupOf a grph
+
+        let attemptZeroSplit (ac, cb) =
+                do
+                    (pAc, mAc) <- expandStep grph ac set
+                    (pCb, mCb) <- expandStep grph cb set
+
+                    return (pAc P.:+: pCb, M.union mAc mCb)
+
+        let zeroSplits = map attemptZeroSplit
+                [ (BS.EdgeId a commonVid, BS.EdgeId commonVid b)
+                | commonVid <- CLQ.commonInClique a b (EG.cliques grp)
+                ]
+
+        listToMaybe . catMaybes $ zeroSplits
+
+expandParentStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info, M.Map BS.EdgeId (P.Path info))
+expandParentStep grph eid@(BS.EdgeId l r) set =
+    do
+        grp <- getGroupOf l grph
+        let cliques = EG.cliques grp
+
+        -- Look for parents
+        (eid'@(BS.EdgeId lp rp), childSide) <- CLQ.edgeParent eid cliques
+
+        -- recurse into parents
+        (rec, mp) <- expandStep grph eid' set <|>
+               expandSplitStep grph eid' set
+
+        let pth =
+                P.Step (BS.EdgeId l lp) (P.Parent childSide) P.:+:
+                rec P.:+:
+                P.Step (BS.EdgeId rp r) (P.Child childSide)
+
+        -- Go up the tree and record the process
+        return (pth, M.insert eid pth mp)
+
 
 -- | Expand an implied step
-expandStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info)
-expandStep grph eid@(BS.EdgeId l r) set
-    | eid `S.member` set = Just (P.Step eid P.Implied) -- stop the process here
+expandStep :: forall info . TypeGraph info -> BS.EdgeId -> S.Set BS.EdgeId -> Maybe (P.Path info, M.Map BS.EdgeId (P.Path info))
+expandStep grph eid@(BS.EdgeId l _) set
+    | eid `S.member` set = Just (P.Step eid P.Implied, M.singleton eid (P.Step eid P.Implied)) -- stop the process here
     | otherwise =
         do
             grp <- getGroupOf l grph
-            let initPath = EG.initialEdgePath eid grp
-            let cliques = EG.cliques grp
             let newSet = S.insert eid set
 
-            case initPath of
-                Just p ->
-                    -- There is an initial constraint path on this level
-                    return p
-                Nothing ->
-                    do
-                        -- Look for parents
-                        (eid'@(BS.EdgeId lp rp), childSide) <- CLQ.edgeParent eid cliques
-
-                        -- recurse into parents, try to split the step on failure
-                        rec <- expandStep grph eid' newSet <|>
-                                expandSplitStep grph eid' newSet
-
-                        -- Go up the tree and record the process
-                        return $
-                            P.Step (BS.EdgeId l lp) (P.Parent childSide) P.:+:
-                            rec P.:+:
-                            P.Step (BS.EdgeId rp r) (P.Child childSide)
+            EG.initialEdgePath eid grp <|>
+                expandParentStep grph eid newSet <|>
+                expandZeroSplitStep grph eid newSet
 
 -- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])

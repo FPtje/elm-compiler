@@ -119,13 +119,13 @@ removeClique cl grp =
 
 
 -- | Try to find a path of initial edges between two elements of the same EQGroup
-initialEdgePath :: forall info . BS.EdgeId -> EquivalenceGroup info -> Maybe (P.Path info)
-initialEdgePath (BS.EdgeId l r) grp =
+initialEdgePath :: forall info . BS.EdgeId -> EquivalenceGroup info -> Maybe (P.Path info, M.Map BS.EdgeId (P.Path info))
+initialEdgePath eid@(BS.EdgeId l r) grp =
     let
         edgeMap :: M.Map BS.VertexId [(BS.VertexId, BS.EdgeId, info)]
         edgeMap = M.fromListWith (++)
-                    (  [(l', [(r', eid, inf)]) | (eid@(BS.EdgeId l' r'), inf) <- edges grp]
-                    ++ [(r', [(l', eid, inf)]) | (eid@(BS.EdgeId l' r'), inf) <- edges grp])
+                    (  [(l', [(r', eid', inf)]) | (eid'@(BS.EdgeId l' r'), inf) <- edges grp]
+                    ++ [(r', [(l', eid', inf)]) | (eid'@(BS.EdgeId l' r'), inf) <- edges grp])
 
         rec :: M.Map BS.VertexId [(BS.VertexId, BS.EdgeId, info)] -> BS.VertexId -> P.Path info -> Maybe (P.Path info)
         rec mp i p
@@ -141,14 +141,16 @@ initialEdgePath (BS.EdgeId l r) grp =
                     nextMap = M.delete i mp
 
                     nextSteps :: [P.Path info]
-                    nextSteps = [p P.:+: (P.Step eid (P.Initial inf)) | (_, eid, inf) <- nextEdges]
+                    nextSteps = [p P.:+: (P.Step eid' (P.Initial inf)) | (_, eid', inf) <- nextEdges]
 
                     recCalls :: [Maybe (P.Path info)]
                     recCalls = zipWith (\(i', _, _) p' -> rec nextMap i' p') nextEdges nextSteps
                 in
                     foldl1 (<|>) recCalls
     in
-        P.simplify <$> rec edgeMap l P.Empty
+        do
+            pth <- P.simplify <$> rec edgeMap l P.Empty
+            return (pth, M.singleton eid pth)
 
 -- | Returns the type of a group in the form in which it is stored
 -- Will give the conflicting vertices when a type conflict is found
