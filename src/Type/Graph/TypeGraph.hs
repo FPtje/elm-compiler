@@ -515,8 +515,8 @@ expandSplitStep grph (BS.EdgeId a b) set =
         let splitPath :: [(P.Path info, M.Map BS.EdgeId (P.Path info))]
             splitPath =
                     catMaybes attemptSplits ++
-                    catMaybes attemptHalfSplits -- ++
-                    -- catMaybes doubleSplits
+                    catMaybes attemptHalfSplits ++
+                    catMaybes doubleSplits
 
         listToMaybe splitPath
 
@@ -550,7 +550,7 @@ expandParentStep grph eid@(BS.EdgeId l r) set =
 
         -- recurse into parents
         (rec, mp) <- expandStep grph eid' set <|>
-               expandSplitStep grph eid' set
+               expandSplitStep grph eid' (S.insert eid' set)
 
         let pth =
                 P.Step (BS.EdgeId l lp) (P.Parent childSide) P.:+:
