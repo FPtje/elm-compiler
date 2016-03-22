@@ -238,7 +238,8 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 addTermGraphStructure vertexId T.EmptyRecord1 alias grph =
     return (BS.VertexId vertexId, addVertex (BS.VertexId vertexId) (BS.VCon "1EmptyRecord" [], alias) grph)
 
-addTermGraphStructure vertexId (T.Record1 members var) alias grph = do
+addTermGraphStructure vertexId rec@(T.Record1 members var) alias grph = do
+    trace ("ADD RECORD " ++ show rec) $ return ()
     let recordVid = BS.VertexId vertexId
     let grph1 = addVertex recordVid (BS.VCon "1Record" [{-TODO-}], Nothing) $ grph
 

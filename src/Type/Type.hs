@@ -34,13 +34,8 @@ type Variable =
 instance (Eq a, Show a) => Show (UF.Point a) where
   show x = unsafePerformIO $ do
             desc <- UF.descriptor x
-            repr <- UF.repr x
-            reprdesc <- UF.descriptor repr
 
-            if desc == reprdesc then
-              (return $ "SAME UnionFindThing " ++ show desc)
-             else
-              (return $ "DIFFERENT UnionFindThing" ++ show reprdesc)
+            return $ "UnionFindThing " ++ show desc
 
 type TypeConstraint =
     Constraint Type Variable
@@ -70,8 +65,12 @@ data TermN a
     | TermN (Term1 (TermN a))
     deriving (Eq)
 
-instance Show (TermN a) where
-    show _ = "TermN"
+instance Show a => Show (TermN a) where
+    show (PlaceHolder s) = "PlaceHolder " ++ s
+    show (AliasN v _ t) = "AliasN " ++ show v ++ " term: " ++ show t
+    show (VarN a) = "VarN " ++ show a
+    show (TermN t1) = "TermN " ++ show t1
+
 
 record :: Map.Map String (TermN a) -> TermN a -> TermN a
 record fs rec =
@@ -182,10 +181,10 @@ data Constraint a b
 instance (Show a, Show b) => Show (Constraint a b) where
   show CTrue = "CTrue"
   show CSaveEnv = "CSaveEnv"
-  show (CEqual h _ _ _ trust) = "CEqual " ++ (show h) ++ " " ++ show trust
+  show (CEqual h _ l r trust) = "CEqual " ++ (show h) ++ " {ltype: " ++ show l ++ ", rtype: " ++ show r ++ "}" ++  show trust
   show (CAnd cs) = "CAnd {" ++ (concat . List.intersperse ", " . map show $ cs) ++ "}"
   show (CLet schs constr) = "CLet (" ++ show schs ++ ". CLetConstr: (" ++ show constr ++ "))"
-  show (CInstance _ name _ trust) = "CInstance " ++ name ++ " " ++ show trust
+  show (CInstance _ name val trust) = "CInstance " ++ name ++ " val: " ++ show val ++ show trust
 
 
 type SchemeName = String
