@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.Unify (unify, atomMatchesSuper) where
+module Type.Unify (unify, atomMatchesSuper, ExtensionStructure (..)) where
 
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
@@ -658,6 +658,7 @@ data RecordStructure = RecordStructure
 data ExtensionStructure
     = Empty
     | Extension
+    deriving (Eq, Ord, Show)
 
 
 gatherFields :: Context -> Map.Map String Variable -> Variable -> Unify RecordStructure

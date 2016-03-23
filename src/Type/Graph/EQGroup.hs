@@ -175,6 +175,7 @@ typeOfGroup eqgroup
                BS.consistent allPredicates -- Consistency between predicates
             ++ concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] -- Inconsistent types
             ++ evidenceLackingCons -- Constructors that have no evidence for required predicates
+            ++ recordEvidence -- Records with different sets of fields
 
 
         insert :: M.Map BS.VertexKind [BS.VertexId]
@@ -193,6 +194,9 @@ typeOfGroup eqgroup
 
         evidenceLackingCons :: [(BS.VertexId, BS.VertexId)]
         evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ BS.matchEvidence preds evidence]
+
+        recordEvidence :: [(BS.VertexId, BS.VertexId)]
+        recordEvidence = [(c1Id, c2Id) | (c1Id, (BS.VCon "1Record" [ev1], _)) <- allConstants, (c2Id, (BS.VCon "1Record" [ev2], _)) <- allConstants, c1Id /= c2Id, True, not $ BS.matchConsEvidence ev1 ev2]
 
         allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]

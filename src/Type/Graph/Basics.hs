@@ -5,6 +5,7 @@ module Type.Graph.Basics where
 import qualified AST.Variable as Var
 import qualified Type.Type as T
 import qualified Data.Map as M
+import Type.Unify (ExtensionStructure (..))
 
 -- | Identifies vertices in the type graph
 newtype VertexId =
@@ -58,13 +59,14 @@ undirected (EdgeId l r)
 -- Qualified types
 data Predicate =
       Super T.Super -- To add later: type classes, whatever
-    | RecordMembers (M.Map String VertexId)
+    | RecordMembers ExtensionStructure (M.Map String VertexId)
     deriving (Eq, Ord, Show)
 
 type Evidence = Predicate
 
 isEvidence :: Predicate -> Evidence -> Bool
 isEvidence (Super l) (Super r) = l == r
+isEvidence _ _ = True
 
 
 -- | Returns predicates unsatisfied by evidence
@@ -89,3 +91,18 @@ consistent ps =
         appendables = [a | (a, pr) <- ps, Super T.Appendable `elem` pr]
     in
         [(n, ap) | n <- numbers, ap <- appendables]
+
+-- | Checks for matching evidence between constructors
+-- Currently only applies to records
+matchConsEvidence :: Evidence -> Evidence -> Bool
+matchConsEvidence (RecordMembers str1 mp1) (RecordMembers str2 mp2) =
+    let
+        sameKeys :: Bool
+        sameKeys = M.null (M.difference mp1 mp2) && M.null (M.difference mp2 mp1)
+    in
+        case (sameKeys, str1, str2) of
+            (True, _, _) -> True
+            (_, Empty, _) -> False
+            (_, _, Empty) -> False
+            _ -> True
+

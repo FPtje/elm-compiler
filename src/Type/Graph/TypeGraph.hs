@@ -23,6 +23,7 @@ import Control.Monad.State (liftIO)
 import Control.Monad (foldM)
 import Data.List (nub)
 import Control.Applicative ((<|>))
+import Type.Unify (ExtensionStructure (..))
 
 import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
 
@@ -237,7 +238,7 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 addTermGraphStructure vertexId T.EmptyRecord1 alias grph =
     return (BS.VertexId vertexId, addVertex (BS.VertexId vertexId) (BS.VCon "1EmptyRecord" [], alias) grph)
 
-addTermGraphStructure vertexId rec@(T.Record1 members extends) alias grph = do
+addTermGraphStructure vertexId (T.Record1 members extends) alias grph = do
     let recordVid = BS.VertexId vertexId
 
     -- Add the record members
@@ -251,11 +252,14 @@ addTermGraphStructure vertexId rec@(T.Record1 members extends) alias grph = do
 
     let finalMembers =
             case extInfo of
-                Just (BS.VCon "1Record" [BS.RecordMembers mbs], _) -> M.union mbs memberMap
-                _ -> memberMap
+                Just (BS.VCon "1Record" [BS.RecordMembers str mbs], _) -> BS.RecordMembers str (M.union mbs memberMap)
+                Just (BS.VCon "1EmptyRecord" _, _) -> BS.RecordMembers Empty memberMap
+
+                -- TODO: Alias
+                _ -> BS.RecordMembers Extension memberMap
 
     -- Add record constructor
-    let grph3 = addVertex recordVid (BS.VCon "1Record" [BS.RecordMembers finalMembers], Nothing) $ grph2
+    let grph3 = addVertex recordVid (BS.VCon "1Record" [finalMembers], Nothing) $ grph2
 
     return (recordVid, grph3)
 
@@ -302,8 +306,8 @@ trickleDownRecordEquality l r info grph =
         case (lval, rval) of
             (Just lgrp, Just rgrp) ->
                 let
-                    lrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers members], _)) <- EG.vertices lgrp]
-                    rrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers members], _)) <- EG.vertices rgrp]
+                    lrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers _ members], _)) <- EG.vertices lgrp]
+                    rrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers _ members], _)) <- EG.vertices rgrp]
                 in
                     linkQualifiers lrecs rrecs info grph
             _ -> error "trickleDownRecordEquality: Error in finding groups I just added"
