@@ -22,7 +22,28 @@ data VertexKind =
       VVar [Predicate]                                          -- ^ Type variable
     | VCon String [Evidence]                                    -- ^ Type constructor
     | VApp VertexId VertexId                                    -- ^ Type application
-    deriving (Eq, Ord, Show)
+    deriving (Show)
+
+-- Ignore predicates in VCons
+instance Eq VertexKind where
+    (VVar l) == (VVar r) = l == r
+    (VCon l _) == (VCon r _) = l == r
+    (VApp l r) == (VApp l' r') = l == l' && r == r'
+    _ == _ = False
+
+instance Ord VertexKind where
+    compare (VVar l) (VVar r) = compare l r
+    compare (VCon l _) (VCon r _) = compare l r
+    compare (VApp l r) (VApp l' r') =
+        case compare l l' of
+            EQ -> compare r r'
+            x -> x
+    compare (VVar _) (VCon _ _) = LT
+    compare (VCon _ _) (VVar _) = GT
+    compare (VVar _) (VApp _ _) = LT
+    compare (VApp _ _) (VVar _) = GT
+    compare (VCon _ _) (VApp _ _) = LT
+    compare (VApp _ _) (VCon _ _) = LT
 
 -- | Identifies an edge in the type graph
 data EdgeId = EdgeId VertexId VertexId
