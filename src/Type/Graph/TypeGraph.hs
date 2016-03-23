@@ -287,7 +287,54 @@ unifyTypeVars info terml termr grph = do
     (vidl, grphl)  <- addTermGraph terml Nothing grph
     (vidr, grphr)  <- addTermGraph termr Nothing grphl
 
-    return $ addNewEdge (vidl, vidr) info grphr
+
+    let grpht = trickleDownRecordEquality vidl vidr info grphr
+
+    return $ addNewEdge (vidl, vidr) info grpht
+
+-- | When there's an (implicit) edge between two records, trickle down the equality
+trickleDownRecordEquality :: BS.VertexId -> BS.VertexId -> info -> TypeGraph info -> TypeGraph info
+trickleDownRecordEquality l r info grph =
+    let
+        lval = getGroupOf l grph
+        rval = getGroupOf r grph
+    in
+        case (lval, rval) of
+            (Just lgrp, Just rgrp) ->
+                let
+                    lrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers members], _)) <- EG.vertices lgrp]
+                    rrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers members], _)) <- EG.vertices rgrp]
+                in
+                    linkQualifiers lrecs rrecs info grph
+            _ -> error "trickleDownRecordEquality: Error in finding groups I just added"
+
+
+-- | Connect the members of records with edges
+linkQualifiers :: forall info . M.Map String BS.VertexId -> M.Map String BS.VertexId -> info -> TypeGraph info -> TypeGraph info
+linkQualifiers lquals rquals info grph =
+    let
+        lList, rList :: [(String, BS.VertexId)]
+        lList = M.toList lquals
+        rList = M.toList rquals
+
+        customZip :: [(String, BS.VertexId)] -> [(String, BS.VertexId)] -> [(BS.VertexId, BS.VertexId)]
+        customZip [] _ = []
+        customZip _ [] = []
+        customZip lls@((lname, lid) : ls) rrs@((rname, rid) : rs) =
+            case compare lname rname of
+                LT -> customZip ls rrs
+                EQ -> (lid, rid) : customZip ls rs
+                GT -> customZip lls rs
+
+        edgeList :: [(BS.VertexId, BS.VertexId)]
+        edgeList = customZip lList rList
+
+        insEdge :: TypeGraph info -> (BS.VertexId, BS.VertexId) -> TypeGraph info
+        insEdge g eid = addNewEdge eid info g
+
+    in
+        foldl insEdge grph edgeList
+
 
 
 -- | Generate type graph from a single scheme
