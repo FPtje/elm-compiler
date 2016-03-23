@@ -6,7 +6,6 @@ module Type.Graph.TypeGraph where
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
-import qualified Type.Graph.Qualified as Q
 import qualified Type.Graph.Path as P
 import qualified Reporting.Error.Type as Error
 import qualified AST.Variable as Var
@@ -188,14 +187,14 @@ addContentGraph var content alias grph =
             T.Atom name ->
                 do
                     let vid = BS.VertexId unique
-                    let evidence = [Q.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name]
+                    let evidence = [BS.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name]
                     return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name) evidence, alias) . updateFuncMap name $ grph)
 
             T.Var _ msuper _ -> do
                 let vid = BS.VertexId vertexId
                 liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just vertexId })
                 let exists = vertexExists vid grph
-                let predicates = maybe [] ((:[]) . Q.Super) msuper
+                let predicates = maybe [] ((:[]) . BS.Super) msuper
 
                 return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar predicates, alias) $ grph)
             T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
@@ -238,16 +237,37 @@ addTermGraphStructure vertexId (T.Fun1 l r) alias grph = do
 addTermGraphStructure vertexId T.EmptyRecord1 alias grph =
     return (BS.VertexId vertexId, addVertex (BS.VertexId vertexId) (BS.VCon "1EmptyRecord" [], alias) grph)
 
-addTermGraphStructure vertexId rec@(T.Record1 members var) alias grph = do
-    trace ("ADD RECORD " ++ show rec) $ return ()
+addTermGraphStructure vertexId rec@(T.Record1 members extends) alias grph = do
     let recordVid = BS.VertexId vertexId
-    let grph1 = addVertex recordVid (BS.VCon "1Record" [{-TODO-}], Nothing) $ grph
 
-    (vid, grph2) <- addTermGraph var alias grph1
+    -- Add the record members
+    (memberMap, grph1) <- addRecordraph (M.toList members) grph
 
-    (_, grph3) <- foldM (\(_, grph') var' -> addTermGraph var' Nothing grph') (vid, grph2) (map snd . M.toList $ members)
+    -- Add the record that this record extends
+    (vid, grph2) <- addTermGraph extends alias grph1 -- TODO: merge extend members
+
+    -- Grab the members of the record this record extends
+    let extInfo = getVertex vid grph2
+
+    let finalMembers =
+            case extInfo of
+                Just (BS.VCon "1Record" [BS.RecordMembers mbs], _) -> M.union mbs memberMap
+                _ -> memberMap
+
+    -- Add record constructor
+    let grph3 = addVertex recordVid (BS.VCon "1Record" [BS.RecordMembers finalMembers], Nothing) $ grph2
 
     return (recordVid, grph3)
+
+-- | Add the members of a record to the graph
+addRecordraph :: [(String, T.Variable)] -> TypeGraph info -> TS.Solver (M.Map String BS.VertexId, TypeGraph info)
+addRecordraph [] grph = return (M.empty, grph)
+addRecordraph ((nm, var) : vars) grph =
+    do
+        (vid, grph1) <- addTermGraph var Nothing grph
+        (memberMap, grph2) <- addRecordraph vars grph1
+
+        return (M.insert nm vid memberMap, grph2)
 
 
 -- | Unify two types in the type graph

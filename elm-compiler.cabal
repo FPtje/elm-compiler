@@ -132,7 +132,6 @@ Library
         Type.Graph.Path,
         Type.Graph.Siblings,
         Type.Graph.Heuristics,
-        Type.Graph.Qualified,
         Validate
 
 

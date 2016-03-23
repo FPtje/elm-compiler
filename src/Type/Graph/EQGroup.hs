@@ -6,7 +6,6 @@ module Type.Graph.EQGroup where
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
-import qualified Type.Graph.Qualified as Q
 import qualified AST.Variable as Var
 import qualified Data.Map as M
 import Data.List (partition, nub)
@@ -173,7 +172,7 @@ typeOfGroup eqgroup
 
         combinations :: [(BS.VertexId, BS.VertexId)]
         combinations =
-               Q.consistent allPredicates -- Consistency between predicates
+               BS.consistent allPredicates -- Consistency between predicates
             ++ concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] -- Inconsistent types
             ++ evidenceLackingCons -- Constructors that have no evidence for required predicates
 
@@ -189,11 +188,11 @@ typeOfGroup eqgroup
         conflictGroups :: [[BS.VertexId]]
         conflictGroups = map fst allApplies : (map snd . M.toList $ groupMap)
 
-        allPredicates :: [(BS.VertexId, [Q.Predicate])]
+        allPredicates :: [(BS.VertexId, [BS.Predicate])]
         allPredicates = [(vid, preds) | (vid, (BS.VVar preds@(_:_), _)) <- vertices eqgroup]
 
         evidenceLackingCons :: [(BS.VertexId, BS.VertexId)]
-        evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ Q.matchEvidence preds evidence]
+        evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ BS.matchEvidence preds evidence]
 
         allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]
