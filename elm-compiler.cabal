@@ -55,6 +55,7 @@ Library
         AST.Expression.Source,
         AST.Expression.Valid,
         AST.Helpers,
+        AST.Interface
         AST.Literal,
         AST.Module,
         AST.Module.Name,
@@ -96,6 +97,7 @@ Library
         Parse.Declaration,
         Parse.Expression,
         Parse.Helpers,
+        Parse.Interface,
         Parse.Literal,
         Parse.Module,
         Parse.Parse,
