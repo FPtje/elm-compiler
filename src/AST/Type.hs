@@ -1,5 +1,6 @@
 module AST.Type
     ( Raw, Raw'(..)
+    , Qualifier'(..)
     , Canonical(..), Aliased(..)
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
@@ -41,6 +42,8 @@ data Canonical
     | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
     deriving (Eq, Ord, Show)
 
+data Qualifier' classref var
+    = Qualifier classref var
 
 data Aliased t
     = Holey t

@@ -31,6 +31,7 @@ reserveds =
     , "module", "where"
     , "import", "as", "hiding", "exposing"
     , "port", "sibling", "resembles", "export", "foreign"
+    , "interface", "describes", "implement", "for", "assuming"
     , "perform"
     , "deriving"
     ]
@@ -134,6 +135,10 @@ equals =
 rightArrow :: IParser String
 rightArrow =
   string "->" <?> "an arrow '->'"
+
+rightDoubleArrow :: IParser String
+rightDoubleArrow =
+  string "=>" <?> "an arrow '=>'"
 
 
 hasType :: IParser String
@@ -648,6 +653,6 @@ processAs processor s =
         , T.opStart         = undefined
         , T.opLetter        = undefined
         , T.reservedNames   = reserveds
-        , T.reservedOpNames = [":", "->", "|"]
+        , T.reservedOpNames = [":", "->", "=>", "|"]
         , T.caseSensitive   = True
         }

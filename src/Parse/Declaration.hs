@@ -1,19 +1,24 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try )
+import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try, many, option )
 
 import qualified AST.Declaration as D
+import qualified AST.Type as T
+import qualified AST.Interface as IF
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
+import qualified Text.Parsec.Indent as Indent
+
+import Control.Monad (when)
 
 
 declaration :: IParser D.SourceDecl
 declaration =
   choice
     [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (typeDecl <|> infixDecl <|> port <|> sibling <|> definition)
+    , D.Decl <$> addLocation (implementation <|> interface <|> typeDecl <|> infixDecl <|> port <|> sibling <|> definition)
     ]
 
 
@@ -99,3 +104,78 @@ sibling =
       forcedWS
       to <- (anyOp <|> qualifiedVar)
       return $ D.Sibling from to
+
+qualifier :: IParser (T.Qualifier' String String)
+qualifier =
+  expecting "an interface predicate" $ try $
+  do  classnm <- capVar
+      forcedWS
+      vr <- lowVar
+      return $ T.Qualifier classnm vr
+
+interface :: IParser D.SourceDecl'
+interface =
+  expecting "an interface definition" $
+  do  try (reserved "interface")
+      forcedWS
+      quals <- commaSep qualifier
+      whitespace
+
+      when (not . null $ quals) $ do
+        rightDoubleArrow
+        whitespace
+        return ()
+
+      ifName <- capVar
+
+      forcedWS
+      vr <- lowVar
+      forcedWS
+      reserved "describes"
+      forcedWS
+
+      Indent.withPos $
+        do
+          firstTp <- Expr.typeAnnotation
+          otherTps <-
+              many $ do
+                try (whitespace >> Indent.checkIndent)
+                Expr.typeAnnotation
+
+          return . D.IFace $ IF.Interface quals ifName vr (firstTp : otherTps)
+
+implementation :: IParser D.SourceDecl'
+implementation =
+  expecting "an implementation of an interface" $
+  do  try (reserved "implement")
+      forcedWS
+
+      ifName <- capVar
+      forcedWS
+
+      reserved "for"
+      forcedWS
+
+      tp <- Type.expr
+      forcedWS
+
+      quals <- option [] $
+        do try (reserved "assuming")
+           forcedWS
+           q <- commaSep1 qualifier
+           forcedWS
+           return q
+
+
+      reserved "where"
+      forcedWS
+
+      Indent.withPos $
+        do
+          firstDcl <- Expr.definition
+          otherDcls <-
+              many $ do
+                try (whitespace >> Indent.checkIndent)
+                Expr.definition
+
+          return . D.Impl $ IF.Implementation quals ifName tp (firstDcl : otherDcls)
