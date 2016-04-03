@@ -97,7 +97,6 @@ Library
         Parse.Declaration,
         Parse.Expression,
         Parse.Helpers,
-        Parse.Interface,
         Parse.Literal,
         Parse.Module,
         Parse.Parse,
