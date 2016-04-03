@@ -118,20 +118,22 @@ interface =
   expecting "an interface definition" $
   do  try (reserved "interface")
       forcedWS
-      quals <- commaSep qualifier
-      whitespace
-
-      when (not . null $ quals) $ do
-        rightDoubleArrow
-        whitespace
-        return ()
 
       ifName <- capVar
 
       forcedWS
       vr <- lowVar
       forcedWS
-      reserved "describes"
+
+      quals <- option [] $
+        do
+          try $ reserved "|"
+          forcedWS
+          quals <- commaSep1 qualifier
+          forcedWS
+          return quals
+
+      reserved "where"
       forcedWS
 
       Indent.withPos $
@@ -160,7 +162,7 @@ implementation =
       forcedWS
 
       quals <- option [] $
-        do try (reserved "assuming")
+        do try (reserved "|")
            forcedWS
            q <- commaSep1 qualifier
            forcedWS
