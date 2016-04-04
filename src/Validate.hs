@@ -10,9 +10,11 @@ import qualified Data.Traversable as T
 import AST.Expression.General as Expr
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
+import qualified AST.Variable as Var
 import qualified AST.Declaration as D
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
+import qualified AST.Interface as Interface
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
@@ -77,10 +79,46 @@ validateDeclsHelp comment (A.A region decl) decls =
     D.Port port ->
         portHelp comment region port decls
 
+    D.IFace intf ->
+        do
+          newintf <- ifaceHelp comment intf
+          addRest (D.IFace newintf)
+
+    D.Impl impl ->
+      do
+        newimpl <- implHelp comment impl
+        addRest (D.Impl newimpl)
+
     D.Sibling from to ->
         addRest (D.Sibling from to)
 
 
+ifaceHelp
+    :: Maybe String
+    -> Interface.Interface' String String Source.Def
+    -> Result.Result wrn Error.Error (Interface.Interface' Var.Raw Var.Raw Source.Def)
+ifaceHelp _ (Interface.Interface quals classNm var decls) =
+  do
+    newQuals <- mapM qualifierHelp quals
+    -- TODO: Check for duplicate qualifiers
+
+    return $ Interface.Interface newQuals (Var.Raw classNm) (Var.Raw var) decls
+
+implHelp
+    :: Maybe String
+    -> Interface.Implementation' String String Type.Raw Source.Def
+    -> Result.Result wrn Error.Error (Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def)
+implHelp _ (Interface.Implementation quals classNm tipe defs) =
+  do
+    newQuals <- mapM qualifierHelp quals
+    newDefs <- definitions defs
+    return $ Interface.Implementation newQuals (Var.Raw classNm) tipe newDefs
+
+qualifierHelp
+    :: Type.Qualifier' String String
+    -> Result.Result wrn Error.Error (Type.Qualifier' Var.Raw Var.Raw)
+qualifierHelp (Type.Qualifier classNm var) =
+  return $ Type.Qualifier (Var.Raw classNm) (Var.Raw var)
 
 -- VALIDATE DEFINITIONS IN DECLARATIONS
 
@@ -387,6 +425,20 @@ extractValues (A.A (region, _) decl) =
         , []
         )
 
+    -- TODO: duplicate detection
+    D.IFace _ ->
+        ( []
+        , []
+        , []
+        )
+
+    -- TODO: duplicate detection
+    D.Impl _ ->
+        ( []
+        , []
+        , []
+        )
+
     D.Sibling from to ->
         ( []
         , []
@@ -440,6 +492,12 @@ checkDecl isRoot (A.A (region,_) decl) =
 
         else
             Result.throw region Error.UnexpectedPort
+
+    D.IFace {} ->
+        return ()
+
+    D.Impl {} ->
+        return ()
 
     D.Sibling _ _ ->
         return ()

@@ -15,14 +15,14 @@ import qualified Reporting.Annotation as A
 
 -- DECLARATIONS
 
-data Declaration' port def tipe expr sibling classref var
+data Declaration' port def tipe expr sibling classref typeAnn var
     = Definition def
     | Datatype String [String] [(String, [tipe])]
     | TypeAlias String [String] tipe
     | Port port
     | Sibling sibling sibling
     | Fixity Assoc Int String
-    | IFace (Interface.Interface' classref var def)
+    | IFace (Interface.Interface' classref var typeAnn)
     | Impl (Interface.Implementation' classref var tipe def)
 
 
@@ -43,7 +43,7 @@ assocToString assoc =
 -- DECLARATION PHASES
 
 type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw Source.Expr String String String
+  Declaration' SourcePort Source.Def Type.Raw Source.Expr String String Source.Def String
 
 
 data SourceDecl
@@ -52,11 +52,11 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String Bool Bool)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String Var.Raw Source.Def Var.Raw)
 
 
 type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr Var.Canonical Bool Bool)
+  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical Canonical.Expr Var.Canonical Bool Bool Bool)
 
 
 -- PORTS
