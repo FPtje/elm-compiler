@@ -28,6 +28,7 @@ data Facts = Facts
     { dependencies :: [Var.TopLevel]
     }
 
+data InterfaceFunction = InterfaceFunction Var.Canonical (A.Located Type.Canonical)
 
 dummyFacts :: Facts
 dummyFacts =
