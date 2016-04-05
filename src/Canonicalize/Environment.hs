@@ -11,6 +11,8 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified AST.Interface as Interface
+import qualified AST.Expression.Canonical as Expr
 import Elm.Utils ((|>))
 
 
@@ -22,6 +24,8 @@ data Environment = Env
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
+    , _interfaces :: Map.Map String (Interface.Interface' Var.Canonical Type.Canonical Expr.InterfaceFunction)
+    , _implementations :: Map.Map Type.Canonical [Interface.Implementation' Var.Canonical Type.Canonical Type.Canonical Expr.Def]
     }
 
 
@@ -33,7 +37,7 @@ fromPatches :: ModuleName.Canonical -> [Patch] -> Environment
 fromPatches moduleName patches =
   addPatches
       patches
-      (Env moduleName Map.empty Map.empty Map.empty Map.empty)
+      (Env moduleName Map.empty Map.empty Map.empty Map.empty Map.empty Map.empty)
 
 
 addPattern :: P.Pattern ann var -> Environment -> Environment
@@ -51,6 +55,8 @@ data Patch
     | Union String Var.Canonical
     | Alias String (Var.Canonical, [String], Type.Canonical)
     | Pattern String (Var.Canonical, Int)
+    | Interface String (Interface.Interface' Var.Canonical Type.Canonical Expr.InterfaceFunction)
+    | Implementation Type.Canonical (Interface.Implementation' Var.Canonical Type.Canonical Type.Canonical Expr.Def)
 
 
 -- ADD PATCH TO ENVIRONMENT
@@ -74,6 +80,9 @@ addPatch patch env =
 
     Pattern name var ->
         env { _patterns = insert name var (_patterns env) }
+
+    Interface name ifc ->
+        env { _interfaces = Map.insert name ifc (_interfaces env) }
 
 
 insert :: (Ord a) => String -> a -> Dict a -> Dict a
@@ -111,7 +120,7 @@ builtinPatches =
 -- TO TYPE DEALIASER
 
 toDealiaser :: Environment -> Map.Map String String
-toDealiaser (Env _ _ adts aliases _) =
+toDealiaser (Env _ _ adts aliases _ _ _) =
   let
     dealiasAdt (localName, canonicalSet) =
       case Set.toList canonicalSet of

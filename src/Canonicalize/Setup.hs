@@ -14,6 +14,7 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified AST.Interface as Interface
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
@@ -336,6 +337,12 @@ declToPatches moduleName (A.A (region,_) decl) =
         ( Nothing
         , [topLevel Env.Value (D.validPortName port)]
         )
+
+    D.IFace (Interface.Interface quals classref var decls) ->
+        undefined
+
+    D.Impl (Interface.Implementation quals classref tipe defs) ->
+        undefined
 
     D.Sibling _ _ -> (Nothing, [])
 
