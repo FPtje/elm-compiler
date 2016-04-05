@@ -81,7 +81,7 @@ validateDeclsHelp comment (A.A region decl) decls =
 
     D.IFace intf ->
         do
-          newintf <- ifaceHelp comment intf
+          newintf <- ifaceHelp region intf
           addRest (D.IFace newintf)
 
     D.Impl impl ->
@@ -94,13 +94,19 @@ validateDeclsHelp comment (A.A region decl) decls =
 
 
 ifaceHelp
-    :: Maybe String
+    :: R.Region
     -> Interface.Interface' String String Source.Def
     -> Result.Result wrn Error.Error (Interface.Interface' Var.Raw Var.Raw Source.Def)
-ifaceHelp _ (Interface.Interface quals classNm var decls) =
+ifaceHelp region (Interface.Interface quals classNm var decls) =
   do
     newQuals <- mapM qualifierHelp quals
     -- TODO: Check for duplicate qualifiers
+    -- TODO: make sure class var is mentioned in all sigs
+    -- TODO: Check whether qualifier doesn't contain classname itself
+    let badQuals = filter (\(Type.Qualifier _ var') -> var /= var') quals
+    let errs = map (\(Type.Qualifier cls var') -> Error.MessyTypeVarsInInterface classNm cls var' var) badQuals
+    mapM_ (Result.throw region) errs
+
 
     return $ Interface.Interface newQuals (Var.Raw classNm) (Var.Raw var) decls
 

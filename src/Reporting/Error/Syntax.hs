@@ -28,6 +28,7 @@ data Error
     | UnboundTypeVarsInAlias String [String] [String]
     | UnusedTypeVarsInAlias String [String] [String]
     | MessyTypeVarsInAlias String [String] [String] [String]
+    | MessyTypeVarsInInterface String String String String
 
 
 -- TO REPORT
@@ -198,6 +199,20 @@ toReport _localizer err =
               , text "You probably need to change the declaration like this:"
               , dullyellow $ hsep $
                   map text ("type" : "alias" : typeName : filter (`notElem` unused) givenVars ++ unbound ++ ["=", "..."])
+              ]
+          )
+
+    MessyTypeVarsInInterface ifaceNm clsNm qualVar actualVar ->
+        Report.report
+          "INTERFACE TYPE VARIABLE PROBLEMS"
+          Nothing
+          ( "Interface `" ++ ifaceNm ++ "` has some problems with its qualifiers."
+          )
+          ( Help.stack
+              [ Help.reflowParagraph $
+                  "The interface says it requires a ("
+                  ++ clsNm ++ " " ++ qualVar ++ ", but " ++ qualVar ++ " does not exist in the interface. "
+                  ++ "The only type variable that exists in the interface is " ++ actualVar
               ]
           )
 
