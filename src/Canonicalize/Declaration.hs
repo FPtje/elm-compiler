@@ -73,6 +73,12 @@ toDefs moduleName (A.A (region,_) decl) =
           E.Task name _expr tipe ->
               [ definition name body region (T.getPortType tipe) ]
 
+    D.IFace _ ->
+      []
+
+    D.Impl _ ->
+      []
+
     D.Sibling _ _ ->
         []
 
