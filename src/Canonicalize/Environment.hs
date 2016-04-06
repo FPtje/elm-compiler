@@ -11,8 +11,9 @@ import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified AST.Expression.Valid as Valid
 import qualified AST.Interface as Interface
-import qualified AST.Expression.Canonical as Expr
+import qualified AST.Expression.Source as Source
 import Elm.Utils ((|>))
 
 
@@ -24,8 +25,8 @@ data Environment = Env
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
-    , _interfaces :: Map.Map String (Interface.Interface' Var.Canonical Type.Canonical Expr.InterfaceFunction)
-    , _implementations :: Map.Map Type.Canonical [Interface.Implementation' Var.Canonical Type.Canonical Type.Canonical Expr.Def]
+    , _interfaces :: Map.Map String [Interface.Interface' Var.Raw Var.Raw Source.Def]
+    , _implementations :: Map.Map Type.Raw [Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def]
     }
 
 
@@ -55,8 +56,8 @@ data Patch
     | Union String Var.Canonical
     | Alias String (Var.Canonical, [String], Type.Canonical)
     | Pattern String (Var.Canonical, Int)
-    | Interface String (Interface.Interface' Var.Canonical Type.Canonical Expr.InterfaceFunction)
-    | Implementation Type.Canonical (Interface.Implementation' Var.Canonical Type.Canonical Type.Canonical Expr.Def)
+    | Interface String (Interface.Interface' Var.Raw Var.Raw Source.Def)
+    | Implementation Type.Raw (Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def)
 
 
 -- ADD PATCH TO ENVIRONMENT
@@ -82,7 +83,10 @@ addPatch patch env =
         env { _patterns = insert name var (_patterns env) }
 
     Interface name ifc ->
-        env { _interfaces = Map.insert name ifc (_interfaces env) }
+        env { _interfaces = Map.insertWith (++) name [ifc] (_interfaces env) }
+
+    Implementation tipe impl ->
+        env { _implementations = Map.insertWith (++) tipe [impl] (_implementations env)}
 
 
 insert :: (Ord a) => String -> a -> Dict a -> Dict a
