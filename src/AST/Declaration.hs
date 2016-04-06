@@ -43,7 +43,7 @@ assocToString assoc =
 -- DECLARATION PHASES
 
 type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw Source.Expr String String Source.Def String
+  Declaration' SourcePort Source.Def Type.Raw Source.Expr String (A.Located String) Source.Def String
 
 
 data SourceDecl
@@ -52,7 +52,7 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String Var.Raw Source.Def Var.Raw)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String (A.Located Var.Raw) Source.Def Var.Raw)
 
 
 type CanonicalDecl =

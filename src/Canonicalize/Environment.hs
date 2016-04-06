@@ -14,6 +14,7 @@ import qualified AST.Variable as Var
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Interface as Interface
 import qualified AST.Expression.Source as Source
+import qualified Reporting.Annotation as A
 import Elm.Utils ((|>))
 
 
@@ -25,8 +26,8 @@ data Environment = Env
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
-    , _interfaces :: Map.Map String [Interface.Interface' Var.Raw Var.Raw Source.Def]
-    , _implementations :: Map.Map Type.Raw [Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def]
+    , _interfaces :: Map.Map String [(Var.Canonical, Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)]
+    , _implementations :: Map.Map Type.Raw [Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw Valid.Def]
     }
 
 
@@ -56,8 +57,8 @@ data Patch
     | Union String Var.Canonical
     | Alias String (Var.Canonical, [String], Type.Canonical)
     | Pattern String (Var.Canonical, Int)
-    | Interface String (Interface.Interface' Var.Raw Var.Raw Source.Def)
-    | Implementation Type.Raw (Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def)
+    | Interface String (Var.Canonical, Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)
+    | Implementation Type.Raw (Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw Valid.Def)
 
 
 -- ADD PATCH TO ENVIRONMENT

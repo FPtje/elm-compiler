@@ -10,8 +10,7 @@ import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
 import qualified Text.Parsec.Indent as Indent
-
-import Control.Monad (when)
+import qualified Reporting.Annotation as A
 
 
 declaration :: IParser D.SourceDecl
@@ -105,10 +104,10 @@ sibling =
       to <- (anyOp <|> qualifiedVar)
       return $ D.Sibling from to
 
-qualifier :: IParser (T.Qualifier' String String)
+qualifier :: IParser (T.Qualifier' (A.Located String) String)
 qualifier =
   expecting "an interface predicate" $ try $
-  do  classnm <- capVar
+  do  classnm <- addLocation capVar
       forcedWS
       vr <- lowVar
       return $ T.Qualifier classnm vr
@@ -119,7 +118,7 @@ interface =
   do  try (reserved "interface")
       forcedWS
 
-      ifName <- capVar
+      ifName <- addLocation capVar
 
       forcedWS
       vr <- lowVar
@@ -152,7 +151,7 @@ implementation =
   do  try (reserved "implement")
       forcedWS
 
-      ifName <- capVar
+      ifName <- addLocation capVar
       forcedWS
 
       reserved "for"

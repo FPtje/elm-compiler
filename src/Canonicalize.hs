@@ -19,6 +19,7 @@ import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as Type
+import qualified AST.Interface as Interface
 import qualified AST.Variable as Var
 import qualified Docs.AST as Docs
 import qualified Docs.Centralize as Docs
@@ -37,6 +38,9 @@ import qualified Canonicalize.Setup as Setup
 import qualified Canonicalize.Sort as Sort
 import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
+import qualified AST.Expression.Source as Source
+
+import Control.Monad (when)
 
 
 -- MODULES
@@ -97,7 +101,7 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
 
     canonicalDeclsResult =
         Setup.environment importDict interfaces modul
-          `Result.andThen` \env -> (,) env <$> T.traverse (declaration env) decls
+          `Result.andThen` \env -> (,) env <$> T.traverse (declaration (Module.name modul) env) decls
 
     body :: [D.CanonicalDecl] -> Module.Body Canonical.Expr
     body decls =
@@ -343,20 +347,26 @@ declToValue (A.A _ decl) =
       _ -> []
 
 
-declaration
+definition
     :: Env.Environment
+    -> Valid.Def
+    -> Result.ResultErr Canonical.Def
+definition env (Valid.Definition pat expr typ) =
+    Canonical.Definition Canonical.dummyFacts
+      <$> pattern env pat
+      <*> expression env expr
+      <*> T.traverse (regionType env) typ
+
+declaration
+    :: ModuleName.Canonical
+    -> Env.Environment
     -> D.ValidDecl
     -> Result.ResultErr D.CanonicalDecl
-declaration env (A.A ann@(region,_) decl) =
+declaration modulname env (A.A ann@(region,_) decl) =
     A.A ann <$>
     case decl of
-      D.Definition (Valid.Definition pat expr typ) ->
-          D.Definition <$> (
-              Canonical.Definition Canonical.dummyFacts
-                <$> pattern env pat
-                <*> expression env expr
-                <*> T.traverse (regionType env) typ
-          )
+      D.Definition def ->
+          D.Definition <$> definition env def
 
       D.Datatype name tvars ctors ->
           D.Datatype name tvars <$> T.traverse canonicalize' ctors
@@ -387,6 +397,39 @@ declaration env (A.A ann@(region,_) decl) =
                           `Result.andThen` \(expr', tipe') ->
                               D.Port <$> Port.check region name (Just expr') tipe'
 
+
+      D.IFace (Interface.Interface quals (A.A rg (Var.Raw classref)) (Var.Raw var) decls) ->
+          let
+            exists = Map.member classref (Env._interfaces env)
+            Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+          in
+            Result.map (qualifier env) quals
+              `Result.andThen` \newQuals ->
+
+                if (not exists) then
+                  Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
+                else
+                  Result.map (interfaceDeclaration modulname env) decls
+                    `Result.andThen` \newDecls ->
+                      Result.ok . D.IFace $ Interface.Interface newQuals classnm (Type.Var var) newDecls
+
+      D.Impl (Interface.Implementation quals (A.A rg (Var.Raw classref)) tipe defs) ->
+          let
+            exists = Map.member classref (Env._interfaces env)
+            Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+          in
+            if not exists then
+              Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
+            else
+
+            Result.map (qualifier env) quals
+              `Result.andThen` \newQuals ->
+                Result.map (definition env) defs
+                  `Result.andThen` \newDefs ->
+                    Canonicalize.tipe env tipe
+                      `Result.andThen` \newtipe ->
+                         Result.ok . D.Impl $ Interface.Implementation newQuals classnm newtipe newDefs
+
       D.Sibling from to ->
         do
           Canonicalize.variable region env from
@@ -398,6 +441,34 @@ declaration env (A.A ann@(region,_) decl) =
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)
 
+
+
+interfaceDeclaration
+    :: ModuleName.Canonical
+    -> Env.Environment
+    -> Source.Def
+    -> Result.ResultErr (Canonical.InterfaceFunction)
+interfaceDeclaration _ _ (A.A _ (Source.Definition {})) = error "Interface declarations should not hold definitions"
+interfaceDeclaration modul env (A.A rg (Source.TypeAnnotation nm tipe)) =
+    Canonicalize.tipe env tipe
+      `Result.andThen`
+        \newtipe -> Result.ok $ Canonical.InterfaceFunction (Var.fromModule modul nm) (A.A rg newtipe) -- Var.Canonical
+
+
+qualifier
+    :: Env.Environment
+    -> Type.Qualifier' (A.Located Var.Raw) Var.Raw
+    -> Result.ResultErr (Type.Qualifier' Var.Canonical Type.Canonical)
+qualifier env (Type.Qualifier (A.A rg (Var.Raw classref)) (Var.Raw var)) =
+    let
+        exists = Map.member classref (Env._interfaces env)
+
+        Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+    in
+        if not exists then
+          Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
+        else
+          Result.ok $ Type.Qualifier classnm (Type.Var var)
 
 regionType
     :: Env.Environment

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Canonicalize.Result where
 
-import Prelude hiding (foldl)
+import Prelude hiding (foldl, map)
 import qualified Control.Applicative as A
 import qualified Data.Functor as F
 import qualified Data.Set as Set
@@ -49,6 +49,15 @@ foldl f acc list =
 
     x:xs ->
         f x acc `andThen` (\acc' -> foldl f acc' xs)
+
+map :: (a -> Result e b) -> [a] -> Result e [b]
+map _ [] = ok []
+map f (x : xs) =
+    f x `andThen`
+      \res -> case map f xs of
+        Result _ (Ok val) -> ok (res : val)
+        o -> o
+
 
 
 andThen :: Result e a -> (a -> Result e b) -> Result e b

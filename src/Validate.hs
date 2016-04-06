@@ -95,36 +95,36 @@ validateDeclsHelp comment (A.A region decl) decls =
 
 ifaceHelp
     :: R.Region
-    -> Interface.Interface' String String Source.Def
-    -> Result.Result wrn Error.Error (Interface.Interface' Var.Raw Var.Raw Source.Def)
-ifaceHelp region (Interface.Interface quals classNm var decls) =
+    -> Interface.Interface' (A.Located String) String Source.Def
+    -> Result.Result wrn Error.Error (Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)
+ifaceHelp region (Interface.Interface quals (A.A rg classNm) var decls) =
   do
     newQuals <- mapM qualifierHelp quals
     -- TODO: Check for duplicate qualifiers
     -- TODO: make sure class var is mentioned in all sigs
     -- TODO: Check whether qualifier doesn't contain classname itself
     let badQuals = filter (\(Type.Qualifier _ var') -> var /= var') quals
-    let errs = map (\(Type.Qualifier cls var') -> Error.MessyTypeVarsInInterface classNm cls var' var) badQuals
+    let errs = map (\(Type.Qualifier (A.A _ cls) var') -> Error.MessyTypeVarsInInterface classNm cls var' var) badQuals
     mapM_ (Result.throw region) errs
 
 
-    return $ Interface.Interface newQuals (Var.Raw classNm) (Var.Raw var) decls
+    return $ Interface.Interface newQuals (A.A rg $ Var.Raw classNm) (Var.Raw var) decls
 
 implHelp
     :: Maybe String
-    -> Interface.Implementation' String String Type.Raw Source.Def
-    -> Result.Result wrn Error.Error (Interface.Implementation' Var.Raw Var.Raw Type.Raw Valid.Def)
-implHelp _ (Interface.Implementation quals classNm tipe defs) =
+    -> Interface.Implementation' (A.Located String) String Type.Raw Source.Def
+    -> Result.Result wrn Error.Error (Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw Valid.Def)
+implHelp _ (Interface.Implementation quals (A.A rg classNm) tipe defs) =
   do
     newQuals <- mapM qualifierHelp quals
     newDefs <- definitions defs
-    return $ Interface.Implementation newQuals (Var.Raw classNm) tipe newDefs
+    return $ Interface.Implementation newQuals (A.A rg $ Var.Raw classNm) tipe newDefs
 
 qualifierHelp
-    :: Type.Qualifier' String String
-    -> Result.Result wrn Error.Error (Type.Qualifier' Var.Raw Var.Raw)
-qualifierHelp (Type.Qualifier classNm var) =
-  return $ Type.Qualifier (Var.Raw classNm) (Var.Raw var)
+    :: Type.Qualifier' (A.Located String) String
+    -> Result.Result wrn Error.Error (Type.Qualifier' (A.Located Var.Raw) Var.Raw)
+qualifierHelp (Type.Qualifier (A.A rg classNm) var) =
+  return $ Type.Qualifier (A.A rg $ Var.Raw classNm) (Var.Raw var)
 
 -- VALIDATE DEFINITIONS IN DECLARATIONS
 
