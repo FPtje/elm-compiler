@@ -6,6 +6,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Traversable as Traverse
 
+import qualified AST.Interface as Interface
 import AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
@@ -94,6 +95,13 @@ genConstraints interfaces modul =
       let header = Map.map snd (Map.fromList allTypes)
       let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
+      let ifaces = Module.interfaces . Module.body $ modul
+      let impls = Module.implementations . Module.body $ modul
+
+
+      -- TODO: make CEqual constraints between interfaces and implementations
+      -- what about name resolving class functions ????
+
       fvar <- T.mkVar Nothing
 
       constraint <-
@@ -101,6 +109,11 @@ genConstraints interfaces modul =
 
       return (header, environ constraint)
 
+matchInterfacesWithModules
+    :: [Interface.CanonicalInterface]
+    -> [Interface.CanonicalImplementation]
+    -> [(Interface.CanonicalInterface, [Interface.CanonicalImplementation])]
+matchInterfacesWithModules ifcs impls = _
 
 canonicalizeValues
     :: Env.Environment
