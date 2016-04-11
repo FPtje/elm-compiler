@@ -40,8 +40,6 @@ import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
 import qualified AST.Expression.Source as Source
 
-import Control.Monad (when)
-
 
 -- MODULES
 
@@ -138,6 +136,12 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
 
           , aliases =
               Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- nakedDecls ]
+
+          , interfaces =
+              [ i | D.IFace i <- nakedDecls ]
+
+          , implementations =
+              [ i | D.Impl i <- nakedDecls ]
 
           , ports =
               [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]

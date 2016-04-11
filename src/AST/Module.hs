@@ -16,6 +16,7 @@ import qualified Data.Set as Set
 import qualified AST.Declaration as Decl
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Expression.Optimized as Optimized
+import qualified AST.Interface as Interface
 import qualified AST.Module.Name as Name
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -83,6 +84,8 @@ data Body expr = Body
     , fixities  :: [(Decl.Assoc, Int, String)]
     , aliases   :: Aliases
     , datatypes :: ADTs
+    , interfaces :: [Interface.Interface' Var.Canonical Type.Canonical Canonical.InterfaceFunction]
+    , implementations :: [Interface.Implementation' Var.Canonical Type.Canonical Type.Canonical Canonical.Def]
     , ports     :: [String]
     }
 
