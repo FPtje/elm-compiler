@@ -11,6 +11,7 @@ import AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified AST.Expression.Canonical as Canonical
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
@@ -82,6 +83,11 @@ genConstraints
 genConstraints interfaces modul =
   do  env <- Env.initialize (canonicalizeAdts interfaces modul)
 
+      let ifaces = Module.interfaces . Module.body $ modul
+      let impls = Module.implementations . Module.body $ modul
+      let matched = matchInterfacesWithModules ifaces impls
+      --trace (show [implementationConstraints ifc impl | (ifc, impls) <- matched, impl <- impls]) $ return ()
+
       ctors <-
           forM (Env.ctorNames env) $ \name ->
             do  (_, vars, args, result) <- Env.freshDataScheme env name
@@ -95,8 +101,6 @@ genConstraints interfaces modul =
       let header = Map.map snd (Map.fromList allTypes)
       let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
-      let ifaces = Module.interfaces . Module.body $ modul
-      let impls = Module.implementations . Module.body $ modul
 
 
       -- TODO: make CEqual constraints between interfaces and implementations
@@ -109,11 +113,38 @@ genConstraints interfaces modul =
 
       return (header, environ constraint)
 
+--implementationConstraints
+--    :: Interface.CanonicalInterface
+--    -> Interface.CanonicalImplementation
+--    -> T.TypeConstraint
+--implementationConstraints ifc impl =
+--  let
+--      specialize :: Type.Canonical -> Type.Canonical -> Canonical.InterfaceFunction -> Canonical.InterfaceFunction
+--      specialize classVar special (Canonical.InterfaceFunction funcname (A.A rg tipe)) =
+--          Canonical.InterfaceFunction funcname (A.A rg (Type.substitute classVar special tipe))
+
+--      specializedIfc :: Interface.CanonicalInterface
+--      specializedIfc = ifc { Interface.decls = map (specialize (Interface.interfacevar ifc) (Interface.impltype impl)) (Interface.decls ifc) }
+
+--      matchedFuncs :: [(Canonical.InterfaceFunction, Canonical.Def)]
+--      matchedFuncs = [undefined | Canonical.InterfaceFunction fname ftype <- Interface.decls ifc, def@(Canonical.Definition facts pattern exp mtipe) <- Interface.implementations impl, fname == undefined]
+--  in
+--      length matchedFuncs
+
 matchInterfacesWithModules
     :: [Interface.CanonicalInterface]
     -> [Interface.CanonicalImplementation]
     -> [(Interface.CanonicalInterface, [Interface.CanonicalImplementation])]
-matchInterfacesWithModules ifcs impls = _
+matchInterfacesWithModules ifcs impls =
+  let
+      implMap :: Map.Map String [Interface.CanonicalImplementation]
+      implMap = Map.fromListWith (++) [(Var.toString (Interface.classref imp), [imp]) | imp <- impls]
+
+
+      match :: Interface.CanonicalInterface -> (Interface.CanonicalInterface, [Interface.CanonicalImplementation])
+      match ifc = (ifc, Map.findWithDefault [] (Var.toString . Interface.classname $ ifc) implMap)
+  in
+    map match ifcs
 
 canonicalizeValues
     :: Env.Environment

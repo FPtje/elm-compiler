@@ -6,6 +6,7 @@ module AST.Type
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
     , tuple
+    , substitute
     ) where
 
 import Control.Arrow (second)
@@ -140,7 +141,23 @@ dealiasHelp typeTable tipe =
       App f args ->
           App (go f) (map go args)
 
+-- only substitutes variables for now
+substitute :: Canonical -> Canonical -> Canonical -> Canonical
+substitute v@(Var thing) withThis inThis =
+  let
+    rec = substitute v withThis
+    maprec = map (\(n, t) -> (n, rec t))
+  in
 
+    case inThis of
+      Lambda from to -> Lambda (rec from) (rec to)
+      Var name -> if name == thing then withThis else Var name
+      Type name -> Type name
+      App func args -> App (rec func) (map rec args)
+      Record members baseRecord -> Record (maprec members) (fmap rec baseRecord)
+      Aliased name things (Holey base) -> Aliased name (maprec things) (Holey (rec base))
+      Aliased name things (Filled base) -> Aliased name (maprec things) (Filled (rec base))
+substitute _ _ _ = error "Substitution for non-Vars not implemented"
 
 -- COLLECT LAMBDAS
 

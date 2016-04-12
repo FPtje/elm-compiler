@@ -6,10 +6,20 @@ import qualified AST.Variable as Var
 import qualified AST.Expression.Canonical as Canonical
 
 data Interface' classref var decl
-    = Interface [Type.Qualifier' classref var] classref var [decl]
+    = Interface
+        { ifquals :: [Type.Qualifier' classref var]
+        , classname :: classref
+        , interfacevar :: var
+        , decls :: [decl]
+        }
 
 data Implementation' classref var tipe def
-    = Implementation [Type.Qualifier' classref var] classref tipe [def]
+    = Implementation
+        { implquals :: [Type.Qualifier' classref var]
+        , classref :: classref
+        , impltype :: tipe
+        , implementations :: [def]
+        }
 
 type SourceInterface
     = Interface' String String Source.Def'

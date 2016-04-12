@@ -4,6 +4,7 @@ module Canonicalize.Declaration (toExpr) where
 import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Interface as Interface
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
 import qualified AST.Type as T
@@ -76,8 +77,8 @@ toDefs moduleName (A.A (region,_) decl) =
     D.IFace _ ->
       []
 
-    D.Impl _ ->
-      []
+    D.Impl impl ->
+      Interface.implementations impl
 
     D.Sibling _ _ ->
         []
