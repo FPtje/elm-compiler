@@ -50,7 +50,7 @@ flattenLets defs annExpr@(A.A _ expr) =
 
 
 optimizeDef :: Bool -> Can.Def -> Env.Optimizer [Opt.Def]
-optimizeDef isRoot (Can.Definition (Can.Facts deps) pattern expression _) =
+optimizeDef isRoot (Can.Definition (Can.Facts deps) pattern expression _ _) =
   let
     (args, canBody) =
       Expr.collectLambdas expression

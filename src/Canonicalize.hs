@@ -15,6 +15,7 @@ import qualified AST.Declaration as D
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Expression.Source as Source
 import qualified AST.Module as Module
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Pattern as P
@@ -360,6 +361,7 @@ definition env (Valid.Definition pat expr typ) =
       <$> pattern env pat
       <*> expression env expr
       <*> T.traverse (regionType env) typ
+      <*> pure Nothing
 
 declaration
     :: ModuleName.Canonical
@@ -405,7 +407,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
       D.IFace (Interface.Interface quals (A.A rg (Var.Raw classref)) (Var.Raw var) decls) ->
           let
             exists = Map.member classref (Env._interfaces env)
-            Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+            Just (classnm, _) = Map.lookup classref (Env._interfaces env)
           in
             Result.map (qualifier env) quals
               `Result.andThen` \newQuals ->
@@ -420,7 +422,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
       D.Impl (Interface.Implementation quals (A.A rg (Var.Raw classref)) tipe defs) ->
           let
             exists = Map.member classref (Env._interfaces env)
-            Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+            Just (classnm, _) = Map.lookup classref (Env._interfaces env)
           in
             if not exists then
               Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
@@ -432,7 +434,9 @@ declaration modulname env (A.A ann@(region,_) decl) =
                   `Result.andThen` \newDefs ->
                     Canonicalize.tipe env tipe
                       `Result.andThen` \newtipe ->
-                         Result.ok . D.Impl $ Interface.Implementation newQuals classnm newtipe newDefs
+                        Result.map (insertInterfaceType env classref) newDefs
+                          `Result.andThen` \newnewDefs ->
+                            Result.ok . D.Impl $ Interface.Implementation newQuals classnm newtipe newnewDefs
 
       D.Sibling from to ->
         do
@@ -445,6 +449,21 @@ declaration modulname env (A.A ann@(region,_) decl) =
       D.Fixity assoc prec op ->
           Result.ok (D.Fixity assoc prec op)
 
+
+insertInterfaceType
+    :: Env.Environment
+    -> String
+    -> Canonical.Def
+    -> Result.ResultErr Canonical.Def
+insertInterfaceType env classref (Canonical.Definition facts pat@(A.A drg (P.Var name)) exp typ _) =
+  let
+    (ifvar, interface) = Map.findWithDefault (error "Interface doesn't exist, this check was already made somewhere") classref (Env._interfaces env)
+    typeAnns = [A.A rg tpe | A.A rg (Source.TypeAnnotation nm tpe) <- Interface.decls interface, nm == name]
+    (A.A tprg typeAnn) = if null typeAnns then error "No fitting definition in type class!" else head typeAnns
+  in
+    Canonicalize.tipe env typeAnn
+      `Result.andThen`
+        \newtipe -> Result.ok $ Canonical.Definition facts pat exp typ (Just (A.A tprg newtipe))
 
 
 interfaceDeclaration
@@ -467,7 +486,7 @@ qualifier env (Type.Qualifier (A.A rg (Var.Raw classref)) (Var.Raw var)) =
     let
         exists = Map.member classref (Env._interfaces env)
 
-        Just ((classnm, _) : _) = Map.lookup classref (Env._interfaces env)
+        Just (classnm, _) = Map.lookup classref (Env._interfaces env)
     in
         if not exists then
           Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
@@ -542,6 +561,7 @@ expression env (A.A region validExpr) =
                   <$> pattern env' p
                   <*> expression env' body
                   <*> T.traverse (regionType env') mtipe
+                  <*> pure Nothing
 
       Var (Var.Raw x) ->
           Var <$> Canonicalize.variable region env x

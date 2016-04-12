@@ -26,7 +26,7 @@ data Environment = Env
     , _adts     :: Dict Var.Canonical
     , _aliases  :: Dict (Var.Canonical, [String], Type.Canonical)
     , _patterns :: Dict (Var.Canonical, Int)
-    , _interfaces :: Map.Map String [(Var.Canonical, Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)]
+    , _interfaces :: Map.Map String (Var.Canonical, Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)
     , _implementations :: Map.Map Type.Raw [Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw Valid.Def]
     }
 
@@ -84,7 +84,7 @@ addPatch patch env =
         env { _patterns = insert name var (_patterns env) }
 
     Interface name ifc ->
-        env { _interfaces = Map.insertWith (++) name [ifc] (_interfaces env) }
+        env { _interfaces = Map.insert name ifc (_interfaces env) }
 
     Implementation tipe impl ->
         env { _implementations = Map.insertWith (++) tipe [impl] (_implementations env)}

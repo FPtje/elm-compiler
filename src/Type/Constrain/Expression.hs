@@ -460,7 +460,7 @@ collectPairs index items =
 -- EXPAND PATTERNS
 
 expandPattern :: Canonical.Def -> [Canonical.Def]
-expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
+expandPattern def@(Canonical.Definition facts lpattern expr maybeType interfaceType) =
   let (A.A patternRegion pattern) = lpattern
   in
   case pattern of
@@ -480,13 +480,13 @@ expandPattern def@(Canonical.Definition facts lpattern expr maybeType) =
         localVar name =
             A.A patternRegion (E.localVar name)
 
-        mainDef = Canonical.Definition facts (pvar combinedName) expr maybeType
+        mainDef = Canonical.Definition facts (pvar combinedName) expr maybeType interfaceType
 
         toDef name =
             let extract =
                   E.Case (localVar combinedName) [(lpattern, localVar name)]
             in
-                Canonical.Definition facts (pvar name) (A.A patternRegion extract) Nothing
+                Canonical.Definition facts (pvar name) (A.A patternRegion extract) Nothing Nothing
 
 
 -- CONSTRAIN DEFINITIONS
@@ -502,7 +502,7 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe) =
+constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType) = -- TODO: DEAL WITH INTERFACE TYPE?
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
