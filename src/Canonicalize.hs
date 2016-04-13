@@ -41,8 +41,6 @@ import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
 import qualified AST.Expression.Source as Source
 
-import Debug.Trace
-
 -- MODULES
 
 module'
@@ -435,7 +433,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
                   `Result.andThen` \newDefs ->
                     Canonicalize.tipe env tipe
                       `Result.andThen` \newtipe ->
-                        Result.map (insertInterfaceType env classref) newDefs
+                        Result.map (insertInterfaceType env classref newtipe) newDefs
                           `Result.andThen` \newnewDefs ->
                             Result.ok . D.Impl $ Interface.Implementation newQuals classnm newtipe newnewDefs
 
@@ -454,17 +452,19 @@ declaration modulname env (A.A ann@(region,_) decl) =
 insertInterfaceType
     :: Env.Environment
     -> String
+    -> Type.Canonical -- implementation type
     -> Canonical.Def
     -> Result.ResultErr Canonical.Def
-insertInterfaceType env classref (Canonical.Definition facts pat@(A.A drg (P.Var name)) exp typ _) =
+insertInterfaceType env classref impltype (Canonical.Definition facts pat@(A.A drg (P.Var name)) expr typ _) =
   let
     (ifvar, interface) = Map.findWithDefault (error "Interface doesn't exist, this check was already made somewhere") classref (Env._interfaces env)
     typeAnns = [A.A rg tpe | A.A rg (Source.TypeAnnotation nm tpe) <- Interface.decls interface, nm == name]
-    (A.A tprg typeAnn) = if null typeAnns then error "No fitting definition in type class!" else head typeAnns
+    (A.A tprg typeAnn) = if null typeAnns then error "No fitting definition in type class!" else head typeAnns -- TODO: throw proper error message
+    Var.Raw interfaceVar = Interface.interfacevar interface
   in
     Canonicalize.tipe env typeAnn
       `Result.andThen`
-        \newtipe -> Result.ok $ Canonical.Definition facts pat exp typ (Just (A.A tprg newtipe))
+        \newtipe -> Result.ok $ Canonical.Definition facts pat expr typ (Just (A.A tprg (Type.substitute (Type.Var interfaceVar) impltype newtipe)))
 
 
 interfaceDeclaration
