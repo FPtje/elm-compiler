@@ -71,7 +71,7 @@ data Hint
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
     | BadTypeAnnotation String
-    | BadMatchWithInterface
+    | BadMatchWithInterface String
     | Instance String
     | Literal String
     | Pattern Pattern
@@ -390,12 +390,12 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
               sibSuggestions
           )
 
-    BadMatchWithInterface ->
+    BadMatchWithInterface name ->
         report
           Nothing
-          ("The type of <functionname> in the implementation of <interfacename> for <implementation type> doesn't match ")
+          ("The type of " ++ Help.functionName name ++ " in the implementation doesn't match the signature as described by the interface:")
           ( cmpHint
-              "The interface requires the type to be:"
+              ("The interface requires the type of " ++ Help.functionName name ++ " to be:")
               "But I am inferring that the implementation has this type:"
               sibSuggestions
           )

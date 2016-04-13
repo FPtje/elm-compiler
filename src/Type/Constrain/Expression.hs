@@ -555,7 +555,7 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
 
       let interfaceCon = case interfaceType of
             Nothing -> CTrue
-            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface) ifrg iftyp (VarN var) Annotation -- TODO: different descriptor than Annotation
+            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface name) ifrg iftyp (VarN var) Annotation -- TODO: different descriptor than Annotation
 
       return $ info
           { iSchemes = scheme : iSchemes info
@@ -588,7 +588,7 @@ constrainUnannotatedDef env info qs patternRegion name expr interfaceType =
 
       let interfaceCon = case interfaceType of
             Nothing -> CTrue
-            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
+            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
 
       con <- constrain env' expr tipe
 
