@@ -41,6 +41,7 @@ import qualified Canonicalize.Type as Canonicalize
 import qualified Canonicalize.Variable as Canonicalize
 import qualified AST.Expression.Source as Source
 
+import Debug.Trace
 
 -- MODULES
 

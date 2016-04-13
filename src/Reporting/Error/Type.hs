@@ -71,6 +71,7 @@ data Hint
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
     | BadTypeAnnotation String
+    | BadMatchWithInterface
     | Instance String
     | Literal String
     | Pattern Pattern
@@ -386,6 +387,16 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The type annotation is saying:"
               "But I am inferring that the definition has this type:"
+              sibSuggestions
+          )
+
+    BadMatchWithInterface ->
+        report
+          Nothing
+          ("The type of <functionname> in the implementation of <interfacename> for <implementation type> doesn't match ")
+          ( cmpHint
+              "The interface requires the type to be:"
+              "But I am inferring that the implementation has this type:"
               sibSuggestions
           )
 

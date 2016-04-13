@@ -507,10 +507,10 @@ constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr m
   in
   case (pattern, maybeTipe) of
     (P.Var name, Just (A.A typeRegion tipe)) ->
-        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe
+        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interfaceType
 
     (P.Var name, Nothing) ->
-        constrainUnannotatedDef env info qs patternRegion name expr
+        constrainUnannotatedDef env info qs patternRegion name expr interfaceType
 
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
@@ -525,8 +525,9 @@ constrainAnnotatedDef
     -> String
     -> Canonical.Expr
     -> ST.Canonical
+    -> Maybe (A.Located ST.Canonical)
     -> IO Info
-constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
+constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interfaceType =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- mapM mkRigid qs
 
@@ -535,11 +536,14 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
       let env' = Env.addValues env (zip qs flexiVars)
 
       (vars, typ) <- Env.instantiateType env tipe Map.empty
+      (ifvars, iftyp) <- case interfaceType of
+            Nothing -> return ([], undefined)
+            Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
 
       let scheme =
             Scheme
               { _rigidQuantifiers = []
-              , _flexibleQuantifiers = flexiVars ++ vars
+              , _flexibleQuantifiers = flexiVars ++ vars ++ ifvars
               , _constraint = CTrue
               , _header = Map.singleton name (A.A patternRegion typ)
               }
@@ -549,9 +553,13 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe =
       let annCon =
             CEqual (Error.BadTypeAnnotation name) typeRegion typ (VarN var) Annotation
 
+      let interfaceCon = case interfaceType of
+            Nothing -> CTrue
+            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface) ifrg iftyp (VarN var) Annotation -- TODO: different descriptor than Annotation
+
       return $ info
           { iSchemes = scheme : iSchemes info
-          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
+          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars (annCon /\ interfaceCon))
           }
 
 
@@ -562,8 +570,9 @@ constrainUnannotatedDef
     -> R.Region
     -> String
     -> Canonical.Expr
+    -> Maybe (A.Located ST.Canonical)
     -> IO Info
-constrainUnannotatedDef env info qs patternRegion name expr =
+constrainUnannotatedDef env info qs patternRegion name expr interfaceType =
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- mapM mkRigid qs
 
@@ -573,11 +582,19 @@ constrainUnannotatedDef env info qs patternRegion name expr =
 
       let env' = Env.addValues env (zip qs rigidVars)
 
+      (ifvars, iftyp) <- case interfaceType of
+            Nothing -> return ([], undefined)
+            Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
+
+      let interfaceCon = case interfaceType of
+            Nothing -> CTrue
+            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
+
       con <- constrain env' expr tipe
 
       return $ info
           { iRigid = rigidVars ++ iRigid info
-          , iFlex = v : iFlex info
+          , iFlex = v : iFlex info ++ ifvars
           , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
-          , iC2 = con /\ iC2 info
+          , iC2 = con /\ iC2 info /\ fl rigidVars interfaceCon
           }
