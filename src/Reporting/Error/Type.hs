@@ -396,7 +396,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ("The type of " ++ Help.functionName name ++ " in the implementation doesn't match the signature as described by the interface:")
           ( cmpHint
               ("The interface requires the type of " ++ Help.functionName name ++ " to be:")
-              "But I am inferring that the implementation has this type:"
+              ("But I am inferring that the implementation of " ++ Help.functionName name ++ " has this type:")
               sibSuggestions
           )
 
