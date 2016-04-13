@@ -270,12 +270,11 @@ letExpr =
       padded (reserved "in")
       E.Let defs <$> expr
 
-
 -- TYPE ANNOTATION
 
 typeAnnotation :: IParser Source.Def
 typeAnnotation =
-    addLocation (Source.TypeAnnotation <$> try start <*> Type.expr)
+    addLocation (Source.TypeAnnotation <$> try start <*> Type.annotatedExpr)
   where
     start =
       do  v <- lowVar <|> parens symOp

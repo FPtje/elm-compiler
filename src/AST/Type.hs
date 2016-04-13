@@ -1,12 +1,14 @@
 module AST.Type
-    ( Raw, Raw'(..)
+    ( Raw, Raw', Raw''(..)
     , Qualifier'(..)
-    , Canonical(..), Aliased(..)
+    , Canonical, Canonical'(..), Aliased(..)
+    , QualifiedType(..)
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
     , collectLambdas
     , tuple
     , substitute
+    , unqualified
     ) where
 
 import Control.Arrow (second)
@@ -21,31 +23,43 @@ import qualified Reporting.Region as R
 
 -- DEFINITION
 
-
 type Raw =
-    A.Located Raw'
+    QualifiedType (A.Located String) String Raw'
 
+type Raw' =
+    A.Located Raw''
 
-data Raw'
-    = RLambda Raw Raw
+data QualifiedType classref var tipe
+    = QT
+      { qualifiers :: [Qualifier' classref var]
+      , qtype :: tipe
+      }
+    deriving (Eq, Ord, Show)
+
+data Raw''
+    = RLambda Raw' Raw'
     | RVar String
     | RType Var.Raw
-    | RApp Raw [Raw]
-    | RRecord [(String, Raw)] (Maybe Raw)
+    | RApp Raw' [Raw']
+    | RRecord [(String, Raw')] (Maybe Raw')
     deriving (Eq, Ord)
 
 
-data Canonical
-    = Lambda Canonical Canonical
+type Canonical =
+    QualifiedType (A.Located String) String Canonical'
+
+data Canonical'
+    = Lambda Canonical' Canonical'
     | Var String
     | Type Var.Canonical
-    | App Canonical [Canonical]
-    | Record [(String, Canonical)] (Maybe Canonical)
-    | Aliased Var.Canonical [(String, Canonical)] (Aliased Canonical)
+    | App Canonical' [Canonical']
+    | Record [(String, Canonical')] (Maybe Canonical')
+    | Aliased Var.Canonical [(String, Canonical')] (Aliased Canonical')
     deriving (Eq, Ord, Show)
 
 data Qualifier' classref var
     = Qualifier classref var
+    deriving (Eq, Ord, Show)
 
 data Aliased t
     = Holey t
@@ -58,6 +72,9 @@ data Port t
     | Signal { root :: t, arg :: t }
     deriving (Eq)
 
+instance Functor (QualifiedType classref var) where
+  fmap f (QT quals tipe) = QT quals (f tipe)
+
 
 getPortType :: Port tipe -> tipe
 getPortType portType =
@@ -66,50 +83,58 @@ getPortType portType =
     Signal tipe _ -> tipe
 
 
-tuple :: R.Region -> [Raw] -> Raw
+tuple :: R.Region -> [Raw'] -> Raw'
 tuple region types =
   let name = Var.Raw ("_Tuple" ++ show (length types))
   in
       A.A region (RApp (A.A region (RType name)) types)
 
 
+unqualified :: tipe -> QualifiedType classref var tipe
+unqualified = QT []
 
 -- DEALIASING
 
-
 deepDealias :: Canonical -> Canonical
-deepDealias tipe =
+deepDealias = fmap deepDealiasHelp
+
+deepDealiasHelp :: Canonical' -> Canonical'
+deepDealiasHelp tipe =
   case tipe of
     Lambda a b ->
-          Lambda (deepDealias a) (deepDealias b)
+          Lambda (deepDealiasHelp a) (deepDealiasHelp b)
 
     Var _ ->
         tipe
 
     Record fields ext ->
-        Record (map (second deepDealias) fields) (fmap deepDealias ext)
+        Record (map (second deepDealiasHelp) fields) (fmap deepDealiasHelp ext)
 
     Aliased _name args tipe' ->
-        deepDealias (dealias args tipe')
+        deepDealiasHelp (dealias args tipe')
 
     Type _ ->
         tipe
 
     App f args ->
-        App (deepDealias f) (map deepDealias args)
+        App (deepDealiasHelp f) (map deepDealiasHelp args)
+
 
 
 iteratedDealias :: Canonical -> Canonical
-iteratedDealias tipe =
+iteratedDealias = fmap iteratedDealiasHelp
+
+iteratedDealiasHelp :: Canonical' -> Canonical'
+iteratedDealiasHelp tipe =
   case tipe of
     Aliased _ args realType ->
-        iteratedDealias (dealias args realType)
+        iteratedDealiasHelp (dealias args realType)
 
     _ ->
         tipe
 
 
-dealias :: [(String, Canonical)] -> Aliased Canonical -> Canonical
+dealias :: [(String, Canonical')] -> Aliased Canonical' -> Canonical'
 dealias args aliasType =
   case aliasType of
     Holey tipe ->
@@ -119,7 +144,7 @@ dealias args aliasType =
         tipe
 
 
-dealiasHelp :: Map.Map String Canonical -> Canonical -> Canonical
+dealiasHelp :: Map.Map String Canonical' -> Canonical' -> Canonical'
 dealiasHelp typeTable tipe =
     let go = dealiasHelp typeTable in
     case tipe of
@@ -142,7 +167,7 @@ dealiasHelp typeTable tipe =
           App (go f) (map go args)
 
 -- only substitutes variables for now
-substitute :: Canonical -> Canonical -> Canonical -> Canonical
+substitute :: Canonical' -> Canonical' -> Canonical' -> Canonical'
 substitute v@(Var thing) withThis inThis =
   let
     rec = substitute v withThis
@@ -162,11 +187,14 @@ substitute _ _ _ = error "Substitution for non-Vars not implemented"
 -- COLLECT LAMBDAS
 
 
-collectLambdas :: Canonical -> [Canonical]
-collectLambdas tipe =
+collectLambdas :: Canonical -> [Canonical']
+collectLambdas = collectLambdasHelp . qtype
+
+collectLambdasHelp :: Canonical' -> [Canonical']
+collectLambdasHelp tipe =
   case tipe of
     Lambda arg result ->
-        arg : collectLambdas result
+        arg : collectLambdasHelp result
 
     _ ->
         [tipe]
@@ -176,7 +204,7 @@ collectLambdas tipe =
 -- BINARY
 
 
-instance Binary Canonical where
+instance Binary Canonical' where
   put tipe =
       case tipe of
         Lambda t1 t2 ->

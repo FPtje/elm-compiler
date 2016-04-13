@@ -2,7 +2,7 @@
 module Parse.Type where
 
 import Data.List (intercalate)
-import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try)
+import Text.Parsec ((<|>), (<?>), char, many, optionMaybe, string, try, option)
 
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
@@ -11,13 +11,13 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
 
 
-tvar :: IParser Type.Raw
+tvar :: IParser Type.Raw'
 tvar =
   addLocation
     (Type.RVar <$> lowVar <?> "a type variable")
 
 
-tuple :: IParser Type.Raw
+tuple :: IParser Type.Raw'
 tuple =
   do  (start, types, end) <- located (parens (commaSep expr))
       case types of
@@ -25,7 +25,7 @@ tuple =
         _   -> return (Type.tuple (R.Region start end) types)
 
 
-record :: IParser Type.Raw
+record :: IParser Type.Raw'
 record =
   addLocation $
   do  char '{'
@@ -55,19 +55,19 @@ capTypeVar =
   intercalate "." <$> dotSep1 capVar
 
 
-constructor0 :: IParser Type.Raw
+constructor0 :: IParser Type.Raw'
 constructor0 =
   addLocation $
   do  name <- capTypeVar
       return (Type.RType (Var.Raw name))
 
 
-term :: IParser Type.Raw
+term :: IParser Type.Raw'
 term =
   tuple <|> record <|> tvar <|> constructor0
 
 
-app :: IParser Type.Raw
+app :: IParser Type.Raw'
 app =
   do  start <- getMyPosition
       f <- constructor0 <|> try tupleCtor <?> "a type constructor"
@@ -83,8 +83,32 @@ app =
           let ctor = "_Tuple" ++ show (if n == 0 then 0 else n+1)
           return (Type.RType (Var.Raw ctor))
 
+-- QUALIFIERS
 
-expr :: IParser Type.Raw
+qualifier :: IParser (Type.Qualifier' (A.Located String) String)
+qualifier =
+  expecting "an interface predicate" $ try $
+  do  classnm <- addLocation capVar
+      forcedWS
+      vr <- lowVar
+      return $ Type.Qualifier classnm vr
+
+qualifiers :: IParser [Type.Qualifier' (A.Located String) String]
+qualifiers =
+    option [] $
+      do
+          try $ reserved "|"
+          forcedWS
+          commaSep1 qualifier
+
+annotatedExpr :: IParser Type.Raw
+annotatedExpr =
+  do
+    exp <- expr
+    quals <- qualifiers
+    return $ Type.QT quals exp
+
+expr :: IParser Type.Raw'
 expr =
   do  start <- getMyPosition
       t1 <- app <|> term
@@ -99,7 +123,7 @@ expr =
                 return (A.A (R.Region start end) (Type.RLambda t1 t2))
 
 
-constructor :: IParser (String, [Type.Raw])
+constructor :: IParser (String, [Type.Raw'])
 constructor =
   (,) <$> (capTypeVar <?> "another type constructor")
       <*> spacePrefix term

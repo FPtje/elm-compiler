@@ -104,14 +104,6 @@ sibling =
       to <- (anyOp <|> qualifiedVar)
       return $ D.Sibling from to
 
-qualifier :: IParser (T.Qualifier' (A.Located String) String)
-qualifier =
-  expecting "an interface predicate" $ try $
-  do  classnm <- addLocation capVar
-      forcedWS
-      vr <- lowVar
-      return $ T.Qualifier classnm vr
-
 interface :: IParser D.SourceDecl'
 interface =
   expecting "an interface definition" $
@@ -124,13 +116,8 @@ interface =
       vr <- lowVar
       forcedWS
 
-      quals <- option [] $
-        do
-          try $ reserved "|"
-          forcedWS
-          quals <- commaSep1 qualifier
-          forcedWS
-          return quals
+      quals <- Type.qualifiers
+      forcedWS
 
       reserved "where"
       forcedWS
@@ -160,12 +147,9 @@ implementation =
       tp <- Type.expr
       forcedWS
 
-      quals <- option [] $
-        do try (reserved "|")
-           forcedWS
-           q <- commaSep1 qualifier
-           forcedWS
-           return q
+      quals <- Type.qualifiers
+
+      forcedWS
 
 
       reserved "where"

@@ -67,7 +67,7 @@ annotation localizer name tipe =
             docName
             : zipWith (<+>)
                 (colon : repeat (text "->"))
-                (map (docType localizer Func) parts)
+                (map (docType localizer Func . Type.unqualified) parts)
 
       _ ->
           hang 4 $ sep $
@@ -162,12 +162,13 @@ data Context
     | App
 
 
+-- | TODO: Diff of qualifiers
 diff :: Localizer -> Context -> Type.Canonical -> Type.Canonical -> Diff Doc
 diff localizer context leftType rightType =
   let
-    go = diff localizer
+    go c lt rt = diff localizer c (Type.unqualified lt) (Type.unqualified rt)
   in
-  case (leftType, rightType) of
+  case (Type.qtype leftType, Type.qtype rightType) of
     (Type.Lambda _ _, Type.Lambda _ _) ->
         let
           leftParts = Type.collectLambdas leftType
@@ -176,8 +177,8 @@ diff localizer context leftType rightType =
 
           if length leftParts /= length rightParts then
               difference
-                (docLambda context (map (docType localizer Func) leftParts))
-                (docLambda context (map (docType localizer Func) rightParts))
+                (docLambda context (map (docType localizer Func . Type.unqualified) leftParts))
+                (docLambda context (map (docType localizer Func . Type.unqualified) rightParts))
 
           else
               docLambda context <$> sequenceA (zipWith (go Func) leftParts rightParts)
@@ -220,10 +221,10 @@ diff localizer context leftType rightType =
           <$> sequenceA (zipWith (go App) (map snd leftArgs) (map snd rightArgs))
 
     (Type.Aliased _ args real, _) ->
-        go context (Type.dealias args real) rightType
+        diff localizer context (Type.unqualified $ Type.dealias args real) rightType
 
     (_, Type.Aliased _ args real) ->
-        go context leftType (Type.dealias args real)
+        diff localizer context leftType (Type.unqualified $ Type.dealias args real)
 
     (_, _) ->
         difference
@@ -249,7 +250,7 @@ diffRecord localizer leftFields leftExt rightFields rightExt =
     if Map.null leftOnly && Map.null rightOnly then
         let
           fieldDiffs =
-            Map.map (uncurry (diff localizer None)) both
+            Map.map (\(l, r) -> (diff localizer None (Type.unqualified l) (Type.unqualified r))) both
         in
           case partitionDiffs fieldDiffs of
             ([], sames) ->
@@ -325,11 +326,11 @@ analyzeFields leftOnly rightOnly =
 
 
 type Fields =
-  Map.Map String Type.Canonical
+  Map.Map String Type.Canonical'
 
 
 type DoubleFields =
-  Map.Map String (Type.Canonical,Type.Canonical)
+  Map.Map String (Type.Canonical', Type.Canonical')
 
 
 vennDiagram :: Fields -> Fields -> (Fields, DoubleFields, Fields)
@@ -341,17 +342,17 @@ vennDiagram leftFields rightFields =
 
 
 flattenRecord
-    :: [(String, Type.Canonical)]
-    -> Maybe Type.Canonical
+    :: [(String, Type.Canonical')]
+    -> Maybe Type.Canonical'
     -> (Fields, Maybe String)
 flattenRecord fields ext =
   first Map.fromList (flattenRecordHelp fields ext)
 
 
 flattenRecordHelp
-    :: [(String, Type.Canonical)]
-    -> Maybe Type.Canonical
-    -> ([(String, Type.Canonical)], Maybe String)
+    :: [(String, Type.Canonical')]
+    -> Maybe Type.Canonical'
+    -> ([(String, Type.Canonical')], Maybe String)
 flattenRecordHelp fields ext =
   case ext of
     Nothing ->
@@ -376,9 +377,9 @@ flattenRecordHelp fields ext =
 
 docType :: Localizer -> Context -> Type.Canonical -> Doc
 docType localizer context tipe =
-  case tipe of
+  case Type.qtype tipe of
     Type.Lambda _ _ ->
-        docLambda context (map (docType localizer Func) (Type.collectLambdas tipe))
+        docLambda context (map (docType localizer Func . Type.unqualified) (Type.collectLambdas tipe))
 
     Type.Var x ->
         text x
@@ -398,7 +399,7 @@ docType localizer context tipe =
             flattenRecordHelp outerFields outerExt
         in
           docRecord Full
-            (map (text *** docType localizer None) fields)
+            (map (text *** docType localizer None . Type.unqualified) fields)
             (fmap text ext)
 
     Type.Aliased name args _ ->
@@ -426,13 +427,13 @@ docLambda context docs =
 
 
 
-docApp :: Localizer -> Context -> Var.Canonical -> [Type.Canonical] -> Doc
+docApp :: Localizer -> Context -> Var.Canonical -> [Type.Canonical'] -> Doc
 docApp localizer context name args =
   let
     argContext =
       if Var.isTuple name then None else App
   in
-    docAppHelp localizer context name (map (docType localizer argContext) args)
+    docAppHelp localizer context name (map (docType localizer argContext . Type.unqualified) args)
 
 
 docAppHelp :: Localizer -> Context -> Var.Canonical -> [Doc] -> Doc
