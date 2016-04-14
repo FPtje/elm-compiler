@@ -145,7 +145,7 @@ instance Json.FromJSON Type where
       case value of
         Json.String text ->
           either failure (return . fromRawType)
-            (Parse.iParse Type.expr (Text.unpack text))
+            (Parse.iParse Type.annotatedExpr (Text.unpack text))
 
         Json.Object obj ->
           fromObject obj
@@ -178,10 +178,13 @@ fromObject obj =
 
 
 fromRawType :: Type.Raw -> Type
-fromRawType (A.A _ astType) =
+fromRawType = fromRawTypeHelper . Type.qtype
+
+fromRawTypeHelper :: Type.Raw' -> Type
+fromRawTypeHelper (A.A _ astType) =
     case astType of
       Type.RLambda t1 t2 ->
-          Lambda (fromRawType t1) (fromRawType t2)
+          Lambda (fromRawTypeHelper t1) (fromRawTypeHelper t2)
 
       Type.RVar x ->
           Var x
@@ -190,8 +193,8 @@ fromRawType (A.A _ astType) =
           Type (Var.toString var)
 
       Type.RApp t ts ->
-          App (fromRawType t) (map fromRawType ts)
+          App (fromRawTypeHelper t) (map fromRawTypeHelper ts)
 
       Type.RRecord fields ext ->
-          Record (map (second fromRawType) fields) (fmap fromRawType ext)
+          Record (map (second fromRawTypeHelper) fields) (fmap fromRawTypeHelper ext)
 
