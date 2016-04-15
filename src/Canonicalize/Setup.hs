@@ -216,10 +216,10 @@ valueToPatches region moduleName interface value =
 
 -- PATCHES FOR TYPE ALIASES
 
-type Node = ((R.Region, String, [String], Type.Raw), String, [String])
+type Node = ((R.Region, String, [String], Type.Raw'), String, [String])
 
 
-node :: R.Region -> String -> [String] -> Type.Raw -> Node
+node :: R.Region -> String -> [String] -> Type.Raw' -> Node
 node region name tvars alias =
     ((region, name, tvars, alias), name, edges alias)
   where
@@ -255,7 +255,7 @@ addTypeAliases moduleName typeAliasNodes initialEnv =
 
 addTypeAlias
     :: ModuleName.Canonical
-    -> Graph.SCC (R.Region, String, [String], Type.Raw)
+    -> Graph.SCC (R.Region, String, [String], Type.Raw')
     -> Env.Environment
     -> Result.ResultErr Env.Environment
 addTypeAlias moduleName scc env =

@@ -16,8 +16,8 @@ import qualified Canonicalize.Variable as Canonicalize
 
 tipe
     :: Env.Environment
-    -> T.Raw
-    -> Result.ResultErr T.Canonical
+    -> T.Raw'
+    -> Result.ResultErr T.Canonical'
 tipe env typ@(A.A region typ') =
     let go = tipe env
         goSnd (name,t) =
@@ -43,9 +43,9 @@ tipe env typ@(A.A region typ') =
 canonicalizeApp
     :: R.Region
     -> Env.Environment
-    -> T.Raw
-    -> [T.Raw]
-    -> Result.ResultErr T.Canonical
+    -> T.Raw'
+    -> [T.Raw']
+    -> Result.ResultErr T.Canonical'
 canonicalizeApp region env f args =
   case f of
     A.A _ (T.RType (Var.Raw rawName)) ->
@@ -72,9 +72,9 @@ canonicalizeApp region env f args =
 canonicalizeAlias
     :: R.Region
     -> Env.Environment
-    -> (Var.Canonical, [String], T.Canonical)
-    -> [T.Raw]
-    -> Result.ResultErr T.Canonical
+    -> (Var.Canonical, [String], T.Canonical')
+    -> [T.Raw']
+    -> Result.ResultErr T.Canonical'
 canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
   if typesLen /= tvarsLen
     then Result.err (A.A region (Error.alias name tvarsLen typesLen))

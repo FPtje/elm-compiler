@@ -48,7 +48,7 @@ tvar
     -> Result.ResultErr
           (Either
               Var.Canonical
-              (Var.Canonical, [String], Type.Canonical)
+              (Var.Canonical, [String], Type.Canonical')
           )
 tvar region env var =
   case adts ++ aliases of
