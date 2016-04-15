@@ -19,7 +19,7 @@ check
     :: R.Region
     -> String
     -> Maybe Canonical.Expr
-    -> T.Canonical
+    -> T.Canonical'
     -> Result.ResultErr D.CanonicalPort
 check region name maybeExpr rootType =
   D.CanonicalPort <$> checkHelp region name maybeExpr rootType rootType
@@ -29,8 +29,8 @@ checkHelp
     :: R.Region
     -> String
     -> Maybe Canonical.Expr
-    -> T.Canonical
-    -> T.Canonical
+    -> T.Canonical'
+    -> T.Canonical'
     -> Result.ResultErr (E.PortImpl Canonical.Expr T.Canonical')
 checkHelp region name maybeExpr rootType tipe =
   case (maybeExpr, tipe) of
@@ -75,8 +75,8 @@ validForeignType
     :: R.Region
     -> String
     -> Bool
-    -> T.Canonical
-    -> T.Canonical
+    -> T.Canonical'
+    -> T.Canonical'
     -> Result.ResultErr ()
 validForeignType region name isInbound rootType tipe =
     let valid localType =

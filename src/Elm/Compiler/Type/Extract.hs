@@ -1,4 +1,4 @@
-module Elm.Compiler.Type.Extract (toFullType, toAliasedType) where
+module Elm.Compiler.Type.Extract (toFullType, toAliasedType, toAliasedType') where
 
 import Control.Arrow (second)
 import qualified AST.Type as Type
@@ -15,6 +15,9 @@ toAliasedType :: Type.Canonical -> T.Type
 toAliasedType astType =
   toType True astType
 
+toAliasedType' :: Type.Canonical' -> T.Type
+toAliasedType' astType =
+  toType True . Type.unqualified $ astType
 
 toType :: Bool -> Type.Canonical -> T.Type
 toType b = toTypeHelper b . Type.qtype

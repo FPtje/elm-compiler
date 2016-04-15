@@ -103,8 +103,8 @@ alias name expected actual =
 data PortError = PortError
     { portName :: String
     , portIsInbound :: Bool
-    , portRootType :: Type.Canonical
-    , portLocalType :: Type.Canonical
+    , portRootType :: Type.Canonical'
+    , portLocalType :: Type.Canonical'
     , portMessage :: Maybe String
     }
 
@@ -112,8 +112,8 @@ data PortError = PortError
 port
     :: String
     -> Bool
-    -> Type.Canonical
-    -> Type.Canonical
+    -> Type.Canonical'
+    -> Type.Canonical'
     -> Maybe String
     -> Error
 port name isInbound rootType localType maybeMessage =
@@ -241,7 +241,7 @@ toReport localizer err =
             )
             ( Help.stack
                 [ text "The specific unsupported type is:"
-                , indent 4 (RenderType.toDoc localizer localType)
+                , indent 4 (RenderType.toDoc localizer (Type.unqualified localType))
                 , text ("The types of values that can flow through " ++ boundPort ++ "s include:")
                 , indent 4 $ Help.reflowParagraph $
                     "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\

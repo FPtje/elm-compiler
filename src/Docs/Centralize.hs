@@ -72,7 +72,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
     D.Datatype name args ctors ->
         let
           ctors' =
-            map (second (map Extract.toAliasedType)) ctors
+            map (second (map Extract.toAliasedType')) ctors
 
           union =
             A.A region (Docs.Union maybeComment args ctors')
@@ -82,7 +82,7 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
     D.TypeAlias name args tipe ->
         let
           alias =
-            A.A region (Docs.Alias maybeComment args (Extract.toAliasedType tipe))
+            A.A region (Docs.Alias maybeComment args (Extract.toAliasedType' tipe))
         in
           docs { rawAliases = Map.insert name alias (rawAliases docs) }
 
@@ -91,6 +91,12 @@ addDeclToDocs (A.A (region,maybeComment) decl) docs =
 
     D.Sibling _ _ ->
         docs -- TODO: sibling docs
+
+    D.IFace _ -> -- TODO: Interface docs
+        docs
+
+    D.Impl _ -> -- TODO: Implementation docs
+        docs
 
     D.Fixity assoc precedence name ->
         let
