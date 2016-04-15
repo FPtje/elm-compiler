@@ -87,8 +87,8 @@ valueNotFound name value possibilities =
 
 data AliasError
     = ArgMismatch Var.Canonical Int Int
-    | SelfRecursive String [String] Type.Raw
-    | MutuallyRecursive [(Region.Region, String, [String], Type.Raw)]
+    | SelfRecursive String [String] Type.Raw'
+    | MutuallyRecursive [(Region.Region, String, [String], Type.Raw')]
 
 
 alias :: Var.Canonical -> Int -> Int -> Error
@@ -296,11 +296,14 @@ extractSuggestions err =
         Nothing
 
 
-unsafePromote :: Type.Raw -> Type.Canonical
-unsafePromote (A.A _ rawType) =
+unsafePromote :: Type.Raw' -> Type.Canonical
+unsafePromote = Type.unqualified . unsafePromote'
+
+unsafePromote' :: Type.Raw' -> Type.Canonical'
+unsafePromote' (A.A _ rawType) =
   case rawType of
     Type.RLambda arg result ->
-        Type.Lambda (unsafePromote arg) (unsafePromote result)
+        Type.Lambda (unsafePromote' arg) (unsafePromote' result)
 
     Type.RVar x ->
         Type.Var x
@@ -309,8 +312,8 @@ unsafePromote (A.A _ rawType) =
         Type.Type (Var.local name)
 
     Type.RApp func args ->
-        Type.App (unsafePromote func) (map unsafePromote args)
+        Type.App (unsafePromote' func) (map unsafePromote' args)
 
     Type.RRecord fields ext ->
-        Type.Record (map (second unsafePromote) fields) (fmap unsafePromote ext)
+        Type.Record (map (second unsafePromote') fields) (fmap unsafePromote' ext)
 

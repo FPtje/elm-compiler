@@ -31,7 +31,7 @@ checkHelp
     -> Maybe Canonical.Expr
     -> T.Canonical
     -> T.Canonical
-    -> Result.ResultErr (E.PortImpl Canonical.Expr T.Canonical)
+    -> Result.ResultErr (E.PortImpl Canonical.Expr T.Canonical')
 checkHelp region name maybeExpr rootType tipe =
   case (maybeExpr, tipe) of
     (_, T.Aliased _ args t) ->

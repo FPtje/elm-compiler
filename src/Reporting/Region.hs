@@ -4,6 +4,7 @@ module Reporting.Region where
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Json
 import qualified Text.Parsec.Pos as Parsec
+import Data.Binary
 
 
 data Region = Region
@@ -64,3 +65,11 @@ instance Json.ToJSON Position where
         [ "line" .= line
         , "column" .= column
         ]
+
+instance Binary Position where
+  put p = put (line p) >> put (column p)
+  get = Position <$> get <*> get
+
+instance Binary Region where
+  put r = put (start r) >> put (end r)
+  get = Region <$> get <*> get

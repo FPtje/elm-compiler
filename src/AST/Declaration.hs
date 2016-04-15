@@ -52,7 +52,7 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw Valid.Expr String (A.Located Var.Raw) Source.Def Var.Raw)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw' Valid.Expr String (A.Located Var.Raw) Source.Def Var.Raw)
 
 
 type CanonicalDecl =
@@ -67,12 +67,12 @@ data SourcePort
 
 
 data ValidPort
-    = In String Type.Raw
-    | Out String Valid.Expr Type.Raw
+    = In String Type.Raw'
+    | Out String Valid.Expr Type.Raw'
 
 
 newtype CanonicalPort
-    = CanonicalPort (General.PortImpl Canonical.Expr Type.Canonical)
+    = CanonicalPort (General.PortImpl Canonical.Expr Type.Canonical')
 
 
 validPortName :: ValidPort -> String

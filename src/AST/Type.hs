@@ -203,6 +203,15 @@ collectLambdas' tipe =
 
 -- BINARY
 
+instance (Binary classref, Binary var) => Binary (Qualifier' classref var) where
+  put (Qualifier classref var) = put classref >> put var
+
+  get = Qualifier <$> get <*> get
+
+instance (Binary classref, Binary var, Binary tipe) => Binary (QualifiedType classref var tipe) where
+  put (QT qs qtp) = put qs >> put qtp
+  get = QT <$> get <*> get
+
 
 instance Binary Canonical' where
   put tipe =

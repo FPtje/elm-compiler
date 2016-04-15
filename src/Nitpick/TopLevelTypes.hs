@@ -73,7 +73,7 @@ checkMainType typeEnv decls =
 
 
 validMainTypes :: [Type.Canonical]
-validMainTypes =
+validMainTypes = map Type.unqualified
     [ element
     , html
     , signal element
@@ -81,7 +81,7 @@ validMainTypes =
     ]
 
 
-html :: Type.Canonical
+html :: Type.Canonical'
 html =
     Type.Type (Var.fromModule virtualDom "Node")
 
@@ -91,17 +91,17 @@ virtualDom =
     ModuleName.Canonical (Pkg.Name "evancz" "virtual-dom") ["VirtualDom"]
 
 
-element :: Type.Canonical
+element :: Type.Canonical'
 element =
   core ["Graphics","Element"] "Element"
 
 
-signal :: Type.Canonical -> Type.Canonical
+signal :: Type.Canonical' -> Type.Canonical'
 signal tipe =
   Type.App (core ["Signal"] "Signal") [ tipe ]
 
 
-core :: [String] -> String -> Type.Canonical
+core :: [String] -> String -> Type.Canonical'
 core home name =
   Type.Type (Var.inCore home name)
 

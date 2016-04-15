@@ -25,7 +25,6 @@ data Error
     | BadMain Type.Canonical
     | InfiniteType String Type.Canonical
     | SameTypeSibling Region.Region Var.Canonical Var.Canonical
-    deriving (Show)
 
 
 data Mismatch = MismatchInfo
@@ -35,7 +34,6 @@ data Mismatch = MismatchInfo
     , _reason :: Maybe Reason
     , _siblings :: [(Var.Canonical, Var.Canonical)]
     }
-    deriving(Show)
 
 
 data Reason

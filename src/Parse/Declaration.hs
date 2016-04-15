@@ -1,16 +1,14 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try, many, option )
+import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try, many )
 
 import qualified AST.Declaration as D
-import qualified AST.Type as T
 import qualified AST.Interface as IF
 import qualified Parse.Expression as Expr
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
 import qualified Text.Parsec.Indent as Indent
-import qualified Reporting.Annotation as A
 
 
 declaration :: IParser D.SourceDecl

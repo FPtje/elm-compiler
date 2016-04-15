@@ -112,8 +112,8 @@ ifaceHelp region (Interface.Interface quals (A.A rg classNm) var decls) =
 
 implHelp
     :: Maybe String
-    -> Interface.Implementation' (A.Located String) String Type.Raw Source.Def
-    -> Result.Result wrn Error.Error (Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw Valid.Def)
+    -> Interface.Implementation' (A.Located String) String Type.Raw' Source.Def
+    -> Result.Result wrn Error.Error (Interface.Implementation' (A.Located Var.Raw) Var.Raw Type.Raw' Valid.Def)
 implHelp _ (Interface.Implementation quals (A.A rg classNm) tipe defs) =
   do
     newQuals <- mapM qualifierHelp quals
@@ -526,7 +526,7 @@ diff left right =
 
 
 
-freeVars :: Type.Raw -> [A.Located String]
+freeVars :: Type.Raw' -> [A.Located String]
 freeVars (A.A region tipe) =
     case tipe of
       Type.RLambda t1 t2 ->

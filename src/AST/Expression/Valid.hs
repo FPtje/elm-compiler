@@ -13,11 +13,11 @@ ports are all paired with definitions in the appropriate order, it collapses
 them into a Def that is easier to work with in later phases of compilation.
 -}
 type Expr =
-  General.Expr R.Region Def Var.Raw Type.Raw
+  General.Expr R.Region Def Var.Raw Type.Raw'
 
 
 type Expr' =
-  General.Expr' R.Region Def Var.Raw Type.Raw
+  General.Expr' R.Region Def Var.Raw Type.Raw'
 
 
 data Def

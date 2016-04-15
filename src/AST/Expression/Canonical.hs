@@ -13,11 +13,11 @@ import qualified Reporting.Region as R
 they came from.
 -}
 type Expr =
-  General.Expr R.Region Def Var.Canonical Type.Canonical
+  General.Expr R.Region Def Var.Canonical Type.Canonical'
 
 
 type Expr' =
-  General.Expr' R.Region Def Var.Canonical Type.Canonical
+  General.Expr' R.Region Def Var.Canonical Type.Canonical'
 
 
 data Def

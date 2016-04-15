@@ -2,6 +2,7 @@ module Reporting.Annotation where
 
 import Prelude hiding (map)
 import qualified Reporting.Region as R
+import Data.Binary
 
 
 -- ANNOTATION
@@ -47,3 +48,6 @@ drop :: Annotated info a -> a
 drop (A _ value) =
     value
 
+instance (Binary annotation, Binary a) => Binary (Annotated annotation a) where
+    put (A ann a) = put ann >> put a
+    get = A <$> get <*> get
