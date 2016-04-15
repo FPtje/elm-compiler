@@ -17,9 +17,12 @@ toAliasedType astType =
 
 
 toType :: Bool -> Type.Canonical -> T.Type
-toType useAliases astType =
+toType b = toTypeHelper b . Type.qtype
+
+toTypeHelper :: Bool -> Type.Canonical' -> T.Type
+toTypeHelper useAliases astType =
   let
-    go = toType useAliases
+    go = toTypeHelper useAliases
   in
     case astType of
       Type.Lambda t1 t2 ->

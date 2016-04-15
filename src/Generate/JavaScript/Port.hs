@@ -112,30 +112,30 @@ intChecks =
 
 -- INBOUND
 
-inbound :: String -> T.Port T.Canonical -> Expression ()
+inbound :: String -> T.Port T.Canonical' -> Expression ()
 inbound name portType =
   case portType of
     T.Normal tipe ->
         _Port "inbound" `call`
             [ StringLit () name
-            , StringLit () (show (RenderType.toDoc Map.empty tipe))
+            , StringLit () (show (RenderType.toDoc Map.empty (T.unqualified tipe)))
             , toTypeFunction tipe
             ]
 
     T.Signal _root arg ->
         _Port "inboundSignal" `call`
             [ StringLit () name
-            , StringLit () (show (RenderType.toDoc Map.empty arg))
+            , StringLit () (show (RenderType.toDoc Map.empty (T.unqualified arg)))
             , toTypeFunction arg
             ]
 
 
-toTypeFunction :: T.Canonical -> Expression ()
+toTypeFunction :: T.Canonical' -> Expression ()
 toTypeFunction tipe =
     function ["v"] [ ReturnStmt () (Just (toType tipe (ref "v"))) ]
 
 
-toType :: T.Canonical -> Expression () -> Expression ()
+toType :: T.Canonical' -> Expression () -> Expression ()
 toType tipe x =
     case tipe of
       T.Lambda _ _ ->
@@ -199,7 +199,7 @@ toType tipe x =
           convert (f,t) = (prop f, toType t (DotRef () x (var f)))
 
 
-toTuple :: [T.Canonical] -> Expression () -> Expression ()
+toTuple :: [T.Canonical'] -> Expression () -> Expression ()
 toTuple types x =
     check x JSArray (ObjectLit () fields)
   where
@@ -217,7 +217,7 @@ toTuple types x =
 
 -- OUTBOUND
 
-outbound :: String -> Expression () -> T.Port T.Canonical -> Expression ()
+outbound :: String -> Expression () -> T.Port T.Canonical' -> Expression ()
 outbound name expr portType =
   case portType of
     T.Normal tipe ->
@@ -227,12 +227,12 @@ outbound name expr portType =
         _Port "outboundSignal" `call` [ StringLit () name, fromTypeFunction arg, expr ]
 
 
-fromTypeFunction :: T.Canonical -> Expression ()
+fromTypeFunction :: T.Canonical' -> Expression ()
 fromTypeFunction tipe =
     function ["v"] [ ReturnStmt () (Just (fromType tipe (ref "v"))) ]
 
 
-fromType :: T.Canonical -> Expression () -> Expression ()
+fromType :: T.Canonical' -> Expression () -> Expression ()
 fromType tipe x =
     case tipe of
       T.Aliased _ args t ->
@@ -244,7 +244,7 @@ fromType tipe x =
           | otherwise ->
               func (foldl (<|) x values)
           where
-            ts = T.collectLambdas tipe
+            ts = T.collectLambdas' tipe
             numArgs = length ts - 1
             args = map (\n -> '_' : show n) [0..]
             values = zipWith toType (init ts) (map ref args)

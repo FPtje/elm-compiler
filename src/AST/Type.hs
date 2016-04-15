@@ -5,7 +5,7 @@ module AST.Type
     , QualifiedType(..)
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
-    , collectLambdas
+    , collectLambdas, collectLambdas'
     , tuple
     , substitute
     , unqualified
@@ -188,13 +188,13 @@ substitute _ _ _ = error "Substitution for non-Vars not implemented"
 
 
 collectLambdas :: Canonical -> [Canonical']
-collectLambdas = collectLambdasHelp . qtype
+collectLambdas = collectLambdas' . qtype
 
-collectLambdasHelp :: Canonical' -> [Canonical']
-collectLambdasHelp tipe =
+collectLambdas' :: Canonical' -> [Canonical']
+collectLambdas' tipe =
   case tipe of
     Lambda arg result ->
-        arg : collectLambdasHelp result
+        arg : collectLambdas' result
 
     _ ->
         [tipe]
