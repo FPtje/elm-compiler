@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Canonicalize.Type (tipe) where
+module Canonicalize.Type (tipe, tipe') where
 
 import qualified Data.Traversable as Trav
 
@@ -13,13 +13,23 @@ import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Result as Result
 import qualified Canonicalize.Variable as Canonicalize
 
-
 tipe
+    :: Env.Environment
+    -> T.Raw
+    -> Result.ResultErr T.Canonical
+tipe env (T.QT quals typ) =
+    Result.map (canonicalizeQualifier env) quals
+      `Result.andThen` \newQuals ->
+        type' env typ
+          `Result.andThen` \newtyp ->
+            Result.ok $ T.QT newQuals newtyp
+
+type'
     :: Env.Environment
     -> T.Raw'
     -> Result.ResultErr T.Canonical'
-tipe env typ@(A.A region typ') =
-    let go = tipe env
+type' env typ@(A.A region typ') =
+    let go = type' env
         goSnd (name,t) =
             (,) name <$> go t
     in
@@ -40,6 +50,13 @@ tipe env typ@(A.A region typ') =
           T.Record <$> Trav.traverse goSnd fields <*> Trav.traverse go ext
 
 
+canonicalizeQualifier
+    :: Env.Environment
+    -> T.Qualifier' (A.Located String) String
+    -> Result.ResultErr (T.Qualifier' Var.Canonical T.Canonical')
+canonicalizeQualifier env (T.Qualifier classref var) =
+  Result.ok $ T.Qualifier _ (T.Var var)
+
 canonicalizeApp
     :: R.Region
     -> Env.Environment
@@ -53,7 +70,7 @@ canonicalizeApp region env f args =
           `Result.andThen` canonicalizeWithTvar
 
     _ ->
-        T.App <$> tipe env f <*> Trav.traverse (tipe env) args
+        T.App <$> type' env f <*> Trav.traverse (type' env) args
 
   where
     canonicalizeWithTvar tvar =
@@ -66,7 +83,7 @@ canonicalizeApp region env f args =
                 [] ->
                     Result.ok (T.Type name)
                 _ ->
-                    T.App (T.Type name) <$> Trav.traverse (tipe env) args
+                    T.App (T.Type name) <$> Trav.traverse (type' env) args
 
 
 canonicalizeAlias
@@ -78,7 +95,7 @@ canonicalizeAlias
 canonicalizeAlias region env (name, tvars, dealiasedTipe) types =
   if typesLen /= tvarsLen
     then Result.err (A.A region (Error.alias name tvarsLen typesLen))
-    else toAlias <$> Trav.traverse (tipe env) types
+    else toAlias <$> Trav.traverse (type' env) types
   where
     typesLen = length types
     tvarsLen = length tvars

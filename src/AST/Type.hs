@@ -7,7 +7,7 @@ module AST.Type
     , deepDealias, iteratedDealias, dealias
     , collectLambdas, collectLambdas'
     , tuple
-    , substitute
+    , substitute, substitute
     , unqualified
     ) where
 
@@ -46,7 +46,7 @@ data Raw''
 
 
 type Canonical =
-    QualifiedType (A.Located String) String Canonical'
+    QualifiedType Var.Canonical Canonical' Canonical'
 
 data Canonical'
     = Lambda Canonical' Canonical'
@@ -167,10 +167,14 @@ dealiasHelp typeTable tipe =
           App (go f) (map go args)
 
 -- only substitutes variables for now
-substitute :: Canonical' -> Canonical' -> Canonical' -> Canonical'
-substitute v@(Var thing) withThis inThis =
+substitute :: Canonical' -> Canonical' -> Canonical -> Canonical
+substitute v withThis (QT quals inThis) =
+    QT quals $ substitute' v withThis inThis
+
+substitute' :: Canonical' -> Canonical' -> Canonical' -> Canonical'
+substitute' v@(Var thing) withThis inThis =
   let
-    rec = substitute v withThis
+    rec = substitute' v withThis
     maprec = map (\(n, t) -> (n, rec t))
   in
 
@@ -182,7 +186,7 @@ substitute v@(Var thing) withThis inThis =
       Record members baseRecord -> Record (maprec members) (fmap rec baseRecord)
       Aliased name things (Holey base) -> Aliased name (maprec things) (Holey (rec base))
       Aliased name things (Filled base) -> Aliased name (maprec things) (Filled (rec base))
-substitute _ _ _ = error "Substitution for non-Vars not implemented"
+substitute' _ _ _ = error "Substitution for non-Vars not implemented"
 
 -- COLLECT LAMBDAS
 

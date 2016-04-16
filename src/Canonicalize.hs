@@ -452,7 +452,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
 insertInterfaceType
     :: Env.Environment
     -> String
-    -> Type.Canonical -- implementation type
+    -> Type.Canonical' -- implementation type
     -> Canonical.Def
     -> Result.ResultErr Canonical.Def
 insertInterfaceType env classref impltype (Canonical.Definition facts pat@(A.A drg (P.Var name)) expr typ _) =
@@ -482,7 +482,7 @@ interfaceDeclaration modul env (A.A rg (Source.TypeAnnotation nm tipe)) =
 qualifier
     :: Env.Environment
     -> Type.Qualifier' (A.Located Var.Raw) Var.Raw
-    -> Result.ResultErr (Type.Qualifier' Var.Canonical Type.Canonical)
+    -> Result.ResultErr (Type.Qualifier' Var.Canonical Type.Canonical')
 qualifier env (Type.Qualifier (A.A rg (Var.Raw classref)) (Var.Raw var)) =
     let
         exists = Map.member classref (Env._interfaces env)
