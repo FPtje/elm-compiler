@@ -261,7 +261,7 @@ addTypeAlias
 addTypeAlias moduleName scc env =
   case scc of
     Graph.AcyclicSCC (_, name, tvars, alias) ->
-        addToEnv <$> Canonicalize.tipe env alias
+        addToEnv <$> Canonicalize.tipe' env alias
       where
         addToEnv alias' =
             let value =

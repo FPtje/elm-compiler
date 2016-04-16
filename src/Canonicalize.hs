@@ -377,18 +377,18 @@ declaration modulname env (A.A ann@(region,_) decl) =
           D.Datatype name tvars <$> T.traverse canonicalize' ctors
         where
           canonicalize' (ctor,args) =
-              (,) ctor <$> T.traverse (Canonicalize.tipe env) args
+              (,) ctor <$> T.traverse (Canonicalize.tipe' env) args
 
       D.TypeAlias name tvars expanded ->
           D.TypeAlias name tvars
-            <$> Canonicalize.tipe env expanded
+            <$> Canonicalize.tipe' env expanded
 
       D.Port validPort ->
           Result.addModule ["Native","Port"] $
           Result.addModule ["Native","Json"] $
               case validPort of
                 D.In name tipe ->
-                    Canonicalize.tipe env tipe
+                    Canonicalize.tipe' env tipe
                       `Result.andThen` \canonicalType ->
                           D.Port <$> Port.check region name Nothing canonicalType
 
@@ -396,7 +396,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
                     let exprTypeResult =
                           (,)
                             <$> expression env expr
-                            <*> Canonicalize.tipe env tipe
+                            <*> Canonicalize.tipe' env tipe
                     in
                         exprTypeResult
                           `Result.andThen` \(expr', tipe') ->
@@ -431,7 +431,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
               `Result.andThen` \newQuals ->
                 Result.map (definition env) defs
                   `Result.andThen` \newDefs ->
-                    Canonicalize.tipe env tipe
+                    Canonicalize.tipe' env tipe
                       `Result.andThen` \newtipe ->
                         Result.map (insertInterfaceType env classref newtipe) newDefs
                           `Result.andThen` \newnewDefs ->
@@ -498,7 +498,7 @@ regionType
     :: Env.Environment
     -> Type.Raw
     -> Result.ResultErr (A.Located Type.Canonical)
-regionType env typ@(A.A region _) =
+regionType env typ@(Type.QT _ (A.A region _)) =
   A.A region <$> Canonicalize.tipe env typ
 
 
@@ -585,12 +585,12 @@ expression env (A.A region validExpr) =
                 case pt of
                   Type.Normal t ->
                       Type.Normal
-                          <$> Canonicalize.tipe env t
+                          <$> Canonicalize.tipe' env t
 
                   Type.Signal root arg ->
                       Type.Signal
-                          <$> Canonicalize.tipe env root
-                          <*> Canonicalize.tipe env arg
+                          <$> Canonicalize.tipe' env root
+                          <*> Canonicalize.tipe' env arg
           in
               Port <$>
                   case impl of

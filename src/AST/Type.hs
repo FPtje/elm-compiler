@@ -7,7 +7,7 @@ module AST.Type
     , deepDealias, iteratedDealias, dealias
     , collectLambdas, collectLambdas'
     , tuple
-    , substitute, substitute
+    , substitute, substitute'
     , unqualified
     ) where
 
@@ -175,7 +175,7 @@ substitute' :: Canonical' -> Canonical' -> Canonical' -> Canonical'
 substitute' v@(Var thing) withThis inThis =
   let
     rec = substitute' v withThis
-    maprec = map (\(n, t) -> (n, rec t))
+    maprec = map (second rec)
   in
 
     case inThis of
