@@ -87,6 +87,7 @@ data Descriptor = Descriptor
     , _rank :: Int
     , _mark :: Int
     , _copy :: Maybe Variable
+    , _qualifiers :: [Var.Canonical]
     , _typegraphid :: Maybe Int
     , _typegraphCopyId :: Maybe Int
     }
@@ -395,6 +396,7 @@ mkDescriptor content =
     , _rank = noRank
     , _mark = noMark
     , _copy = Nothing
+    , _qualifiers = []
     , _typegraphid = Nothing
     , _typegraphCopyId = Nothing
     }
@@ -496,73 +498,97 @@ variableToSrcType variable =
       let mark = _mark descriptor
       if mark == occursMark
         then
-          return (T.Var "∞")
+          return (T.QT [T.Qualifier classref (T.Var "∞") | classref <- _qualifiers descriptor] $ T.Var "∞")
 
         else
           do  liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = occursMark })
-              srcType <- contentToSrcType variable (_content descriptor)
+              srcType <- contentToSrcType variable descriptor
               liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = mark })
               return srcType
 
 
-contentToSrcType :: Variable -> Content -> StateT NameState IO T.Canonical
-contentToSrcType variable content =
-  case content of
-    Structure term ->
-        termToSrcType term
+contentToSrcType :: Variable -> Descriptor -> StateT NameState IO T.Canonical
+contentToSrcType variable desc =
+  let
+      content = _content desc
+      qualify t = T.QT [T.Qualifier q t | q <- _qualifiers desc] t
+  in
+    case content of
+      Structure term ->
+          termToSrcType term (_qualifiers desc)
 
-    Atom name ->
-        return (T.Type name)
+      Atom name ->
+          return . qualify $ T.Type name
 
-    Var _ _ (Just name) ->
-        return (T.Var name)
+      Var _ _ (Just name) ->
+          return . qualify $ (T.Var name)
 
-    Var flex maybeSuper Nothing ->
-        do  freshName <- getFreshName maybeSuper
-            liftIO $ UF.modifyDescriptor variable $ \desc ->
-                desc { _content = Var flex maybeSuper (Just freshName) }
-            return (T.Var freshName)
+      Var flex maybeSuper Nothing ->
+          do  freshName <- getFreshName maybeSuper
+              liftIO $ UF.modifyDescriptor variable $ \desc ->
+                  desc { _content = Var flex maybeSuper (Just freshName) }
+              return . qualify $ (T.Var freshName)
 
-    Alias name args realVariable ->
-        do  srcArgs <- mapM (\(arg,tvar) -> (,) arg <$> variableToSrcType tvar) args
-            srcType <- variableToSrcType realVariable
-            return (T.Aliased name srcArgs (T.Filled srcType))
+      Alias name args realVariable ->
+          do  srcArgs <- mapM (\(arg,tvar) -> (,) arg . T.qtype <$> variableToSrcType tvar) args
+              srcType <- variableToSrcType realVariable
+              return . qualify $ T.Aliased name srcArgs (T.Filled (T.qtype srcType))
 
-    Error  _->
-        return (T.Var "?")
+      Error  _->
+          return . qualify $ T.Var "?"
 
 
-termToSrcType :: Term1 Variable -> StateT NameState IO T.Canonical
-termToSrcType term =
+termToSrcType :: Term1 Variable -> [Var.Canonical] -> StateT NameState IO T.Canonical
+termToSrcType term quals =
   case term of
     App1 func arg ->
-        do  srcFunc <- variableToSrcType func
-            srcArg <- variableToSrcType arg
+        do  T.QT funcQuals srcFunc <- variableToSrcType func
+            T.QT argQuals srcArg <- variableToSrcType arg
             case srcFunc of
               T.App f args ->
-                  return (T.App f (args ++ [srcArg]))
+                  let
+                    typ = T.App f (args ++ [srcArg])
+                  in
+                    return (T.QT ([T.Qualifier q typ | q <- quals] ++ funcQuals ++ argQuals) typ)
 
               _ ->
-                  return (T.App srcFunc [srcArg])
+                  let
+                    typ = T.App srcFunc [srcArg]
+                  in
+                    return (T.QT ([T.Qualifier q typ | q <- quals] ++ funcQuals ++ argQuals) typ)
 
     Fun1 a b ->
-        T.Lambda
+      do
+        (T.QT fquals f) <- variableToSrcType a
+        (T.QT argquals arg) <- variableToSrcType b
+
+        return (T.QT (fquals ++ argquals) (T.Lambda f arg))
+        {-T.Lambda
             <$> variableToSrcType a
-            <*> variableToSrcType b
+            <*> variableToSrcType b-}
 
     EmptyRecord1 ->
-        return $ T.Record [] Nothing
+        return . T.QT [] $ T.Record [] Nothing
 
     Record1 fields extension ->
       do  srcFields <- Map.toList <$> Traverse.traverse variableToSrcType fields
-          srcExt <- T.iteratedDealias <$> variableToSrcType extension
+          let tfields = map (\(n, t) -> (n, T.qtype t)) srcFields
+          T.QT extQuals srcExt <- T.iteratedDealias <$> variableToSrcType extension
+
+
           return $
               case srcExt of
                 T.Record subFields subExt ->
-                    T.Record (subFields ++ srcFields) subExt
+                    let
+                        typ = T.Record (subFields ++ tfields) subExt
+                    in
+                        T.QT ([T.Qualifier q typ | q <- quals] ++ extQuals) typ
 
                 T.Var _ ->
-                    T.Record srcFields (Just srcExt)
+                    let
+                      typ = T.Record tfields (Just srcExt)
+                    in
+                        T.QT ([T.Qualifier q typ | q <- quals] ++ extQuals) typ
 
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"

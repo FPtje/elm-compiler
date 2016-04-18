@@ -86,7 +86,6 @@ genConstraints interfaces modul =
       let ifaces = Module.interfaces . Module.body $ modul
       let impls = Module.implementations . Module.body $ modul
       let matched = matchInterfacesWithModules ifaces impls
-      --trace (show [implementationConstraints ifc impl | (ifc, impls) <- matched, impl <- impls]) $ return ()
 
       ctors <-
           forM (Env.ctorNames env) $ \name ->
