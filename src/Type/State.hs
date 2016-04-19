@@ -170,6 +170,7 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
+                  , _qualifiers = _
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
@@ -187,6 +188,7 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
+                  , _qualifiers = _
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }

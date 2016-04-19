@@ -9,6 +9,7 @@ module AST.Type
     , tuple
     , substitute, substitute'
     , unqualified
+    , addQualifiers
     ) where
 
 import Control.Arrow (second)
@@ -82,6 +83,8 @@ getPortType portType =
     Normal tipe -> tipe
     Signal tipe _ -> tipe
 
+addQualifiers :: QualifiedType classref var tp -> [Qualifier' classref var] -> QualifiedType classref var tp
+addQualifiers (QT qs tp) moreqs = QT (moreqs ++ qs) tp
 
 tuple :: R.Region -> [Raw'] -> Raw'
 tuple region types =

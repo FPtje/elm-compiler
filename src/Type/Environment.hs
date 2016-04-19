@@ -17,6 +17,7 @@ import qualified Data.Set as Set
 import qualified AST.Type as T
 import qualified AST.Variable as V
 import qualified AST.Module as Module
+import Control.Arrow (second)
 import Type.Type
 
 
@@ -25,7 +26,7 @@ type VarDict = Map.Map String Variable
 
 
 data Environment = Environment
-    { _constructor :: Map.Map String (IO (Int, [Variable], [Type], Type))
+    { _constructor :: Map.Map String (IO (Int, [Variable], [TermN Variable], TermN Variable))
     , _types :: TypeDict
     , _value :: TypeDict
     }
@@ -52,12 +53,12 @@ makeTypes datatypes =
     makeImported :: (V.Canonical, Module.AdtInfo V.Canonical) -> IO (String, Type)
     makeImported (name, _) =
       do  tvar <- mkAtom name
-          return (V.toString name, VarN tvar)
+          return (V.toString name, T.unqualified $ VarN tvar)
 
     makeBuiltin :: (String, Int) -> IO (String, Type)
     makeBuiltin (name, _) =
       do  name' <- mkAtom (V.builtin name)
-          return (name, VarN name')
+          return (name, T.unqualified $ VarN name')
 
     builtins :: [(String, Int)]
     builtins =
@@ -74,14 +75,14 @@ makeTypes datatypes =
 makeConstructors
     :: Environment
     -> [Module.CanonicalAdt]
-    -> Map.Map String (IO (Int, [Variable], [Type], Type))
+    -> Map.Map String (IO (Int, [Variable], [TermN Variable], TermN Variable))
 makeConstructors env datatypes =
     Map.fromList builtins
   where
     list t =
-      (_types env ! "List") <| t
+      (_types env ! "List") <|| t
 
-    inst :: Int -> ([Type] -> ([Type], Type)) -> IO (Int, [Variable], [Type], Type)
+    inst :: Int -> ([TermN Variable] -> ([TermN Variable], TermN Variable)) -> IO (Int, [Variable], [TermN Variable], TermN Variable)
     inst numTVars tipe =
       do  vars <- mapM (\_ -> mkVar Nothing) [1..numTVars]
           let (args, result) = tipe (map (VarN) vars)
@@ -89,12 +90,12 @@ makeConstructors env datatypes =
 
     tupleCtor n =
         let name = "_Tuple" ++ show n
-        in  (name, inst n $ \vs -> (vs, foldl (<|) (_types env ! name) vs))
+        in  (name, inst n $ \vs -> (vs, foldl (<|) (T.qtype $ _types env ! name) vs))
 
-    builtins :: [ (String, IO (Int, [Variable], [Type], Type)) ]
+    builtins :: [ (String, IO (Int, [Variable], [TermN Variable], TermN Variable)) ]
     builtins =
-        [ ("[]", inst 1 $ \ [t] -> ([], list t))
-        , ("::", inst 1 $ \ [t] -> ([t, list t], list t))
+        [ ("[]", inst 1 $ \ [t] -> ([], T.qtype $ list (T.unqualified t)))
+        , ("::", inst 1 $ \ [t] -> ([t, T.qtype $ list (T.unqualified t)], T.qtype $ list (T.unqualified t)))
         ] ++ map tupleCtor [0..9]
           ++ concatMap (ctorToType env) datatypes
 
@@ -102,21 +103,21 @@ makeConstructors env datatypes =
 ctorToType
     :: Environment
     -> (V.Canonical, Module.AdtInfo V.Canonical)
-    -> [(String, IO (Int, [Variable], [Type], Type))]
+    -> [(String, IO (Int, [Variable], [TermN Variable], TermN Variable))]
 ctorToType env (name, (tvars, ctors)) =
     zip (map (V.toString . fst) ctors) (map inst ctors)
   where
-    inst :: (V.Canonical, [T.Canonical]) -> IO (Int, [Variable], [Type], Type)
+    inst :: (V.Canonical, [T.Canonical']) -> IO (Int, [Variable], [TermN Variable], TermN Variable)
     inst ctor =
       do  ((args, tipe), dict) <- State.runStateT (go ctor) Map.empty
           return (length args, Map.elems dict, args, tipe)
 
 
-    go :: (V.Canonical, [T.Canonical]) -> State.StateT VarDict IO ([Type], Type)
+    go :: (V.Canonical, [T.Canonical']) -> State.StateT VarDict IO ([TermN Variable], TermN Variable)
     go (_, args) =
-      do  types <- mapM (instantiator env) args
-          returnType <- instantiator env (T.App (T.Type name) (map T.Var tvars))
-          return (types, returnType)
+      do  types <- mapM (instantiator env . T.unqualified) args
+          returnType <- instantiator env (T.unqualified $ T.App (T.Type name) (map T.Var tvars))
+          return (map T.qtype types, T.qtype returnType)
 
 
 
@@ -135,7 +136,7 @@ getType =
   get _types
 
 
-freshDataScheme :: Environment -> String -> IO (Int, [Variable], [Type], Type)
+freshDataScheme :: Environment -> String -> IO (Int, [Variable], [TermN Variable], TermN Variable)
 freshDataScheme =
   get _constructor
 
@@ -153,7 +154,7 @@ addValues env newValues =
   env
     { _value =
         List.foldl'
-          (\dict (name, var) -> Map.insert name (VarN var) dict)
+          (\dict (name, var) -> Map.insert name (T.unqualified $ VarN var) dict) -- TODO: something better than unqualified
           (_value env)
           newValues
     }
@@ -175,39 +176,40 @@ instantiator env sourceType =
 
 
 instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
-instantiatorHelp env aliasVars sourceType =
-    let go = instantiatorHelp env aliasVars
+instantiatorHelp env aliasVars (T.QT stquals sourceType) =
+    let go = instantiatorHelp env aliasVars . T.unqualified
+        quals = mapM (\(T.Qualifier cls var) -> T.Qualifier cls . T.qtype <$> instantiator env (T.unqualified var)) stquals
     in
     case sourceType of
       T.Lambda t1 t2 ->
-          (==>) <$> go t1 <*> go t2
+          T.addQualifiers <$> ((==>) <$> go t1 <*> go t2) <*> quals
 
       T.Var name ->
           if Set.member name aliasVars then
-              return (PlaceHolder name)
+              T.addQualifiers (T.unqualified (PlaceHolder name)) <$> quals
 
           else
               do  dict <- State.get
                   case Map.lookup name dict of
                     Just variable ->
-                        return (VarN variable)
+                        T.addQualifiers (T.unqualified (VarN variable)) <$> quals
 
                     Nothing ->
                         do  variable <- State.liftIO (mkNamedVar name)
                             State.put (Map.insert name variable dict)
-                            return (VarN variable)
+                            T.addQualifiers (T.unqualified (VarN variable)) <$> quals
 
       T.Aliased name args aliasType ->
           do  targs <- mapM (\(arg,tipe) -> (,) arg <$> go tipe) args
-              realType <-
+              T.QT _ realType <-
                   case aliasType of
                     T.Filled tipe ->
-                        instantiatorHelp env Set.empty tipe
+                        instantiatorHelp env Set.empty (T.unqualified tipe)
 
                     T.Holey tipe ->
-                        instantiatorHelp env (Set.fromList (map fst args)) tipe
+                        instantiatorHelp env (Set.fromList (map fst args)) (T.unqualified tipe)
 
-              return (AliasN name targs realType)
+              T.addQualifiers (T.unqualified $ AliasN name (map (second T.qtype) targs) realType) <$> quals
 
       T.Type name ->
           case Map.lookup (V.toString name) (_types env) of
@@ -222,7 +224,7 @@ instantiatorHelp env aliasVars sourceType =
       T.App func args ->
           do  tfunc <- go func
               targs <- mapM go args
-              return $ foldl (<|) tfunc targs
+              return $ foldl (<||) tfunc targs
 
       T.Record fields ext ->
           do  tfields <- traverse go (Map.fromList fields)
@@ -232,6 +234,6 @@ instantiatorHelp env aliasVars sourceType =
                         return $ TermN EmptyRecord1
 
                     Just extType ->
-                        go extType
+                        T.qtype <$> go extType
 
-              return $ TermN (Record1 tfields text)
+              T.addQualifiers (T.unqualified $ TermN (Record1 (Map.map T.qtype tfields) text)) <$> quals

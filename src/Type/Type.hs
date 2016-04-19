@@ -24,7 +24,7 @@ import System.IO.Unsafe
 
 
 type Type =
-    TermN Variable
+    T.QualifiedType Var.Canonical (TermN Variable) (TermN Variable)
 
 
 type Variable =
@@ -213,9 +213,13 @@ infixr 9 ==>
 
 
 (==>) :: Type -> Type -> Type
-(==>) a b =
-  TermN (Fun1 a b)
+(==>) (T.QT aquals a) (T.QT bquals b) =
+  T.QT (aquals ++ bquals) $ TermN (Fun1 a b)
 
+
+(<||) :: Type -> Type -> Type
+(<||) (T.QT fq f) (T.QT aq a) =
+  T.QT (fq ++ aq) (f <| a)
 
 (<|) :: TermN a -> TermN a -> TermN a
 (<|) f a =
@@ -223,26 +227,26 @@ infixr 9 ==>
 
 
 
-copyTerm1 :: Map.Map Int Variable -> Term1 Type -> IO (Term1 Type, Map.Map Int Variable)
+copyTerm1 :: Map.Map Int Variable -> Term1 (TermN Variable) -> IO (Term1 (TermN Variable), Map.Map Int Variable)
 copyTerm1 mp (App1 l r) =
   do
-    (l', mp1) <- copyType mp l
-    (r', mp2) <- copyType mp1 r
+    (l', mp1) <- copyType' mp l
+    (r', mp2) <- copyType' mp1 r
     return $ (App1 l' r', mp2)
 
 copyTerm1 mp (Fun1 l r) =
   do
-    (l', mp1) <- copyType mp l
-    (r', mp2) <- copyType mp1 r
+    (l', mp1) <- copyType' mp l
+    (r', mp2) <- copyType' mp1 r
     return $ (Fun1 l' r', mp2)
 
 copyTerm1 mp EmptyRecord1 = return (EmptyRecord1, mp)
 copyTerm1 vmp (Record1 mp var) =
   do
-    (var', vmp1) <- copyType vmp var
+    (var', vmp1) <- copyType' vmp var
     (smp', vmp4) <- Map.foldlWithKey (\iom key val -> do
       (smp, vmp2) <- iom
-      (val', vmp3) <- copyType vmp2 val
+      (val', vmp3) <- copyType' vmp2 val
       return $ (Map.insert key val' smp, vmp3)) (return (Map.empty, vmp1)) mp
     return $ (Record1 smp' var', vmp4)
 
@@ -281,25 +285,32 @@ copyScheme mp scheme =
 
     return (Scheme rquants fquants constr (_header scheme), mp3)
 
+
 copyType :: Map.Map Int Variable -> Type -> IO (Type, Map.Map Int Variable)
-copyType mp (PlaceHolder s) = return (PlaceHolder s, mp)
-copyType mp (AliasN vc aliases term) =
+copyType mp (T.QT qs tp) =
+  do
+    (newtp, newmp) <- copyType' mp tp
+    return (T.QT qs newtp, newmp)
+
+copyType' :: Map.Map Int Variable -> TermN Variable -> IO (TermN Variable, Map.Map Int Variable)
+copyType' mp (PlaceHolder s) = return (PlaceHolder s, mp)
+copyType' mp (AliasN vc aliases term) =
   do
     (aliases', mp1) <- foldr (\(s, var) acc -> do
       (lst, mp') <- acc
-      (var', mp'') <- copyType mp' var
+      (var', mp'') <- copyType' mp' var
       return ((s, var') : lst, mp'')) (return ([], mp)) aliases
-    (term', mp2) <- copyType mp1 term
+    (term', mp2) <- copyType' mp1 term
 
-    return $ (AliasN vc aliases' term', mp2)
+    return (AliasN vc aliases' term', mp2)
 
-copyType mp (VarN var) =
+copyType' mp (VarN var) = -- TODO: copy qualifiers from copied variable?
   do
     (var', mp1) <- copyVariable mp var
 
     return $ (VarN var', mp1)
 
-copyType mp (TermN term1) =
+copyType' mp (TermN term1) =
   do
     (t1', mp1) <- copyTerm1 mp term1
     return (TermN t1', mp1)
@@ -471,13 +482,13 @@ fl rqs constraint =
 exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f =
   do  v <- mkVar Nothing
-      ex [v] <$> f (VarN v)
+      ex [v] <$> f (T.unqualified $ VarN v)
 
 
 existsNumber :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 existsNumber f =
   do  v <- mkVar (Just Number)
-      ex [v] <$> f (VarN v)
+      ex [v] <$> f (T.unqualified $ VarN v)
 
 
 
