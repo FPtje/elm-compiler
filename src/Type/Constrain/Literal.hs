@@ -3,6 +3,7 @@ module Type.Constrain.Literal where
 import qualified AST.Literal as L
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
+import qualified AST.Type as Type
 import qualified Type.Type as T
 import qualified Type.Environment as Env
 
@@ -24,7 +25,7 @@ constrain env region literal tipe =
         case literal of
           L.IntNum _ ->
               ( "number"
-              , T.VarN <$> T.mkVar (Just T.Number)
+              , Type.unqualified . T.VarN <$> T.mkVar (Just T.Number)
               )
 
           L.FloatNum _ ->

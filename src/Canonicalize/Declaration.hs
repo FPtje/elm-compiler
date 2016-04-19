@@ -78,7 +78,7 @@ toDefs moduleName (A.A (region,_) decl) =
       []
 
     D.Impl impl ->
-      Interface.implementations impl
+      Interface.implementations impl -- TODO: use interface here instead!?
 
     D.Sibling _ _ ->
         []
