@@ -74,11 +74,11 @@ toDefs moduleName (A.A (region,_) decl) =
           E.Task name _expr tipe ->
               [ definition name body region (T.unqualified $ T.getPortType tipe) ]
 
-    D.IFace _ ->
-      []
+    D.IFace ifc ->
+      map (interfaceToDecl ifc) (Interface.decls ifc)
 
     D.Impl impl ->
-      Interface.implementations impl -- TODO: use interface here instead!?
+      Interface.implementations impl
 
     D.Sibling _ _ ->
         []
@@ -86,6 +86,14 @@ toDefs moduleName (A.A (region,_) decl) =
     -- no constraints are needed for fixity declarations
     D.Fixity _ _ _ ->
         []
+
+
+interfaceToDecl
+    :: Interface.CanonicalInterface
+    -> Canonical.InterfaceFunction
+    -> Canonical.Def
+interfaceToDecl ifc (Canonical.InterfaceFunction name (A.A rg tp)) =
+    definition (Var.toString name) (A.A rg (E.Var name)) rg (T.addQualifiers tp [T.Qualifier (Interface.classname ifc) (T.qtype tp)])
 
 
 infiniteArgs :: [String]
