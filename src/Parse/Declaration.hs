@@ -114,8 +114,7 @@ interface =
       vr <- lowVar
       forcedWS
 
-      quals <- Type.qualifiers
-      forcedWS
+      quals <- Type.qualifiers True
 
       reserved "where"
       forcedWS
@@ -145,10 +144,7 @@ implementation =
       tp <- Type.expr
       forcedWS
 
-      quals <- Type.qualifiers
-
-      forcedWS
-
+      quals <- Type.qualifiers True
 
       reserved "where"
       forcedWS

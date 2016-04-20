@@ -9,6 +9,7 @@ import qualified AST.Variable as Var
 import Parse.Helpers
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
+import Control.Monad(when)
 
 
 tvar :: IParser Type.Raw'
@@ -93,19 +94,21 @@ qualifier =
       vr <- lowVar
       return $ Type.Qualifier classnm vr
 
-qualifiers :: IParser [Type.Qualifier' (A.Located String) String]
-qualifiers =
+qualifiers :: Bool -> IParser [Type.Qualifier' (A.Located String) String]
+qualifiers parseWhitespace =
     option [] $
       do
           try $ reserved "|"
           forcedWS
-          commaSep1 qualifier
+          quals <- commaSep1 qualifier
+          when parseWhitespace (forcedWS >> return ())
+          return quals
 
 annotatedExpr :: IParser Type.Raw
 annotatedExpr =
   do
     exp <- expr
-    quals <- qualifiers
+    quals <- qualifiers False
     return $ Type.QT quals exp
 
 expr :: IParser Type.Raw'

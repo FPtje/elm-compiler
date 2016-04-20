@@ -216,8 +216,8 @@ instance (Binary classref, Binary var) => Binary (Qualifier' classref var) where
   get = Qualifier <$> get <*> get
 
 instance (Binary classref, Binary var, Binary tipe) => Binary (QualifiedType classref var tipe) where
-  put (QT qs qtp) = put qs >> put qtp
-  get = QT <$> get <*> get
+  put (QT qs qtp) = {-put qs >>-} put qtp -- TODO: fix for next version or something
+  get = QT <$> pure [] <*> get -- TODO: fix for next version
 
 
 instance Binary Canonical' where
