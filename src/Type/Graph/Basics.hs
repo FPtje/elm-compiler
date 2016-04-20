@@ -60,6 +60,7 @@ undirected (EdgeId l r)
 data Predicate =
       Super T.Super -- To add later: type classes, whatever
     | RecordMembers ExtensionStructure (M.Map String VertexId)
+    | PInterface Var.Canonical
     deriving (Eq, Ord, Show)
 
 type Evidence = Predicate

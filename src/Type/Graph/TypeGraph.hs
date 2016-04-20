@@ -172,6 +172,8 @@ addContentGraph var content alias grph =
         desc <- liftIO $ UF.descriptor var
         let unique = varNumber grph
         let vertexId = fromMaybe unique (T._typegraphid desc)
+        let quals = map BS.PInterface . S.toList . T._qualifiers $ desc
+        trace ("\n\nQUALS! " ++ show quals) $ return ()
 
         case content of
             T.Structure t ->
@@ -188,14 +190,14 @@ addContentGraph var content alias grph =
             T.Atom name ->
                 do
                     let vid = BS.VertexId unique
-                    let evidence = [BS.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name]
+                    let evidence = [BS.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name] ++ quals
                     return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name) evidence, alias) . updateFuncMap name $ grph)
 
             T.Var _ msuper _ -> do
                 let vid = BS.VertexId vertexId
                 liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just vertexId })
                 let exists = vertexExists vid grph
-                let predicates = maybe [] ((:[]) . BS.Super) msuper
+                let predicates = maybe [] ((:[]) . BS.Super) msuper ++ quals
 
                 return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar predicates, alias) $ grph)
             T.Alias als _ realtype -> addTermGraph realtype (Just als) grph

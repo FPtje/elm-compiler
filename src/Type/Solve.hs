@@ -19,7 +19,7 @@ import Type.Type as Type
 import Type.Unify
 import qualified AST.Interface as Interface
 
-
+import Debug.Trace
 
 {-| Every variable has rank less than or equal to the maxRank of the pool.
 This sorts variables into the young and old pools accordingly.
@@ -206,6 +206,7 @@ actuallySolve extraConstrs constraint =
     CEqual hint region term1 term2 _ ->
         do  t1 <- TS.flatten term1
             t2 <- TS.flatten term2
+            trace ("\nCEQUAL!" ++ show hint ++ "\n" ++ show t1 ++ "\n\n" ++ show t2 ++ "\n\nTERMS:\n" ++ show term1 ++ "\n\n" ++ show term2) $ return ()
             unify hint region t1 t2
 
     CAnd [] -> return ()
@@ -256,7 +257,9 @@ actuallySolve extraConstrs constraint =
                           error ("Could not find `" ++ name ++ "` when solving type constraints.")
 
             t <- TS.flatten term
+            trace ("\n\nCINSTANCE! " ++ show name ++ "\nRIGHT: " ++ show t ++ "\n:TERM: " ++ show term ++ "\n;LEFT: " ++ show freshCopy) $ return ()
             unify (Error.Instance name) region freshCopy t
+            trace ("\n\nAFTERCINSTANCE! " ++ show name ++ "\nRIGHT: " ++ show t ++ "\n:TERM: " ++ show term ++ "\n;LEFT: " ++ show freshCopy) $ return ()
 
 
 solveScheme :: [TypeConstraint] -> TypeScheme -> TS.Solver (Map.Map String (A.Located Variable))

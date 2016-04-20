@@ -15,6 +15,10 @@ import qualified Reporting.Region as R
 import qualified AST.Interface as Interface
 import Type.Type
 
+import Control.Monad.State (liftIO)
+
+import Debug.Trace
+
 
 -- Pool
 -- Holds a bunch of variables
@@ -163,7 +167,7 @@ flatten term =
 
 
 flattenHelp :: Map.Map String Variable -> Type -> Solver Variable
-flattenHelp aliasDict (T.QT quals termN) =
+flattenHelp aliasDict (T.QT quals termN) = (if not (null quals) then trace ("Flatten help!" ++ show quals ++ ", " ++ show termN) else id) $
   case termN of
     PlaceHolder name ->
         return (aliasDict ! name)
@@ -178,13 +182,14 @@ flattenHelp aliasDict (T.QT quals termN) =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = Set.empty
+                  , _qualifiers = Set.fromList [name | T.Qualifier name _ <- quals]
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
             register variable
 
     VarN v ->
+        liftIO $ UF.modifyDescriptor v (\desc -> desc { _qualifiers = Set.union (_qualifiers desc) $ Set.fromList [name | T.Qualifier name _ <- quals] }) >>
         return v
 
     TermN term1 ->

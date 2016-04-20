@@ -19,6 +19,7 @@ import Data.Maybe (listToMaybe)
 
 -- KICK OFF UNIFICATION
 
+import Debug.Trace
 
 unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
@@ -44,6 +45,8 @@ unify hint region expected actual =
                     return (Error.Mismatch info)
             in
               TS.addError region =<< liftIO mkError
+        Left (NoInstance classref tp var) ->
+          error $ "\n\n\n\n\n\n\n\n\n\n\n HEAR YE HEAR YE. SOME TYPE CLASS INSTANCE DOESN'T EXIST, BADA BING BADA BOOM!!! \n" ++ show classref ++ "\n" ++ show tp ++ "\n" ++ show var
 
 
 
@@ -144,14 +147,20 @@ merge (Context _ first _ second _) content =
 
 mergeHelp :: Variable -> Variable -> Content -> IO ()
 mergeHelp first second content =
-  UF.union' first second $ \desc1 desc2 ->
+  do
+    descL <- UF.descriptor first
+    descR <- UF.descriptor second
+    let quals = Set.union (_qualifiers descL) (_qualifiers descR)
+    UF.modifyDescriptor first (\desc -> desc { _qualifiers = quals })
+    UF.modifyDescriptor second (\desc -> desc { _qualifiers = quals })
+    UF.union' first second $ \desc1 desc2 ->
       return $
         Descriptor
           { _content = content
           , _rank = min (_rank desc1) (_rank desc2)
           , _mark = noMark
           , _copy = Nothing
-          , _qualifiers = Set.union (_qualifiers desc1) (_qualifiers desc2)
+          , _qualifiers = quals
           , _typegraphid = Nothing
           , _typegraphCopyId = Nothing
           }
@@ -166,7 +175,7 @@ fresh (Context _ _ desc1 _ desc2) content =
               , _rank = min (_rank desc1) (_rank desc2)
               , _mark = noMark
               , _copy = Nothing
-              , _qualifiers = Set.empty
+              , _qualifiers = Set.union (_qualifiers desc1) (_qualifiers desc2)
               , _typegraphid = Nothing
               , _typegraphCopyId = Nothing
               }
@@ -179,9 +188,22 @@ fresh (Context _ _ desc1 _ desc2) content =
 
 guardedUnify :: Orientation -> Variable -> Variable -> Unify ()
 guardedUnify orientation left right =
-  do  equivalent <- liftIO $ UF.equivalent left right
+  do
+      -- AAAAAAARGH
+      -- CUUUUUUUUUUUUUUUNTS
+      repr <- liftIO $ UF.repr left
+      reprDesc <- liftIO $ UF.descriptor repr
+      ldesc <- liftIO $ UF.descriptor left
+      rdesc <- liftIO $ UF.descriptor right
+      let quals = _qualifiers reprDesc `Set.union` _qualifiers ldesc `Set.union` _qualifiers rdesc
+      liftIO $ UF.modifyDescriptor repr (\desc -> desc { _qualifiers = quals })
+      liftIO $ UF.modifyDescriptor left (\desc -> desc { _qualifiers = quals })
+      liftIO $ UF.modifyDescriptor right (\desc -> desc { _qualifiers = quals })
+
+      equivalent <- liftIO $ UF.equivalent left right
       if equivalent
-        then return ()
+        then
+              return ()
         else
           do  leftDesc <- liftIO $ UF.descriptor left
               rightDesc <- liftIO $ UF.descriptor right
@@ -215,8 +237,9 @@ actuallyUnify context@(Context _ fvar firstDesc _ secondDesc) =
 
     Atom name ->
         do
-          propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc)
+          -- trace ("Propagate qualifiers1! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return ()
           unifyAtom context name secondContent
+          propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc `Set.union` _qualifiers firstDesc)
 
     Alias name args realVar ->
         unifyAlias context name args realVar secondContent
@@ -252,6 +275,7 @@ propagateQualifierAtom atomName var classref =
 
 propagateQualifiers :: Content -> Variable -> Set.Set Var.Canonical -> Unify ()
 propagateQualifiers content var quals =
+  -- trace ("\n\n\nPROPAGATE QUALIFIERS: " ++ show quals) $
   case content of
       Atom name -> mapM_ (propagateQualifierAtom name var) $ Set.toList quals
 
@@ -259,7 +283,7 @@ propagateQualifiers content var quals =
 
 
 unifyFlex :: Context -> Content -> Unify ()
-unifyFlex context@(Context _ _ firstDesc svar _) otherContent =
+unifyFlex context@(Context _ _ firstDesc svar secondDesc) otherContent =
   case otherContent of
     Error _ ->
         return ()
@@ -270,9 +294,10 @@ unifyFlex context@(Context _ _ firstDesc svar _) otherContent =
     Var Rigid _ _ ->
         merge context otherContent
 
-    Atom _ ->
-        propagateQualifiers otherContent svar (_qualifiers firstDesc) >>
-        merge context otherContent
+    Atom name ->
+        -- trace ("Propagate qualifiers2! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
+        merge context otherContent >>
+        propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
 
     Alias _ _ _ ->
         merge context otherContent
@@ -325,15 +350,16 @@ unifyRigid context maybeSuper maybeName otherContent =
 
 
 unifySuper :: Context -> Super -> Content -> Unify ()
-unifySuper context@(Context _ _ firstDesc svar _) super otherContent =
+unifySuper context@(Context _ _ firstDesc svar secondDesc) super otherContent =
   case otherContent of
     Structure term ->
         unifySuperStructure context super term
 
     Atom name ->
         if atomMatchesSuper super name then
-            propagateQualifiers otherContent svar (_qualifiers firstDesc) >>
-            merge context otherContent
+            -- trace ("Propagate qualifiers3! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
+            merge context otherContent >>
+            propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
         else
             mismatch context (Just (badSuper super))
 
@@ -511,7 +537,8 @@ getContent variable =
 
 unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
 unifyAtom context@(Context _ fvar firstDesc _ secondDesc) name otherContent =
-  propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc) >>
+  -- trace ("Propagate qualifiers4! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
+  propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc `Set.union` _qualifiers firstDesc) >>
   case otherContent of
     Error _ ->
         return ()

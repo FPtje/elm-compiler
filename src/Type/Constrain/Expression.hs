@@ -20,7 +20,6 @@ import qualified Type.Environment as Env
 import qualified Type.Fragment as Fragment
 import Type.Type hiding (Descriptor(..))
 
-
 constrain
     :: Env.Environment
     -> Canonical.Expr
