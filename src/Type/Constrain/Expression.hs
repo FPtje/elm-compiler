@@ -553,14 +553,19 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
       let annCon =
             CEqual (Error.BadTypeAnnotation name) typeRegion typ (ST.unqualified $ VarN var) Annotation
 
-      let interfaceCon = case interfaceType of
-            Nothing -> CTrue
-            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface name) ifrg iftyp (ST.unqualified $ VarN var) Annotation -- TODO: different descriptor than Annotation
+      case interfaceType of
+            Nothing ->
+                return $ info
+                    { iSchemes = scheme : iSchemes info
+                    , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars annCon)
+                    }
+            Just (A.A ifrg _) -> --CEqual (Error.BadMatchWithInterface name) ifrg iftyp (ST.unqualified $ VarN var) Annotation -- TODO: different descriptor than Annotation
+                  return $ info
+                    { iSchemes = iSchemes info
+                    , iC1 = iC1 info /\ ex [var] (defCon /\ (fl rigidVars (annCon /\ (CEqual (Error.BadMatchWithInterface name) ifrg iftyp (ST.unqualified $ VarN var) Annotation))))
+                    }
 
-      return $ info
-          { iSchemes = scheme : iSchemes info
-          , iC1 = iC1 info /\ ex [var] (defCon /\ fl rigidVars (annCon /\ interfaceCon))
-          }
+
 
 
 constrainUnannotatedDef
@@ -586,15 +591,22 @@ constrainUnannotatedDef env info qs patternRegion name expr interfaceType =
             Nothing -> return ([], undefined)
             Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
 
-      let interfaceCon = case interfaceType of
-            Nothing -> CTrue
-            Just (A.A ifrg _) -> CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
-
       con <- constrain env' expr tipe
 
-      return $ info
-          { iRigid = rigidVars ++ iRigid info
-          , iFlex = v : iFlex info ++ ifvars
-          , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
-          , iC2 = con /\ iC2 info /\ fl rigidVars interfaceCon
-          }
+      case interfaceType of
+            Nothing ->
+                return $ info
+                    { iRigid = rigidVars ++ iRigid info
+                    , iFlex = v : iFlex info ++ ifvars
+                    , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
+                    , iC2 = con /\ iC2 info
+                    }
+            Just (A.A ifrg _) -> --CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
+                return $ info
+                    { iRigid = rigidVars ++ iRigid info
+                    , iFlex = v : iFlex info ++ ifvars
+                    , iC2 = con /\ iC2 info /\ fl rigidVars (CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation)
+                    }
+
+
+

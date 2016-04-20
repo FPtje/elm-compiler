@@ -11,6 +11,9 @@ data Annotated annotation a
     = A annotation a
     deriving (Eq, Ord)
 
+instance Show a => Show (Annotated ann a) where
+    show (A _ a) = show a
+
 
 type Located a =
     Annotated R.Region a

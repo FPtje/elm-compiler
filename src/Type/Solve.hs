@@ -19,8 +19,6 @@ import Type.Type as Type
 import Type.Unify
 import qualified AST.Interface as Interface
 
-import Debug.Trace
-
 
 
 {-| Every variable has rank less than or equal to the maxRank of the pool.
@@ -244,6 +242,7 @@ actuallySolve extraConstrs constraint =
 
     CInstance region name term _ ->
         do  env <- TS.getEnv
+
             freshCopy <-
                 case Map.lookup name env of
                   Just (A.A _ tipe) ->

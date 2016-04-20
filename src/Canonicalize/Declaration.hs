@@ -93,7 +93,7 @@ interfaceToDecl
     -> Canonical.InterfaceFunction
     -> Canonical.Def
 interfaceToDecl ifc (Canonical.InterfaceFunction name (A.A rg tp)) =
-    definition (Var.toString name) (A.A rg (E.Var name)) rg (T.addQualifiers tp [T.Qualifier (Interface.classname ifc) (T.qtype tp)])
+    definition (Var.name name) (A.A rg (E.Var name)) rg (T.addQualifiers tp [T.Qualifier (Interface.classname ifc) (T.qtype tp)])
 
 
 infiniteArgs :: [String]

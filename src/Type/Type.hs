@@ -203,8 +203,6 @@ data Scheme a b = Scheme
 instance (Show a, Show b) => Show (Scheme a b) where
   show schm = "SCHEME { header = " ++ show (_header schm) ++ ", constraint: {" ++ show (_constraint schm) ++ "}}"
 
-instance Show a => Show (A.Annotated R.Region a) where
-    show (A.A _ t) = "Annotated (" ++ show t ++ ")"
 
 -- TYPE HELPERS
 

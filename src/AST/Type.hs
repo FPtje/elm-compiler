@@ -71,7 +71,7 @@ data Aliased t
 data Port t
     = Normal t
     | Signal { root :: t, arg :: t }
-    deriving (Eq)
+    deriving (Eq, Show)
 
 instance Functor (QualifiedType classref var) where
   fmap f (QT quals tipe) = QT quals (f tipe)

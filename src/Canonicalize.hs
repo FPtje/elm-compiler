@@ -482,7 +482,7 @@ interfaceDeclaration _ _ (A.A _ (Source.Definition {})) = error "Interface decla
 interfaceDeclaration modul env (A.A rg (Source.TypeAnnotation nm tipe)) =
     Canonicalize.tipe env tipe
       `Result.andThen`
-        \newtipe -> Result.ok $ Canonical.InterfaceFunction (Var.fromModule modul nm) (A.A rg newtipe) -- Var.Canonical
+        \newtipe -> Result.ok $ Canonical.InterfaceFunction (Var.topLevel modul nm) (A.A rg newtipe) -- Var.Canonical
 
 
 qualifier

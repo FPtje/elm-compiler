@@ -13,7 +13,6 @@ import qualified AST.Pattern as P
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
 
-
 -- STARTING POINT
 
 definitions :: Canonical.Expr -> Canonical.Expr
