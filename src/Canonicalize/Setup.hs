@@ -340,12 +340,13 @@ declToPatches moduleName (A.A (region,_) decl) =
         , [topLevel Env.Value (D.validPortName port)]
         )
 
-    D.IFace ifc@(Interface.Interface _ (A.A _ classref) _ _) ->
+    D.IFace ifc@(Interface.Interface _ (A.A _ classref) _ decls) ->
         let
           newClass = Var.toString classref
         in
           ( Nothing
-          , [Env.Interface newClass (Var.fromModule moduleName newClass, ifc)]
+          , [Env.Interface newClass (Var.fromModule moduleName newClass, ifc)] ++
+            [topLevel Env.Value name | (A.A _ (Source.TypeAnnotation name _)) <- decls ]
           )
 
     D.Impl impl@(Interface.Implementation _ _ tipe _) ->

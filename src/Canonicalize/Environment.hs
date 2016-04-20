@@ -82,10 +82,12 @@ addPatch patch env =
         env { _patterns = insert name var (_patterns env) }
 
     Interface name ifc ->
-        env { _interfaces = Map.insert name ifc (_interfaces env) }
+        env
+          { _interfaces = Map.insert name ifc (_interfaces env) }
 
     Implementation tipe impl ->
-        env { _implementations = Map.insertWith (++) tipe [impl] (_implementations env)}
+        env
+          { _implementations = Map.insertWith (++) tipe [impl] (_implementations env) }
 
 
 insert :: (Ord a) => String -> a -> Dict a -> Dict a
