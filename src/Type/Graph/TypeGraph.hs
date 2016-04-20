@@ -710,17 +710,17 @@ findInfiniteTypes grph =
 
 -- | Try to reconstruct an infinite type to the best of the type graph's ability
 reconstructInfiniteType :: forall info . BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> AT.Canonical
-reconstructInfiniteType vid infs grph =
+reconstructInfiniteType vid infs grph = AT.unqualified $ -- TODO: qualified types here:
     let
         eg :: EG.EquivalenceGroup info
         eg = getVertexGroup vid grph
 
-        rec :: BS.VertexId -> AT.Canonical
+        rec :: BS.VertexId -> AT.Canonical'
         rec vid' =
             if vid' `S.member` infs then
                 AT.Var "∞"
             else
-                reconstructInfiniteType vid' (S.insert vid' infs) grph
+                AT.qtype $ reconstructInfiniteType vid' (S.insert vid' infs) grph
     in
         case lookup vid (EG.vertices eg) of
             Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
@@ -737,7 +737,7 @@ reconstructInfiniteType vid infs grph =
             Nothing -> AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph
-flattenGraphType :: AT.Canonical -> AT.Canonical
+flattenGraphType :: AT.Canonical' -> AT.Canonical'
 flattenGraphType (AT.App (AT.App (AT.Var "Function") [l]) [r]) = AT.Lambda (flattenGraphType l) (flattenGraphType r)
 flattenGraphType (AT.App l [r]) =
     case flattenGraphType l of

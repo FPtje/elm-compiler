@@ -4,12 +4,15 @@ module Type.State where
 import qualified Control.Monad.State as State
 import Data.Map ((!))
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.UnionFind.IO as UF
 import qualified AST.Module as Module
+import qualified AST.Type as T
 
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Type as Error
 import qualified Reporting.Region as R
+import qualified AST.Interface as Interface
 import Type.Type
 
 
@@ -39,7 +42,7 @@ type Solver = State.StateT SolverState IO
 
 
 -- Keeps track of the environment, type variable pool, and a list of errors
-data SolverState = SS
+data SolverState = SS -- TODO: Get the damn implementations in here
     { sEnv :: Env
     , sSavedEnv :: Env
     , sPool :: Pool
@@ -47,11 +50,12 @@ data SolverState = SS
     , sError :: [A.Located Error.Error]
     , sTypeGraphErrs :: Int
     , sSiblings :: Module.Siblings
+    , sImplementations :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
     }
 
 
-initialState :: Module.Siblings -> SolverState
-initialState siblings =
+initialState :: Module.Siblings -> [(Interface.CanonicalInterface, Interface.CanonicalImplementation)] -> SolverState
+initialState siblings impls =
     SS
     { sEnv = Map.empty
     , sSavedEnv = Map.empty
@@ -60,6 +64,7 @@ initialState siblings =
     , sError = []
     , sTypeGraphErrs = 0
     , sSiblings = siblings
+    , sImplementations = impls
     }
 
 
@@ -90,6 +95,9 @@ switchToPool pool =
 getPool :: Solver Pool
 getPool =
     State.gets sPool
+
+getImplementations :: Solver [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
+getImplementations = State.gets sImplementations
 
 
 getEnv :: Solver Env
@@ -155,14 +163,14 @@ flatten term =
 
 
 flattenHelp :: Map.Map String Variable -> Type -> Solver Variable
-flattenHelp aliasDict termN =
+flattenHelp aliasDict (T.QT quals termN) =
   case termN of
     PlaceHolder name ->
         return (aliasDict ! name)
 
     AliasN name args realType ->
-        do  flatArgs <- mapM (traverse (flattenHelp aliasDict)) args
-            flatVar <- flattenHelp (Map.fromList flatArgs) realType
+        do  flatArgs <- mapM (traverse (flattenHelp' aliasDict)) args
+            flatVar <- flattenHelp' (Map.fromList flatArgs) realType
             pool <- getPool
             variable <-
                 State.liftIO . UF.fresh $ Descriptor
@@ -170,7 +178,7 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = _
+                  , _qualifiers = Set.empty
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
@@ -180,7 +188,7 @@ flattenHelp aliasDict termN =
         return v
 
     TermN term1 ->
-        do  variableTerm <- traverseTerm (flattenHelp aliasDict) term1
+        do  variableTerm <- traverseTerm (flattenHelp' aliasDict) term1
             pool <- getPool
             variable <-
                 State.liftIO . UF.fresh $ Descriptor
@@ -188,11 +196,14 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = _
+                  , _qualifiers = Set.fromList [name | T.Qualifier name _ <- quals]
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
             register variable
+
+flattenHelp' :: Map.Map String Variable -> TermN Variable -> Solver Variable
+flattenHelp' aliasDict t1 = flattenHelp aliasDict (T.unqualified t1)
 
 
 makeInstance :: Variable -> Solver Variable
@@ -233,6 +244,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                 { _content = error "will be filled in soon!"
                 , _rank = maxRank pool
                 , _mark = noMark
+                , _qualifiers = _qualifiers descriptor
                 , _copy = Nothing
                 , _typegraphid = Nothing
                 , _typegraphCopyId = Nothing
@@ -313,6 +325,7 @@ restore alreadyCopiedMark variable =
                   { _content = restoredContent
                   , _rank = noRank
                   , _mark = noMark
+                  , _qualifiers = _qualifiers desc
                   , _copy = Nothing
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing

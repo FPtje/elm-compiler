@@ -25,6 +25,7 @@ data Environment = Env
     , _patterns :: Dict (Var.Canonical, Int)
     , _interfaces :: Map.Map String (Var.Canonical, Interface.ValidInterface)
     , _implementations :: Map.Map Type.Raw' [Interface.ValidImplementation]
+    -- , _implementationTuples :: [(Type.Canonical', Interface.ValidInterface, Interface.ValidImplementation)]
     }
 
 

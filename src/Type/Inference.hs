@@ -37,7 +37,7 @@ infer interfaces modul =
             liftIO (genConstraints interfaces modul)
 
         let sibs = Module.siblings . Module.body $ modul
-        state <- Solve.solve constraint sibs
+        state <- Solve.solve constraint sibs (Module.implementations . Module.body $ modul)
 
         let header' = Map.delete "::" header
         let types = Map.map A.drop (Map.difference (TS.sSavedEnv state) header')
@@ -83,14 +83,10 @@ genConstraints
 genConstraints interfaces modul =
   do  env <- Env.initialize (canonicalizeAdts interfaces modul)
 
-      let ifaces = Module.interfaces . Module.body $ modul
-      let impls = Module.implementations . Module.body $ modul
-      let matched = matchInterfacesWithModules ifaces impls
-
       ctors <-
           forM (Env.ctorNames env) $ \name ->
             do  (_, vars, args, result) <- Env.freshDataScheme env name
-                return (name, (vars, foldr (T.==>) result args))
+                return (name, (vars, Type.unqualified $ foldr (T.==>|) result args))
 
       importedVars <-
           mapM (canonicalizeValues env) (Map.toList interfaces)
@@ -100,50 +96,12 @@ genConstraints interfaces modul =
       let header = Map.map snd (Map.fromList allTypes)
       let environ = T.CLet [ T.Scheme vars [] T.CTrue (Map.map (A.A undefined) header) ]
 
-
-
-      -- TODO: make CEqual constraints between interfaces and implementations
-      -- what about name resolving class functions ????
-
       fvar <- T.mkVar Nothing
 
       constraint <-
-          TcExpr.constrain env (program (body modul)) (T.VarN fvar)
+          TcExpr.constrain env (program (body modul)) (Type.unqualified $ T.VarN fvar)
 
       return (header, environ constraint)
-
---implementationConstraints
---    :: Interface.CanonicalInterface
---    -> Interface.CanonicalImplementation
---    -> T.TypeConstraint
---implementationConstraints ifc impl =
---  let
---      specialize :: Type.Canonical -> Type.Canonical -> Canonical.InterfaceFunction -> Canonical.InterfaceFunction
---      specialize classVar special (Canonical.InterfaceFunction funcname (A.A rg tipe)) =
---          Canonical.InterfaceFunction funcname (A.A rg (Type.substitute classVar special tipe))
-
---      specializedIfc :: Interface.CanonicalInterface
---      specializedIfc = ifc { Interface.decls = map (specialize (Interface.interfacevar ifc) (Interface.impltype impl)) (Interface.decls ifc) }
-
---      matchedFuncs :: [(Canonical.InterfaceFunction, Canonical.Def)]
---      matchedFuncs = [undefined | Canonical.InterfaceFunction fname ftype <- Interface.decls ifc, def@(Canonical.Definition facts pattern exp mtipe) <- Interface.implementations impl, fname == undefined]
---  in
---      length matchedFuncs
-
-matchInterfacesWithModules
-    :: [Interface.CanonicalInterface]
-    -> [Interface.CanonicalImplementation]
-    -> [(Interface.CanonicalInterface, [Interface.CanonicalImplementation])]
-matchInterfacesWithModules ifcs impls =
-  let
-      implMap :: Map.Map String [Interface.CanonicalImplementation]
-      implMap = Map.fromListWith (++) [(Var.toString (Interface.classref imp), [imp]) | imp <- impls]
-
-
-      match :: Interface.CanonicalInterface -> (Interface.CanonicalInterface, [Interface.CanonicalImplementation])
-      match ifc = (ifc, Map.findWithDefault [] (Var.toString . Interface.classname $ ifc) implMap)
-  in
-    map match ifcs
 
 canonicalizeValues
     :: Env.Environment

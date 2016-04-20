@@ -85,7 +85,7 @@ data Body expr = Body
     , aliases   :: Aliases
     , datatypes :: ADTs
     , interfaces :: [Interface.CanonicalInterface]
-    , implementations :: [Interface.CanonicalImplementation]
+    , implementations :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
     , ports     :: [String]
     }
 

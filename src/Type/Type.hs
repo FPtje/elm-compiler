@@ -87,7 +87,7 @@ data Descriptor = Descriptor
     , _rank :: Int
     , _mark :: Int
     , _copy :: Maybe Variable
-    , _qualifiers :: [Var.Canonical]
+    , _qualifiers :: Set.Set Var.Canonical
     , _typegraphid :: Maybe Int
     , _typegraphCopyId :: Maybe Int
     }
@@ -210,11 +210,16 @@ instance Show a => Show (A.Annotated R.Region a) where
 
 
 infixr 9 ==>
+infixr 9 ==>|
 
 
 (==>) :: Type -> Type -> Type
 (==>) (T.QT aquals a) (T.QT bquals b) =
   T.QT (aquals ++ bquals) $ TermN (Fun1 a b)
+
+(==>|) :: TermN a -> TermN a -> TermN a
+(==>|) a b =
+  TermN (Fun1 a b)
 
 
 (<||) :: Type -> Type -> Type
@@ -407,7 +412,7 @@ mkDescriptor content =
     , _rank = noRank
     , _mark = noMark
     , _copy = Nothing
-    , _qualifiers = []
+    , _qualifiers = Set.empty
     , _typegraphid = Nothing
     , _typegraphCopyId = Nothing
     }
@@ -509,7 +514,7 @@ variableToSrcType variable =
       let mark = _mark descriptor
       if mark == occursMark
         then
-          return (T.QT [T.Qualifier classref (T.Var "∞") | classref <- _qualifiers descriptor] $ T.Var "∞")
+          return (T.QT [T.Qualifier classref (T.Var "∞") | classref <- Set.toList $ _qualifiers descriptor] $ T.Var "∞")
 
         else
           do  liftIO $ UF.modifyDescriptor variable (\desc -> desc { _mark = occursMark })
@@ -522,7 +527,7 @@ contentToSrcType :: Variable -> Descriptor -> StateT NameState IO T.Canonical
 contentToSrcType variable desc =
   let
       content = _content desc
-      qualify t = T.QT [T.Qualifier q t | q <- _qualifiers desc] t
+      qualify t = T.QT [T.Qualifier q t | q <- Set.toList $ _qualifiers desc] t
   in
     case content of
       Structure term ->
@@ -549,7 +554,7 @@ contentToSrcType variable desc =
           return . qualify $ T.Var "?"
 
 
-termToSrcType :: Term1 Variable -> [Var.Canonical] -> StateT NameState IO T.Canonical
+termToSrcType :: Term1 Variable -> Set.Set Var.Canonical -> StateT NameState IO T.Canonical
 termToSrcType term quals =
   case term of
     App1 func arg ->
@@ -560,13 +565,13 @@ termToSrcType term quals =
                   let
                     typ = T.App f (args ++ [srcArg])
                   in
-                    return (T.QT ([T.Qualifier q typ | q <- quals] ++ funcQuals ++ argQuals) typ)
+                    return (T.QT ([T.Qualifier q typ | q <- Set.toList quals] ++ funcQuals ++ argQuals) typ)
 
               _ ->
                   let
                     typ = T.App srcFunc [srcArg]
                   in
-                    return (T.QT ([T.Qualifier q typ | q <- quals] ++ funcQuals ++ argQuals) typ)
+                    return (T.QT ([T.Qualifier q typ | q <- Set.toList quals] ++ funcQuals ++ argQuals) typ)
 
     Fun1 a b ->
       do
@@ -593,13 +598,13 @@ termToSrcType term quals =
                     let
                         typ = T.Record (subFields ++ tfields) subExt
                     in
-                        T.QT ([T.Qualifier q typ | q <- quals] ++ extQuals) typ
+                        T.QT ([T.Qualifier q typ | q <- Set.toList quals] ++ extQuals) typ
 
                 T.Var _ ->
                     let
                       typ = T.Record tfields (Just srcExt)
                     in
-                        T.QT ([T.Qualifier q typ | q <- quals] ++ extQuals) typ
+                        T.QT ([T.Qualifier q typ | q <- Set.toList quals] ++ extQuals) typ
 
                 _ ->
                     error "Used toSrcType on a type that is not well-formed"

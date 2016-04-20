@@ -104,6 +104,7 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
     body :: [D.CanonicalDecl] -> Module.Body Canonical.Expr
     body decls =
         let nakedDecls = map A.drop decls
+            ifces = [ i | D.IFace i <- nakedDecls ]
         in
         Module.Body
           { program =
@@ -138,15 +139,20 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
               Map.fromList [ (name,(tvs,alias)) | D.TypeAlias name tvs alias <- nakedDecls ]
 
           , interfaces =
-              [ i | D.IFace i <- nakedDecls ]
+              ifces
 
           , implementations =
-              [ i | D.Impl i <- nakedDecls ]
+              [ (getMatchingIFace ifces i, i) | D.Impl i <- nakedDecls ]
 
           , ports =
               [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
           }
 
+
+getMatchingIFace :: [Interface.CanonicalInterface]
+               -> Interface.CanonicalImplementation
+               -> Interface.CanonicalInterface
+getMatchingIFace ifces impl = head $ filter (\ifc -> Interface.classname ifc == Interface.classref impl) ifces
 
 -- IMPORTS
 

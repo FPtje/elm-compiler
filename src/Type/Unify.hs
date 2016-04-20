@@ -5,12 +5,17 @@ import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
+import qualified Data.Set as Set
 
 import qualified AST.Variable as Var
+import qualified AST.Type as T
 import qualified Reporting.Region as R
 import qualified Reporting.Error.Type as Error
 import qualified Type.State as TS
 import Type.Type as Type
+import qualified AST.Interface as Interface
+
+import Data.Maybe (listToMaybe)
 
 -- KICK OFF UNIFICATION
 
@@ -78,7 +83,10 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 
 data Mismatch
     = Mismatch Variable Variable (Maybe Error.Reason)
+    | NoInstance Var.Canonical T.Canonical' Variable
 
+noinstance :: Var.Canonical -> T.Canonical' -> Variable -> Unify ()
+noinstance classref t var = throwError $ NoInstance classref t var
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
 mismatch (Context orientation first _ second _) maybeReason =
@@ -143,6 +151,7 @@ mergeHelp first second content =
           , _rank = min (_rank desc1) (_rank desc2)
           , _mark = noMark
           , _copy = Nothing
+          , _qualifiers = Set.union (_qualifiers desc1) (_qualifiers desc2)
           , _typegraphid = Nothing
           , _typegraphCopyId = Nothing
           }
@@ -157,6 +166,7 @@ fresh (Context _ _ desc1 _ desc2) content =
               , _rank = min (_rank desc1) (_rank desc2)
               , _mark = noMark
               , _copy = Nothing
+              , _qualifiers = Set.empty
               , _typegraphid = Nothing
               , _typegraphCopyId = Nothing
               }
@@ -184,7 +194,7 @@ subUnify context var1 var2 =
 
 
 actuallyUnify :: Context -> Unify ()
-actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
+actuallyUnify context@(Context _ fvar firstDesc _ secondDesc) =
   let
     secondContent = _content secondDesc
   in
@@ -204,21 +214,52 @@ actuallyUnify context@(Context _ _ firstDesc _ secondDesc) =
         unifyRigid context maybeSuper maybeName secondContent
 
     Atom name ->
-        unifyAtom context name secondContent
+        do
+          propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc)
+          unifyAtom context name secondContent
 
     Alias name args realVar ->
         unifyAlias context name args realVar secondContent
 
-    Structure term ->
+    Structure term -> -- TODO: context reduction + propagate down.
         unifyStructure context term secondContent
 
 
+matchesType :: T.Canonical' -> T.Canonical' -> Bool
+matchesType impltype t =
+  case (impltype, t) of
+      (T.App l _, T.App r _) -> matchesType l r -- TODO: is this correct?
+      (x, y) -> x == y
+
+findImplementation
+    :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
+    -> Var.Canonical
+    -> T.Canonical'
+    -> Maybe (Interface.CanonicalInterface, Interface.CanonicalImplementation)
+findImplementation impls classref t = listToMaybe [imp | imp@(_, impl) <- impls, Interface.classref impl == classref, Interface.impltype impl `matchesType` t]
+
+propagateQualifierAtom :: Var.Canonical -> Variable -> Var.Canonical -> Unify ()
+propagateQualifierAtom atomName var classref =
+  do
+    impls <- lift TS.getImplementations
+    let tipe = T.Type atomName
+
+    case findImplementation impls classref tipe of
+      Just _ -> return ()
+      Nothing -> noinstance classref tipe var
+
+-- TODO: Propagate qualifier for structures
+
+propagateQualifiers :: Content -> Variable -> Set.Set Var.Canonical -> Unify ()
+propagateQualifiers content var quals =
+  case content of
+      Atom name -> mapM_ (propagateQualifierAtom name var) $ Set.toList quals
 
 -- UNIFY FLEXIBLE VARIABLES
 
 
 unifyFlex :: Context -> Content -> Unify ()
-unifyFlex context otherContent =
+unifyFlex context@(Context _ _ firstDesc svar _) otherContent =
   case otherContent of
     Error _ ->
         return ()
@@ -230,6 +271,7 @@ unifyFlex context otherContent =
         merge context otherContent
 
     Atom _ ->
+        propagateQualifiers otherContent svar (_qualifiers firstDesc) >>
         merge context otherContent
 
     Alias _ _ _ ->
@@ -283,13 +325,14 @@ unifyRigid context maybeSuper maybeName otherContent =
 
 
 unifySuper :: Context -> Super -> Content -> Unify ()
-unifySuper context super otherContent =
+unifySuper context@(Context _ _ firstDesc svar _) super otherContent =
   case otherContent of
     Structure term ->
         unifySuperStructure context super term
 
     Atom name ->
         if atomMatchesSuper super name then
+            propagateQualifiers otherContent svar (_qualifiers firstDesc) >>
             merge context otherContent
         else
             mismatch context (Just (badSuper super))
@@ -421,6 +464,7 @@ unifyComparableRecursive orientation var =
                     { _content = Var Flex (Just Comparable) Nothing
                     , _rank = _rank desc
                     , _mark = noMark
+                    , _qualifiers = _qualifiers desc
                     , _copy = Nothing
                     , _typegraphid = Nothing
                     , _typegraphCopyId = Nothing
@@ -466,7 +510,8 @@ getContent variable =
 
 
 unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
-unifyAtom context name otherContent =
+unifyAtom context@(Context _ fvar firstDesc _ secondDesc) name otherContent =
+  propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc) >>
   case otherContent of
     Error _ ->
         return ()

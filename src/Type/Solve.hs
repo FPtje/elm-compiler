@@ -17,6 +17,7 @@ import qualified Type.Graph.TypeGraph as TG
 import qualified Type.Graph.Heuristics as TH
 import Type.Type as Type
 import Type.Unify
+import qualified AST.Interface as Interface
 
 import Debug.Trace
 
@@ -169,11 +170,11 @@ invokeTypeGraph constraint =
         TS.modifyEnv (const oldEnv)
 
 
-solve :: TypeConstraint -> Module.Siblings -> ExceptT [A.Located Error.Error] IO TS.SolverState
-solve constraint siblings =
+solve :: TypeConstraint -> Module.Siblings -> [(Interface.CanonicalInterface, Interface.CanonicalImplementation)] -> ExceptT [A.Located Error.Error] IO TS.SolverState
+solve constraint siblings impls =
   do
       state <-
-          liftIO (execStateT (actuallySolve [] constraint) (TS.initialState siblings))
+          liftIO (execStateT (actuallySolve [] constraint) (TS.initialState siblings impls))
       case TS.sError state of
         [] ->
             return state
