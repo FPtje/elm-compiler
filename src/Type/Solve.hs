@@ -155,7 +155,7 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 -- | Invokes the type graph if errors are found.
 invokeTypeGraph :: TypeConstraint -> TS.Solver ()
-invokeTypeGraph constraint =
+invokeTypeGraph constraint = when False $
   do
     errs <- TS.getError
     tgErrs <- TS.getTypeGraphErrors

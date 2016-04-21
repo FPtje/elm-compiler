@@ -22,6 +22,7 @@ import qualified Reporting.Report as Report
 
 data Error
     = Mismatch Mismatch
+    | NoImplementation Var.Canonical Type.Canonical'
     | BadMain Type.Canonical
     | InfiniteType String Type.Canonical
     | SameTypeSibling Region.Region Var.Canonical Var.Canonical
@@ -100,6 +101,22 @@ toReport localizer err =
 
     InfiniteType name overallType ->
         infiniteTypeToReport localizer name overallType
+
+    NoImplementation classref tipe ->
+        Report.report
+          "NO IMPLEMENTATION"
+          Nothing
+          "Missing a specific implementation of an interface."
+          ( Help.stack
+              [ Help.reflowParagraph $
+                "In order for this code to work, there needs to be an implementation of " ++ prettyName classref ++ " for "
+              , indent 4 (RenderType.toDoc localizer (Type.unqualified tipe))
+              , Help.reflowParagraph $
+                "This implementation should either be in this file or in one of your imports."
+              , Help.reflowParagraph $
+                "Perhaps you forgot to import a module that provides this implementation?"
+              ]
+          )
 
     BadMain tipe ->
         Report.report

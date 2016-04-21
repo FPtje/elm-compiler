@@ -45,8 +45,8 @@ unify hint region expected actual =
                     return (Error.Mismatch info)
             in
               TS.addError region =<< liftIO mkError
-        Left (NoInstance classref tp var) ->
-          error $ "\n\n\n\n\n\n\n\n\n\n\n HEAR YE HEAR YE. SOME TYPE CLASS INSTANCE DOESN'T EXIST, BADA BING BADA BOOM!!! \n" ++ show classref ++ "\n" ++ show tp ++ "\n" ++ show var
+        Left (NoImplementation classref tp var) ->
+          TS.addError region (Error.NoImplementation classref tp)
 
 
 
@@ -86,10 +86,10 @@ reorient (Context orientation var1 desc1 var2 desc2) =
 
 data Mismatch
     = Mismatch Variable Variable (Maybe Error.Reason)
-    | NoInstance Var.Canonical T.Canonical' Variable
+    | NoImplementation Var.Canonical T.Canonical' Variable
 
-noinstance :: Var.Canonical -> T.Canonical' -> Variable -> Unify ()
-noinstance classref t var = throwError $ NoInstance classref t var
+noimplementation :: Var.Canonical -> T.Canonical' -> Variable -> Unify ()
+noimplementation classref t var = throwError $ NoImplementation classref t var
 
 mismatch :: Context -> Maybe Error.Reason -> Unify a
 mismatch (Context orientation first _ second _) maybeReason =
@@ -269,7 +269,7 @@ propagateQualifierAtom atomName var classref =
 
     case findImplementation impls classref tipe of
       Just _ -> return ()
-      Nothing -> noinstance classref tipe var
+      Nothing -> noimplementation classref tipe var
 
 -- TODO: Propagate qualifier for structures
 

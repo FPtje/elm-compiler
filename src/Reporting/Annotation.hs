@@ -12,7 +12,7 @@ data Annotated annotation a
     deriving (Eq, Ord)
 
 instance Show a => Show (Annotated ann a) where
-    show (A _ a) = show a
+    show (A _ a) = "Annotated: " ++ show a
 
 
 type Located a =
