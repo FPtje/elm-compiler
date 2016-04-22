@@ -40,12 +40,21 @@ infixl 0 |>
 
 functionName :: String -> String
 functionName opName =
-  if Help.isOp opName then
-      "(" ++ opName ++ ")"
+  let fixedName = implName opName
+  in
+    if Help.isOp opName then
+        "(" ++ fixedName ++ ")"
 
-  else
-      "`" ++ opName ++ "`"
+    else
+        "`" ++ fixedName ++ "`"
 
+
+isImplName :: String -> Bool
+isImplName s = not (null s) && head s == '$'
+
+implName :: String -> String
+implName s | not $ isImplName s = s
+implName s | otherwise = takeWhile (/= '$') . drop 1 $ s
 
 hintLink :: String -> String
 hintLink fileName =

@@ -78,7 +78,7 @@ toDefs moduleName (A.A (region,_) decl) =
       map (interfaceToDecl ifc) (Interface.decls ifc)
 
     D.Impl impl ->
-      Interface.implementations impl
+      map (changeName impl) $ Interface.implementations impl
 
     D.Sibling _ _ ->
         []
@@ -87,6 +87,11 @@ toDefs moduleName (A.A (region,_) decl) =
     D.Fixity _ _ _ ->
         []
 
+-- | Change the name of an implementation's declaration
+-- So it doesn't conflict with the
+changeName :: Interface.CanonicalImplementation -> Canonical.Def -> Canonical.Def
+changeName impl (Canonical.Definition facts (A.A rg (P.Var nm)) expr ann clstp@(Just (A.A _ tp))) =
+    Canonical.Definition facts (A.A rg (P.Var ("$" ++ nm ++ "$" ++ show tp ++ "$" ++ show (Interface.impltype impl)))) expr ann clstp
 
 interfaceToDecl
     :: Interface.CanonicalInterface
