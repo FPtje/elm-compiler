@@ -39,14 +39,20 @@ unify hint region expected actual =
 
                     desc <- UF.descriptor actual
                     copyActual <- UF.fresh desc
-                    --mergeHelp expected expected (Error copyExp)
+                    -- mergeHelp expected expected (Error copyExp)
                     --mergeHelp actual actual (Error copyActual)
                     let info = Error.MismatchInfo hint expectedSrcType actualSrcType maybeReason []
                     return (Error.Mismatch info)
             in
               TS.addError region =<< liftIO mkError
         Left (NoImplementation classref tp var) ->
-          TS.addError region (Error.NoImplementation classref tp)
+          do
+            liftIO $ do
+              desc <- UF.descriptor var
+              UF.setDescriptor var desc { _qualifiers = Set.empty }
+              mergeHelp var var (Error (_content desc))
+
+            TS.addError region (Error.NoImplementation classref tp)
 
 
 
@@ -189,17 +195,6 @@ fresh (Context _ _ desc1 _ desc2) content =
 guardedUnify :: Orientation -> Variable -> Variable -> Unify ()
 guardedUnify orientation left right =
   do
-      -- AAAAAAARGH
-      -- CUUUUUUUUUUUUUUUNTS
-      repr <- liftIO $ UF.repr left
-      reprDesc <- liftIO $ UF.descriptor repr
-      ldesc <- liftIO $ UF.descriptor left
-      rdesc <- liftIO $ UF.descriptor right
-      let quals = _qualifiers reprDesc `Set.union` _qualifiers ldesc `Set.union` _qualifiers rdesc
-      liftIO $ UF.modifyDescriptor repr (\desc -> desc { _qualifiers = quals })
-      liftIO $ UF.modifyDescriptor left (\desc -> desc { _qualifiers = quals })
-      liftIO $ UF.modifyDescriptor right (\desc -> desc { _qualifiers = quals })
-
       equivalent <- liftIO $ UF.equivalent left right
       if equivalent
         then
