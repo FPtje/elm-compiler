@@ -173,7 +173,6 @@ addContentGraph var content alias grph =
         let unique = varNumber grph
         let vertexId = fromMaybe unique (T._typegraphid desc)
         let quals = map BS.PInterface . S.toList . T._qualifiers $ desc
-        trace ("\n\nQUALS! " ++ show quals) $ return ()
 
         case content of
             T.Structure t ->

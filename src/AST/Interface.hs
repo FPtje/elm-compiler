@@ -14,6 +14,7 @@ data Interface' classref var decl
         , interfacevar :: var
         , decls :: [decl]
         }
+    deriving (Show)
 
 data Implementation' classref var tipe def
     = Implementation
@@ -22,6 +23,7 @@ data Implementation' classref var tipe def
         , impltype :: tipe
         , implementations :: [def]
         }
+    deriving (Show)
 
 type SourceInterface
     = Interface' String String Source.Def'

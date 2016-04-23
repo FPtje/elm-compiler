@@ -167,7 +167,7 @@ flatten term =
 
 
 flattenHelp :: Map.Map String Variable -> Type -> Solver Variable
-flattenHelp aliasDict (T.QT quals termN) = (if not (null quals) then trace ("Flatten help!" ++ show quals ++ ", " ++ show termN) else id) $
+flattenHelp aliasDict (T.QT quals termN) =
   case termN of
     PlaceHolder name ->
         return (aliasDict ! name)

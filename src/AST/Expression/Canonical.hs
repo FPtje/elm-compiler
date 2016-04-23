@@ -29,6 +29,7 @@ data Facts = Facts
     }
 
 data InterfaceFunction = InterfaceFunction Var.Canonical (A.Located Type.Canonical)
+    deriving (Show)
 
 dummyFacts :: Facts
 dummyFacts =

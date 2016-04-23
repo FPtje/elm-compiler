@@ -232,9 +232,7 @@ actuallyUnify context@(Context _ fvar firstDesc _ secondDesc) =
 
     Atom name ->
         do
-          -- trace ("Propagate qualifiers1! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return ()
           unifyAtom context name secondContent
-          propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc `Set.union` _qualifiers firstDesc)
 
     Alias name args realVar ->
         unifyAlias context name args realVar secondContent
@@ -244,9 +242,11 @@ actuallyUnify context@(Context _ fvar firstDesc _ secondDesc) =
 
 
 matchesType :: T.Canonical' -> T.Canonical' -> Bool
-matchesType impltype t =
-  case (impltype, t) of
-      (T.App l _, T.App r _) -> matchesType l r -- TODO: is this correct?
+matchesType t impltype =
+  case (t, impltype) of
+      (T.App l r, T.App l' r') -> matchesType l l' && and (zipWith matchesType r r')
+      (T.Lambda l r, T.Lambda l' r') -> matchesType l l' && matchesType r r'
+      (tp, T.Var s) -> True
       (x, y) -> x == y
 
 findImplementation
@@ -254,7 +254,13 @@ findImplementation
     -> Var.Canonical
     -> T.Canonical'
     -> Maybe (Interface.CanonicalInterface, Interface.CanonicalImplementation)
-findImplementation impls classref t = listToMaybe [imp | imp@(_, impl) <- impls, Interface.classref impl == classref, Interface.impltype impl `matchesType` t]
+findImplementation impls classref t =
+    listToMaybe
+    [ imp
+    | imp@(_, impl) <- impls
+    , Interface.classref impl == classref
+    , matchesType t (Interface.impltype impl)
+    ]
 
 propagateQualifierAtom :: Var.Canonical -> Variable -> Var.Canonical -> Unify ()
 propagateQualifierAtom atomName var classref =
@@ -266,13 +272,55 @@ propagateQualifierAtom atomName var classref =
       Just _ -> return ()
       Nothing -> noimplementation classref tipe var
 
--- TODO: Propagate qualifier for structures
+children :: Variable -> Unify [Variable]
+children var =
+  do
+      term <- liftIO $ _content <$> UF.descriptor var
+
+      case term of
+        Structure (App1 l r) -> (++ [r]) <$> children l
+        Structure (Fun1 l r) -> return [l, r]
+        _ -> return []
+
+
+propagateDown :: Interface.CanonicalImplementation -> Term1 Variable -> Variable -> T.Qualifier' Var.Canonical T.Canonical' -> Unify ()
+propagateDown impl term var (T.Qualifier classref classvar) =
+  let
+      rec :: [T.Canonical'] -> [Variable] -> Unify ()
+      rec [] _ = error $ "Type qualifier variable " ++ show classvar ++ " Not found in implementation type. That shouldn't happen."
+      rec _ [] = error $ "The data type doesn't have enough children!"
+      rec (implvar : implvars) (t : terms)
+        | implvar == classvar =
+            do
+              desc <- liftIO $ UF.descriptor t
+              propagateQualifiers (_content desc) t (Set.singleton classref)
+        | otherwise =
+            rec implvars terms
+  in
+    case (Interface.impltype impl, term) of
+      (T.App _ rs, App1 _ _) -> children var >>= rec rs
+      (T.Lambda l _, Fun1 l' r') ->
+          if classvar == l then
+            (liftIO $ _content <$> UF.descriptor l') >>= (\c -> propagateQualifiers c l' (Set.singleton classref))
+          else
+            (liftIO $ _content <$> UF.descriptor r') >>= (\c -> propagateQualifiers c r' (Set.singleton classref))
+
+propagateQualifierStructure :: Variable -> Term1 Variable -> Var.Canonical -> Unify ()
+propagateQualifierStructure var term classref =
+  do
+    srctp <- liftIO $ toSrcType var
+    impls <- lift TS.getImplementations
+    let tipe = T.qtype srctp
+    case findImplementation impls classref tipe of
+      Nothing -> noimplementation classref tipe var
+      Just (_, impl) -> flip mapM_ (Interface.implquals impl) $ propagateDown impl term var
 
 propagateQualifiers :: Content -> Variable -> Set.Set Var.Canonical -> Unify ()
 propagateQualifiers content var quals =
-  -- trace ("\n\n\nPROPAGATE QUALIFIERS: " ++ show quals) $
   case content of
       Atom name -> mapM_ (propagateQualifierAtom name var) $ Set.toList quals
+      Structure term -> mapM_ (propagateQualifierStructure var term) $ Set.toList quals
+
 
 -- UNIFY FLEXIBLE VARIABLES
 
@@ -290,7 +338,6 @@ unifyFlex context@(Context _ _ firstDesc svar secondDesc) otherContent =
         merge context otherContent
 
     Atom name ->
-        -- trace ("Propagate qualifiers2! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
         merge context otherContent >>
         propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
 
@@ -298,7 +345,8 @@ unifyFlex context@(Context _ _ firstDesc svar secondDesc) otherContent =
         merge context otherContent
 
     Structure _ ->
-        merge context otherContent
+        merge context otherContent >>
+        propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
 
 
 
@@ -348,11 +396,11 @@ unifySuper :: Context -> Super -> Content -> Unify ()
 unifySuper context@(Context _ _ firstDesc svar secondDesc) super otherContent =
   case otherContent of
     Structure term ->
-        unifySuperStructure context super term
+        unifySuperStructure context super term >>
+        propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
 
     Atom name ->
         if atomMatchesSuper super name then
-            -- trace ("Propagate qualifiers3! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
             merge context otherContent >>
             propagateQualifiers otherContent svar (_qualifiers firstDesc `Set.union` _qualifiers secondDesc)
         else
@@ -532,7 +580,6 @@ getContent variable =
 
 unifyAtom :: Context -> Var.Canonical -> Content -> Unify ()
 unifyAtom context@(Context _ fvar firstDesc _ secondDesc) name otherContent =
-  -- trace ("Propagate qualifiers4! " ++ show ((_qualifiers firstDesc) `Set.union` (_qualifiers secondDesc)) ++ ", " ++ show name) $ return () >>
   propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc `Set.union` _qualifiers firstDesc) >>
   case otherContent of
     Error _ ->
@@ -610,7 +657,8 @@ unifyAlias context name args realVar otherContent =
 
 
 unifyStructure :: Context -> Term1 Variable -> Content -> Unify ()
-unifyStructure context term otherContent =
+unifyStructure context@(Context _ fvar firstDesc _ secondDesc) term otherContent =
+  propagateQualifiers (_content firstDesc) fvar (_qualifiers secondDesc `Set.union` _qualifiers firstDesc) >>
   case otherContent of
     Error _ ->
         return ()
