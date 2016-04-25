@@ -501,7 +501,7 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType) = -- TODO: DEAL WITH INTERFACE TYPE?
+constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
@@ -530,6 +530,7 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
   do  -- Some mistake may be happening here. Currently, qs is always [].
       rigidVars <- mapM mkRigid qs
 
+
       flexiVars <- mapM mkNamedVar qs
 
       let env' = Env.addValues env (zip qs flexiVars)
@@ -537,15 +538,18 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
       (vars, typ) <- Env.instantiateType env tipe Map.empty
       (ifvars, iftyp) <- case interfaceType of
             Nothing -> return ([], undefined)
-            Just (A.A _ tp) -> Env.instantiateType env tp Map.empty -- TODO: mess with qualifiers here?
+            Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
+
+      mapM mkVarRigid ifvars
 
       let scheme =
             Scheme
-              { _rigidQuantifiers = []
+              { _rigidQuantifiers = [] ++ ifvars
               , _flexibleQuantifiers = flexiVars ++ vars ++ ifvars
               , _constraint = CTrue
               , _header = Map.singleton name (A.A patternRegion typ)
               }
+
 
       var <- mkVar Nothing
       defCon <- constrain env' expr (ST.unqualified $ VarN var)
@@ -560,7 +564,7 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
                     }
             Just (A.A ifrg _) -> --CEqual (Error.BadMatchWithInterface name) ifrg iftyp (ST.unqualified $ VarN var) Annotation -- TODO: different descriptor than Annotation
                   return $ info
-                    { iSchemes = iSchemes info
+                    { iSchemes = scheme : iSchemes info
                     , iC1 = iC1 info /\ ex [var] (defCon /\ (fl rigidVars (annCon /\ (CEqual (Error.BadMatchWithInterface name) ifrg iftyp (ST.unqualified $ VarN var) Annotation))))
                     }
 
@@ -590,19 +594,20 @@ constrainUnannotatedDef env info qs patternRegion name expr interfaceType =
             Nothing -> return ([], undefined)
             Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
 
+      mapM mkVarRigid ifvars
       con <- constrain env' expr tipe
 
       case interfaceType of
             Nothing ->
                 return $ info
-                    { iRigid = rigidVars ++ iRigid info
+                    { iRigid = rigidVars ++ ifvars ++ iRigid info
                     , iFlex = v : iFlex info ++ ifvars
                     , iHeaders = Map.insert name (A.A patternRegion tipe) (iHeaders info)
                     , iC2 = con /\ iC2 info
                     }
             Just (A.A ifrg _) -> --CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation -- TODO: different descriptor than Annotation
                 return $ info
-                    { iRigid = rigidVars ++ iRigid info
+                    { iRigid = rigidVars ++ ifvars ++ iRigid info
                     , iFlex = v : iFlex info ++ ifvars
                     , iC2 = con /\ iC2 info /\ fl rigidVars (CEqual (Error.BadMatchWithInterface name) ifrg iftyp tipe Annotation)
                     }

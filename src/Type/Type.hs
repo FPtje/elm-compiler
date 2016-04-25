@@ -436,6 +436,13 @@ mkRigid name =
     UF.fresh $ mkDescriptor (Var Rigid (toSuper name) (Just name))
 
 
+mkVarRigid :: Variable -> IO ()
+mkVarRigid var =
+    let updContent (Var _ sup nm) = Var Rigid sup nm
+    in
+      UF.modifyDescriptor var (\desc -> desc { _content = updContent (_content desc) })
+
+
 toSuper :: String -> Maybe Super
 toSuper name =
   if List.isPrefixOf "number" name then
