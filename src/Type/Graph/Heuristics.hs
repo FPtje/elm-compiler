@@ -15,6 +15,8 @@ import qualified Type.Type as T
 import qualified AST.Type as AT
 import qualified AST.Module as AST
 
+import Control.Monad.Except (throwError)
+
 import Data.List (sortBy)
 import Data.Maybe (fromMaybe)
 import Control.Monad (when)
@@ -271,6 +273,9 @@ replaceErrors sibs constrs grph =
 
         mapM_ (\(eid, c) -> throwErrorFromConstraint sibs relevantErrs eid grph c) constrs
 
+-- | Throw an error about a missing type class
+throwMissingImplementationError :: TG.TypeGraph T.TypeConstraint -> TG.SubstitutionError T.TypeConstraint -> TS.Solver ()
+throwMissingImplementationError grph (TG.MissingImplementation vid classref tp) = TS.addError (TG.bestVertexRegion grph vid) $ Error.NoImplementation classref tp
 
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
@@ -283,6 +288,7 @@ applyHeuristics grph =
         -- Apply filter heuristics
         let errorPathShare = map fst $ typePathShare 0.6 expandedPaths
         let sortTrusted = trustFactor 800 errorPathShare
+        let missingImplementations = [err | err@(TG.MissingImplementation {}) <- grphErrs]
 
         let infiniteRoots = infinitePathRoots grphErrs grph
         let infiniteShare = S.fromList $ infinitePathShare grphErrs
@@ -319,3 +325,6 @@ applyHeuristics grph =
             throwErrorFromInfinite reconstr
             TS.updateTypeGraphErrs
 
+        when (not (null missingImplementations)) $ do
+            mapM_ (throwMissingImplementationError grph) missingImplementations
+            TS.updateTypeGraphErrs

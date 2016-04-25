@@ -8,8 +8,10 @@ import qualified Type.Graph.EQGroup as EG
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Path as P
 import qualified Reporting.Error.Type as Error
+import qualified Reporting.Region as R
 import qualified AST.Variable as Var
 import qualified AST.Type as AT
+import qualified AST.Interface as Interface
 import qualified Type.Type as T
 import qualified Type.State as TS
 import qualified Type.Unify as U
@@ -37,6 +39,7 @@ data TypeGraph info = TypeGraph
    , equivalenceGroupCounter    :: Int
    , varNumber                  :: Int
    , funcMap                    :: M.Map String Var.Canonical
+   , implementations            :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
    }
    deriving (Show)
 
@@ -48,6 +51,7 @@ empty = TypeGraph
     , equivalenceGroupCounter = 0
     , varNumber               = 0
     , funcMap                 = M.empty
+    , implementations         = []
     }
 
 -- | Increase the unique counter for type graph variables
@@ -153,6 +157,27 @@ splitEQGroups vid grph =
     in
         (results, newGraph)
 
+-- | Get the best fitting region for an error
+bestVertexRegion :: TypeGraph T.TypeConstraint -> BS.VertexId -> R.Region
+bestVertexRegion grph vid =
+    let
+        grp :: EG.EquivalenceGroup T.TypeConstraint
+        grp = fromJust $ getGroupOf vid grph
+
+        regionFromConstraint :: T.TypeConstraint -> R.Region
+        regionFromConstraint (T.CEqual _ rg _ _ _) = rg
+        regionFromConstraint (T.CInstance rg _ _ _) = rg
+
+        edges :: [R.Region]
+        edges = [ regionFromConstraint cnstr | (BS.EdgeId l _, cnstr) <- EG.edges grp, l == vid ]
+
+        parent :: Maybe BS.VertexId
+        parent = EG.getParent vid grp
+    in
+        case (edges, parent) of
+            ((rg : _), _) -> rg
+            ([], Just p) -> bestVertexRegion grph p
+            (_, Nothing) -> error "Seriously, this thing has nothing to do with constraints whatsoever"
 
 -- | Create a type graph from a single term
 addTermGraph :: T.Variable -> Maybe Var.Canonical -> TypeGraph info -> TS.Solver (BS.VertexId, TypeGraph info)
@@ -659,6 +684,7 @@ childrenInGroupOf i graph =
 data SubstitutionError info =
       InfiniteType BS.VertexId (P.Path info)
     | InconsistentType (EG.EquivalenceGroup info) [(BS.VertexId, BS.VertexId)]
+    | MissingImplementation BS.VertexId Var.Canonical AT.Canonical'
     deriving (Show)
 
 findInfiniteTypes :: forall info . TypeGraph info -> [SubstitutionError info]
@@ -799,6 +825,64 @@ substituteVariable vid grph =
             res <- rec S.empty vid vertexInfo
             return (snd res)
 
+-- | Figure out whether there are any missing implementations for qualified types
+findMissingImplementations :: forall info . TypeGraph info -> [SubstitutionError info]
+findMissingImplementations grph =
+    let
+        groups :: [EG.EquivalenceGroup info]
+        groups = M.elems $ equivalenceGroupMap grph
+
+        impls :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
+        impls = implementations grph
+
+        -- The implementation predicates that live within a certain group
+        predicates :: EG.EquivalenceGroup info -> [BS.Predicate]
+        predicates grp = [ p | (_, (BS.VVar ps, _)) <- EG.vertices grp, p@(BS.PInterface _) <- ps ]
+
+        propagateDown :: BS.VertexId -> AT.Canonical' -> (BS.VertexId, BS.VertexInfo) -> AT.Qualifier' Var.Canonical AT.Canonical' -> [SubstitutionError info]
+        propagateDown root tp vrtx@(_, (inf, _)) qual@(AT.Qualifier classref classvar)
+            | tp == classvar = checkPredicate root vrtx (BS.PInterface classref)
+            | otherwise =
+                case (tp, inf) of
+                    -- One application left
+                    (AT.App _ [vr], BS.VApp _ r) -> propagateDown root vr (r, fromJust $ getVertex r grph) qual
+                    (AT.App _ [vr], _) -> propagateDown root vr vrtx qual
+                    -- multiple applications
+                    (AT.App x rs, BS.VApp l r) ->
+                        let
+                            linf :: BS.VertexInfo
+                            linf = fromJust $ getVertex l grph
+
+                            rinf :: BS.VertexInfo
+                            rinf = fromJust $ getVertex r grph
+                        in
+                            propagateDown root (AT.App x (init rs)) (l, linf) qual ++ propagateDown root (AT.App x [last rs]) (r, rinf) qual
+                    (_, _) -> [] -- TODO: functions or something haha
+
+        -- | Root being the root of the app tree where it started propagating down the qualifiers
+        checkPredicate :: BS.VertexId -> (BS.VertexId, BS.VertexInfo) -> BS.Predicate -> [SubstitutionError info]
+        checkPredicate root vrtx@(vid, (inf, _)) (BS.PInterface pdc) =
+            case inf of
+                BS.VVar _ -> []
+                BS.VCon nm _ ->
+                    case U.findImplementation impls pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph) of
+                        Just _ -> []
+                        Nothing -> [MissingImplementation root pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph)]
+                BS.VApp l r ->
+                    let
+                        tp :: AT.Canonical'
+                        tp = AT.qtype $ reconstructInfiniteType vid S.empty grph
+                    in
+                        case U.findImplementation impls pdc tp of
+                            Just (_, impl) -> concatMap (propagateDown root (Interface.impltype impl) vrtx) (Interface.implquals impl)
+                            Nothing -> [MissingImplementation root pdc tp]
+
+        findInGroup :: EG.EquivalenceGroup info -> [SubstitutionError info]
+        findInGroup grp =
+                concat [ checkPredicate vid vrtc p | vrtc@(vid, _) <- EG.vertices grp, p <- predicates grp ]
+    in
+        concatMap findInGroup groups
+
 -- | Gets all the errors in the type graph
 getErrors :: forall info . Show info => TypeGraph info -> [SubstitutionError info]
 getErrors grph =
@@ -814,8 +898,11 @@ getErrors grph =
 
         infiniteErrors :: [SubstitutionError info]
         infiniteErrors = findInfiniteTypes grph
+
+        missingImplementations :: [SubstitutionError info]
+        missingImplementations = findMissingImplementations grph
     in
-        infiniteErrors ++ errTypes
+        infiniteErrors ++ errTypes ++ missingImplementations
 
 -- | All equivalence paths from one vertex to another
 allPaths :: BS.VertexId -> BS.VertexId -> TypeGraph info -> Maybe (P.Path info)
@@ -824,4 +911,5 @@ allPaths l r grph = EG.equalPaths l r <$> getGroupOf l grph
 -- | Get the equality paths between inconsistent types
 inconsistentTypesPaths :: SubstitutionError info -> [P.Path info]
 inconsistentTypesPaths (InfiniteType _ p) = [p]
+inconsistentTypesPaths (MissingImplementation {}) = []
 inconsistentTypesPaths (InconsistentType grp vids) = [EG.equalPaths l r grp | (l, r) <- vids]

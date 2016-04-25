@@ -155,15 +155,17 @@ adjustRankContent youngMark visitedMark groupRank content =
 
 -- | Invokes the type graph if errors are found.
 invokeTypeGraph :: TypeConstraint -> TS.Solver ()
-invokeTypeGraph constraint = when False $
+invokeTypeGraph constraint =
   do
     errs <- TS.getError
     tgErrs <- TS.getTypeGraphErrors
     when (length errs > tgErrs) $ do
         oldEnv <- TS.getEnv
+        impls <- TS.getImplementations
 
         graph <- TG.fromConstraint constraint
-        TH.applyHeuristics graph
+        let graph' = graph { TG.implementations = impls }
+        TH.applyHeuristics graph'
 
         TS.modifyEnv (const oldEnv)
 

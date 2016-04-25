@@ -22,11 +22,15 @@ type Expr' =
 
 data Def
     = Definition Facts Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical)) (Maybe (A.Located Type.Canonical))
+    deriving (Show)
 
 
 data Facts = Facts
     { dependencies :: [Var.TopLevel]
     }
+
+instance Show Facts where
+    show _ = "Facts"
 
 data InterfaceFunction = InterfaceFunction Var.Canonical (A.Located Type.Canonical)
     deriving (Show)

@@ -23,7 +23,7 @@ data TopLevel = TopLevelVar
     { topHome :: ModuleName.Canonical
     , topName :: String
     }
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 

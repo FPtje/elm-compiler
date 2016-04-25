@@ -58,7 +58,7 @@ undirected (EdgeId l r)
 
 -- Qualified types
 data Predicate =
-      Super T.Super -- To add later: type classes, whatever
+      Super T.Super
     | RecordMembers ExtensionStructure (M.Map String VertexId)
     | PInterface Var.Canonical
     deriving (Eq, Ord, Show)

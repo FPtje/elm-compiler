@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Type.Unify (unify, atomMatchesSuper, ExtensionStructure (..)) where
+module Type.Unify (unify, atomMatchesSuper, ExtensionStructure (..), findImplementation) where
 
 import Control.Monad (zipWithM_)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
@@ -250,10 +250,10 @@ matchesType t impltype =
       (x, y) -> x == y
 
 findImplementation
-    :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
-    -> Var.Canonical
-    -> T.Canonical'
-    -> Maybe (Interface.CanonicalInterface, Interface.CanonicalImplementation)
+    :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)] -- all implementations
+    -> Var.Canonical -- The class of the qualifier
+    -> T.Canonical' -- the type being qualified
+    -> Maybe (Interface.CanonicalInterface, Interface.CanonicalImplementation) -- a matching implementation
 findImplementation impls classref t =
     listToMaybe
     [ imp
@@ -313,7 +313,7 @@ propagateQualifierStructure var term classref =
     let tipe = T.qtype srctp
     case findImplementation impls classref tipe of
       Nothing -> noimplementation classref tipe var
-      Just (_, impl) -> flip mapM_ (Interface.implquals impl) $ propagateDown impl term var
+      Just (_, impl) -> mapM_ (propagateDown impl term var) (Interface.implquals impl)
 
 propagateQualifiers :: Content -> Variable -> Set.Set Var.Canonical -> Unify ()
 propagateQualifiers content var quals =
