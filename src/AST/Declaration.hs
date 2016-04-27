@@ -7,20 +7,23 @@ import qualified AST.Expression.General as General
 import qualified AST.Expression.Source as Source
 import qualified AST.Expression.Valid as Valid
 import qualified AST.Expression.Canonical as Canonical
+import qualified AST.Pattern as Pattern
 import qualified AST.Interface as Interface
 import qualified AST.Variable as Var
 import qualified AST.Type as Type
+import qualified AST.Rule as Rule
 import qualified Reporting.Annotation as A
 
 
 -- DECLARATIONS
 
-data Declaration' port def tipe expr sibling classref typeAnn var
+data Declaration' port def pattern tipe expr sibling rule classref typeAnn var
     = Definition def
     | Datatype String [String] [(String, [tipe])]
     | TypeAlias String [String] tipe
     | Port port
     | Sibling sibling sibling
+    | TypeRule [pattern] [rule]
     | Fixity Assoc Int String
     | IFace (Interface.Interface' classref var typeAnn)
     | Impl (Interface.Implementation' classref var tipe def)
@@ -43,7 +46,7 @@ assocToString assoc =
 -- DECLARATION PHASES
 
 type SourceDecl' =
-  Declaration' SourcePort Source.Def Type.Raw' Source.Expr String (A.Located String) Source.Def String
+  Declaration' SourcePort Source.Def Pattern.RawPattern Type.Raw' Source.Expr String Rule.SourceRule (A.Located String) Source.Def String
 
 
 data SourceDecl
@@ -52,11 +55,11 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw' Valid.Expr String (A.Located Var.Raw) Source.Def Var.Raw)
+  A.Commented (Declaration' ValidPort Valid.Def Pattern.RawPattern Type.Raw' Valid.Expr String Rule.ValidRule (A.Located Var.Raw) Source.Def Var.Raw)
 
 
 type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical' Canonical.Expr Var.Canonical Var.Canonical Canonical.InterfaceFunction Type.Canonical')
+  A.Commented (Declaration' CanonicalPort Canonical.Def Pattern.CanonicalPattern Type.Canonical' Canonical.Expr Var.Canonical Rule.CanonicalRule Var.Canonical Canonical.InterfaceFunction Type.Canonical')
 
 
 -- PORTS

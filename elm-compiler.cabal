@@ -60,6 +60,7 @@ Library
         AST.Module,
         AST.Module.Name,
         AST.Pattern,
+        AST.Rule,
         AST.Type,
         AST.Variable,
         Canonicalize,
