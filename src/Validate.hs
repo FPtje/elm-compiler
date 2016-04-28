@@ -90,7 +90,10 @@ validateDeclsHelp comment (A.A region decl) decls =
         newimpl <- implHelp comment impl
         addRest (D.Impl newimpl)
 
-    D.TypeRule pats rules -> addRest (D.TypeRule pats (typeRuleHelp rules))
+    D.TypeRule pats rules ->
+      do
+        pats' <- mapM validatePattern pats
+        addRest (D.TypeRule pats' (typeRuleHelp rules))
 
     D.Sibling from to ->
         addRest (D.Sibling from to)
