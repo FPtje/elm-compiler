@@ -15,6 +15,7 @@ import qualified AST.Declaration as D
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Interface as Interface
+import qualified AST.Rule as Rule
 import Elm.Utils ((|>))
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Syntax as Error
@@ -89,8 +90,18 @@ validateDeclsHelp comment (A.A region decl) decls =
         newimpl <- implHelp comment impl
         addRest (D.Impl newimpl)
 
+    D.TypeRule pats rules -> addRest (D.TypeRule pats (typeRuleHelp rules))
+
     D.Sibling from to ->
         addRest (D.Sibling from to)
+
+
+typeRuleHelp :: [Rule.SourceRule] -> [Rule.ValidRule]
+typeRuleHelp rs = [A.A rg (toValid r) | (A.A rg r) <- rs]
+  where
+    toValid :: Rule.SourceRule' -> Rule.ValidRule'
+    toValid (Rule.SubRule var) = Rule.SubRule (Var.Raw var)
+    toValid constr = constr { Rule.lhs = Var.Raw (Rule.lhs constr) }
 
 
 ifaceHelp
