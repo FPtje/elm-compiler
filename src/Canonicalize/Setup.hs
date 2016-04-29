@@ -312,7 +312,7 @@ declToPatches moduleName (A.A (region,_) decl) =
           Env.Pattern name (Var.fromModule moduleName name, length args)
   in
   case decl of
-    D.Definition (Valid.Definition pattern _ _) ->
+    D.Definition (Valid.Definition pattern _ _ _) ->
         ( Nothing
         , map (topLevel Env.Value) (P.boundVarList pattern)
         )

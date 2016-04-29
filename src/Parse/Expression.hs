@@ -1,4 +1,4 @@
-module Parse.Expression (term, typeAnnotation, definition, expr) where
+module Parse.Expression (term, typeAnnotation, definition, expr, typerule) where
 
 import qualified Data.List as List
 import Text.Parsec hiding (newline, spaces)
@@ -15,6 +15,7 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Source as Source
 import qualified AST.Literal as L
 import qualified AST.Pattern as P
+import qualified AST.Rule as R
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 
@@ -292,6 +293,70 @@ definition =
         padded equals
         body <- expr
         return . Source.Definition name $ makeFunction args body
+
+
+typeRuleFunc :: IParser [P.RawPattern]
+typeRuleFunc =
+  expecting "A function pattern" $
+  do
+    funcname <-addLocation $ P.Var <$> (var <|> parens symOp)
+    args <- spacePrefix (addLocation $ P.Var <$> lowVar)
+
+    return $ funcname : args
+
+
+subErrorTypeRule :: IParser R.SourceRule
+subErrorTypeRule = addLocation $
+  do
+    try (reserved "suberrors")
+    forcedWS
+    reserved "of"
+    forcedWS
+    v <- lowVar
+    return $ R.SubRule v
+
+constraintTypeRule :: IParser R.SourceRule
+constraintTypeRule = addLocation $
+  do
+    v <- lowVar
+    forcedWS
+    string "/="
+    forcedWS
+    tp <- Type.expr
+    whitespace
+    string ":"
+
+    explanation <- anyUntil $ simpleNewline <|> (eof >> return "\n")
+
+    return $ R.Constraint v tp explanation
+
+typeRuleConstr :: IParser R.SourceRule
+typeRuleConstr =
+  expecting "An error description" $
+  subErrorTypeRule <|> constraintTypeRule
+
+typerule :: IParser Source.Def
+typerule = addLocation $
+  expecting "A description of errors" $
+  do
+      try (reserved "errors")
+      forcedWS
+      reserved "for"
+      forcedWS
+      pats <- typeRuleFunc
+      forcedWS
+      reserved "where"
+      forcedWS
+
+      Indent.withPos $
+        do
+          firstRule <- typeRuleConstr
+          otherRules <-
+              many $ do
+                try (whitespace >> Indent.checkIndent)
+                typeRuleConstr
+
+          return $ Source.TypeRule pats (firstRule : otherRules)
 
 
 makeFunction :: [P.RawPattern] -> Source.Expr -> Source.Expr

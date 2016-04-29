@@ -158,7 +158,7 @@ checkExpression tagDict (A.A region expression) =
         go body
           <* F.traverse_ goDef defs
       where
-        goDef (Canonical.Definition _ pattern@(A.A patRegion _) expr _ _) =
+        goDef (Canonical.Definition _ pattern@(A.A patRegion _) expr _ _ _) =
             checkPatterns tagDict patRegion Error.LetBound [pattern]
             <* go expr
 

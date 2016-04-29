@@ -22,6 +22,7 @@ import qualified AST.Pattern as P
 import qualified AST.Type as Type
 import qualified AST.Interface as Interface
 import qualified AST.Variable as Var
+import qualified AST.Rule as Rule
 import qualified Docs.AST as Docs
 import qualified Docs.Centralize as Docs
 import qualified Reporting.Annotation as A
@@ -340,7 +341,7 @@ splitLocatedValue (A.A region value) =
 declToValue :: D.ValidDecl -> [Var.Value]
 declToValue (A.A _ decl) =
     case decl of
-      D.Definition (Valid.Definition pattern _ _) ->
+      D.Definition (Valid.Definition pattern _ _ _) ->
           map Var.Value (P.boundVarList pattern)
 
       D.Datatype name _tvs ctors ->
@@ -356,17 +357,63 @@ declToValue (A.A _ decl) =
 
       _ -> []
 
+checkTyperuletype'
+    :: Env.Environment
+    -> Region.Region
+    -> Type.Canonical'
+    -> Result.ResultErr Type.Canonical'
+checkTyperuletype' env rg typ =
+  let
+    vars :: [String]
+    vars = Type.collectVars' typ
+
+    exists :: String -> a -> Result.ResultErr a
+    exists s rs =
+        case Map.lookup s (Env._values env) of
+            Nothing -> Result.errors [notFound rg (Map.keys $ Env._values env) s]
+            Just _ -> Result.ok rs
+  in
+      Result.foldl exists typ vars
+
+typeRuleConstraint :: Env.Environment -> Type.Canonical -> Rule.ValidRule -> Result.Result (A.Located CError.Error) Rule.CanonicalRule
+typeRuleConstraint env _ (A.A rg (Rule.SubRule (Var.Raw var))) = A.A rg . Rule.SubRule <$> Canonicalize.variable rg env var
+typeRuleConstraint env tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) =
+    let
+      env' = Env.addTypeRuleType tp env
+    in
+
+      Canonicalize.variable rg env' lhs
+        `Result.andThen` \lhs' ->
+            Canonicalize.tipe' env' rhs
+              `Result.andThen` \rhs' ->
+                  checkTyperuletype' env' rg rhs'
+                    `Result.andThen` \rhs'' ->
+                        Result.ok . A.A rg $ Rule.Constraint lhs' rhs'' expl
+
+typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
+typerule env Nothing rule = error "Type should exist when there are type rules"
+typerule env (Just (A.A rg tp)) (Valid.TypeRule pats rules) =
+    Result.map (pattern env) pats
+      `Result.andThen` \pats' ->
+        let patEnv = foldr Env.addPattern env (tail pats) -- Don't include the function names
+        in Result.map (typeRuleConstraint patEnv tp) rules
+          `Result.andThen` \constrs ->
+              Result.ok $ Canonical.TypeRule pats' constrs
 
 definition
     :: Env.Environment
     -> Valid.Def
     -> Result.ResultErr Canonical.Def
-definition env (Valid.Definition pat expr typ) =
-    Canonical.Definition Canonical.dummyFacts
-      <$> pattern env pat
-      <*> expression env expr
-      <*> T.traverse (regionType env) typ
-      <*> pure Nothing
+definition env (Valid.Definition pat expr typ rules) =
+    T.traverse (regionType env) typ
+      `Result.andThen` \tp ->
+
+        Canonical.Definition Canonical.dummyFacts
+          <$> pattern env pat
+          <*> expression env expr
+          <*> pure tp
+          <*> pure Nothing
+          <*> Result.map (typerule env tp) rules
 
 declaration
     :: ModuleName.Canonical
@@ -462,7 +509,7 @@ insertInterfaceType
     -> Type.Canonical' -- implementation type
     -> Canonical.Def
     -> Result.ResultErr Canonical.Def
-insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@(A.A drg (P.Var name)) expr typ _) =
+insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@(A.A drg (P.Var name)) expr typ _ rules) =
   let
     (ifvar, interface) = Map.findWithDefault (error "Interface doesn't exist, this check was already made somewhere") classref (Env._interfaces env)
     typeAnns = [A.A rg tpe | A.A rg (Source.TypeAnnotation nm tpe) <- Interface.decls interface, nm == name]
@@ -471,7 +518,7 @@ insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@
   in
     Canonicalize.tipe env typeAnn
       `Result.andThen`
-        \newtipe -> Result.ok $ Canonical.Definition facts pat expr typ (Just (A.A tprg (Type.addQualifiers (Type.substitute (Type.Var interfaceVar) impltype newtipe) quals)))
+        \newtipe -> Result.ok $ Canonical.Definition facts pat expr typ (Just (A.A tprg (Type.addQualifiers (Type.substitute (Type.Var interfaceVar) impltype newtipe) quals))) rules
 
 
 interfaceDeclaration
@@ -562,14 +609,15 @@ expression env (A.A region validExpr) =
           Let <$> T.traverse rename' defs <*> expression env' body
         where
           env' =
-              foldr Env.addPattern env $ map (\(Valid.Definition p _ _) -> p) defs
+              foldr Env.addPattern env $ map (\(Valid.Definition p _ _ _) -> p) defs
 
-          rename' (Valid.Definition p body mtipe) =
+          rename' (Valid.Definition p body mtipe _) =
               Canonical.Definition Canonical.dummyFacts
                   <$> pattern env' p
                   <*> expression env' body
                   <*> T.traverse (regionType env') mtipe
                   <*> pure Nothing
+                  <*> pure []
 
       Var (Var.Raw x) ->
           Var <$> Canonicalize.variable region env x

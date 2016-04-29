@@ -35,7 +35,7 @@ warnMissingAnnotation
     -> Result.Result Warning.Warning Error.Error ()
 warnMissingAnnotation typeEnv (A.A (region,_) decl) =
   case decl of
-    Decl.Definition (Valid.Definition (A.A _ (P.Var name)) _ Nothing) ->
+    Decl.Definition (Valid.Definition (A.A _ (P.Var name)) _ Nothing _) ->
         case Map.lookup name typeEnv of
           Nothing ->
               return ()
@@ -53,7 +53,7 @@ checkMainType
     -> Result.Result w Error.Error ()
 checkMainType typeEnv decls =
     case decls of
-      A.A (region,_) (Decl.Definition (Valid.Definition (A.A _ (P.Var "main")) _ _)) : _ ->
+      A.A (region,_) (Decl.Definition (Valid.Definition (A.A _ (P.Var "main")) _ _ _)) : _ ->
           case Map.lookup "main" typeEnv of
             Nothing ->
                 return ()

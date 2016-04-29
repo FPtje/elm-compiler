@@ -48,6 +48,26 @@ addPattern pattern env =
       addPatches patches env
 
 
+addTypeRuleType :: Type.Canonical -> Environment -> Environment
+addTypeRuleType tp env =
+  let
+    vars :: [String]
+    vars = Type.collectVars tp
+
+    collectPatches :: Map.Map String Int -> [String] -> [Patch]
+    collectPatches _ [] = []
+    collectPatches mp (s : ss) =
+      let
+        num = (Map.findWithDefault 0 s mp) + 1
+        mp' = Map.insert s num mp
+        s' = s ++ "_" ++ show num
+      in
+        Value s' (Var.local s') : collectPatches mp' ss
+
+  in
+    addPatches (collectPatches Map.empty vars) env
+
+
 -- PATCHES
 
 data Patch

@@ -90,10 +90,10 @@ validateDeclsHelp comment (A.A region decl) decls =
         newimpl <- implHelp comment impl
         addRest (D.Impl newimpl)
 
-    D.TypeRule pats rules ->
+    {-D.TypeRule pats rules ->
       do
         pats' <- mapM validatePattern pats
-        addRest (D.TypeRule pats' (typeRuleHelp rules))
+        addRest (D.TypeRule pats' (typeRuleHelp rules))-}
 
     D.Sibling from to ->
         addRest (D.Sibling from to)
@@ -155,9 +155,12 @@ defHelp comment (A.A region def) decls =
   case def of
     Source.Definition pat expr ->
         do  expr' <- expression expr
-            let def' = Valid.Definition pat expr' Nothing
+            let def' = Valid.Definition pat expr' Nothing []
             checkDefinition def'
             addRest def' decls
+
+    Source.TypeRule ((A.A _ (Pattern.Var name)) : _) _ ->
+        Result.throw region (Error.TypeRuleNotBetweenTypeAndDef name)
 
     Source.TypeAnnotation name tipe ->
         case decls of
@@ -165,9 +168,23 @@ defHelp comment (A.A region def) decls =
             (Source.Definition pat@(A.A _ (Pattern.Var name')) expr)))) : rest
               | name == name' ->
                   do  expr' <- expression expr
-                      let def' = Valid.Definition pat expr' (Just tipe)
+                      let def' = Valid.Definition pat expr' (Just tipe) []
                       checkDefinition def'
                       addRest def' rest
+
+          D.Decl (A.A _ (D.Definition (A.A _ (Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules)))) : rest
+              | name == name' ->
+                  case rest of
+                    D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name'')) expr)))) : rest'
+                        | name == name'' ->
+                            do
+                              pats' <- mapM validatePattern pats
+                              expr' <- expression expr
+                              let rule = Valid.TypeRule pats' (typeRuleHelp rules)
+                              let def' = Valid.Definition pat expr' (Just tipe) [rule]
+                              addRest def' rest'
+
+                    _ -> Result.throw region (Error.TypeWithoutDefinition name)
 
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
@@ -207,7 +224,7 @@ portHelp comment region port decls =
 definitions :: [Source.Def] -> Result.Result wrn Error.Error [Valid.Def]
 definitions sourceDefs =
   do  validDefs <- definitionsHelp sourceDefs
-      let patterns = map (\(Valid.Definition p _ _) -> p) validDefs
+      let patterns = map (\(Valid.Definition p _ _ _) -> p) validDefs
       defDuplicates patterns
       return validDefs
 
@@ -220,7 +237,7 @@ definitionsHelp sourceDefs =
 
     A.A _ (Source.Definition pat expr) : rest ->
         do  expr' <- expression expr
-            let def = Valid.Definition pat expr' Nothing
+            let def = Valid.Definition pat expr' Nothing []
             checkDefinition def
             (:) def <$> definitionsHelp rest
 
@@ -229,16 +246,19 @@ definitionsHelp sourceDefs =
           A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr) : rest'
               | name == name' ->
                   do  expr' <- expression expr
-                      let def = Valid.Definition pat expr' (Just tipe)
+                      let def = Valid.Definition pat expr' (Just tipe) []
                       checkDefinition def
                       (:) def <$> definitionsHelp rest'
 
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
 
+    A.A region (Source.TypeRule _ _) : _ ->
+        Result.throw region Error.TypeRuleNotTopLevel
+
 
 checkDefinition :: Valid.Def -> Result.Result wrn Error.Error ()
-checkDefinition (Valid.Definition pattern body _) =
+checkDefinition (Valid.Definition pattern body _ _) =
   case fst (Expr.collectLambdas body) of
     [] ->
         return ()
@@ -415,7 +435,7 @@ declDuplicates decls =
 extractValues :: D.ValidDecl -> ([A.Located String], [A.Located String], [A.Located String])
 extractValues (A.A (region, _) decl) =
   case decl of
-    D.Definition (Valid.Definition pattern _ _) ->
+    D.Definition (Valid.Definition pattern _ _ _) ->
         ( Pattern.boundVars pattern
         , []
         , []

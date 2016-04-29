@@ -17,6 +17,8 @@ data Error
     | BadPattern String
     | InfixDuplicate String
     | TypeWithoutDefinition String
+    | TypeRuleNotBetweenTypeAndDef String
+    | TypeRuleNotTopLevel
     | PortWithoutAnnotation String
     | UnexpectedPort
     | DuplicateFieldName String
@@ -87,6 +89,33 @@ toReport _localizer err =
           ( text $
               "Directly below the type annotation, put a definition like:\n\n"
               ++ "    " ++ valueName ++ " = 42"
+          )
+
+    TypeRuleNotBetweenTypeAndDef valueName ->
+        Report.report
+          "MISPLACED ERROR RULES"
+          Nothing
+          ("The errors for `" ++ valueName ++ "` are not placed between a type signature"
+            ++ " and definition!"
+          )
+          ( text $
+              "Error rules should be placed between the type annotation of a function\n"
+              ++ "and its definition, like this:\n"
+              ++ valueName ++ " : ...\n"
+              ++ "errors for " ++ valueName ++ " ... where\n"
+              ++ "    ...\n\n"
+              ++ valueName ++ " = ..."
+          )
+
+    TypeRuleNotTopLevel ->
+        Report.report
+          "MISPLACED ERROR RULES"
+          Nothing
+          ("Error rules can only defined on the top level."
+          )
+          ( text $
+              "Error rules customise the errors of functions for when they are used incorrectly.\n"
+              ++ "It only makes sense for them to exist globally, because that is when other people use it."
           )
 
     PortWithoutAnnotation portName ->

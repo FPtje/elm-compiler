@@ -5,6 +5,7 @@ import qualified AST.Expression.General as General
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
 import qualified AST.Variable as Var
+import qualified AST.Rule as Rule
 import qualified Reporting.Region as R
 
 
@@ -19,7 +20,7 @@ type Expr =
 type Expr' =
   General.Expr' R.Region Def Var.Raw Type.Raw'
 
+data TypeRule = TypeRule [Pattern.RawPattern] [Rule.ValidRule]
 
 data Def
-    = Definition Pattern.RawPattern Expr (Maybe Type.Raw)
-
+    = Definition Pattern.RawPattern Expr (Maybe Type.Raw) [TypeRule]

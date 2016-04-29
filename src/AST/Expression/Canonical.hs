@@ -4,6 +4,7 @@ module AST.Expression.Canonical where
 import qualified AST.Expression.General as General
 import qualified AST.Pattern as Pattern
 import qualified AST.Type as Type
+import qualified AST.Rule as Rule
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
@@ -19,9 +20,11 @@ type Expr =
 type Expr' =
   General.Expr' R.Region Def Var.Canonical Type.Canonical'
 
+data TypeRule = TypeRule [Pattern.CanonicalPattern] [Rule.CanonicalRule]
+    deriving (Show)
 
 data Def
-    = Definition Facts Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical)) (Maybe (A.Located Type.Canonical))
+    = Definition Facts Pattern.CanonicalPattern Expr (Maybe (A.Located Type.Canonical)) (Maybe (A.Located Type.Canonical)) [TypeRule]
     deriving (Show)
 
 

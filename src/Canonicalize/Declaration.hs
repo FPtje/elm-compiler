@@ -90,8 +90,8 @@ toDefs moduleName (A.A (region,_) decl) =
 -- | Change the name of an implementation's declaration
 -- So it doesn't conflict with the
 changeName :: Interface.CanonicalImplementation -> Canonical.Def -> Canonical.Def
-changeName impl (Canonical.Definition facts (A.A rg (P.Var nm)) expr ann clstp@(Just (A.A _ tp))) =
-    Canonical.Definition facts (A.A rg (P.Var ("$" ++ nm ++ "$" ++ show tp ++ "$" ++ show (Interface.impltype impl)))) expr ann clstp
+changeName impl (Canonical.Definition facts (A.A rg (P.Var nm)) expr ann clstp@(Just (A.A _ tp)) rules) =
+    Canonical.Definition facts (A.A rg (P.Var ("$" ++ nm ++ "$" ++ show tp ++ "$" ++ show (Interface.impltype impl)))) expr ann clstp rules
 
 interfaceToDecl
     :: Interface.CanonicalInterface
@@ -122,3 +122,4 @@ definition name expr@(A.A ann _) region tipe =
     expr
     (Just (A.A region tipe))
     Nothing
+    []

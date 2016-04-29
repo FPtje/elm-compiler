@@ -6,6 +6,7 @@ module AST.Type
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
     , collectLambdas, collectLambdas'
+    , collectVars, collectVars'
     , tuple
     , substitute, substitute'
     , unqualified
@@ -206,6 +207,21 @@ collectLambdas' tipe =
     _ ->
         [tipe]
 
+-- COLLECT TYPE VARIABLES
+collectVars' :: Canonical' -> [String]
+collectVars' tipe =
+  case tipe of
+    Lambda from to -> collectVars' from ++ collectVars' to
+    Var name -> [name]
+    Type _ -> []
+    App dt args -> collectVars' dt ++ concatMap collectVars' args
+    Record members Nothing -> concatMap (collectVars' . snd) members
+    Record members (Just base) -> concatMap (collectVars' . snd) members ++ collectVars' base
+    Aliased _ things (Holey base) -> concatMap (collectVars' . snd) things ++ collectVars' base
+    Aliased _ things (Filled base) -> concatMap (collectVars' . snd) things ++ collectVars' base
+
+collectVars :: Canonical -> [String]
+collectVars = collectVars' . qtype
 
 
 -- BINARY

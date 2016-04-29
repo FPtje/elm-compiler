@@ -1,13 +1,11 @@
 {-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 module Parse.Declaration where
 
-import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try, many, eof )
+import Text.Parsec ( (<|>), (<?>), choice, digit, optionMaybe, string, try, many )
 
 import qualified AST.Declaration as D
 import qualified AST.Interface as IF
 import qualified Parse.Expression as Expr
-import qualified AST.Pattern as P
-import qualified AST.Rule as R
 import Parse.Helpers as Help
 import qualified Parse.Type as Type
 import qualified Text.Parsec.Indent as Indent
@@ -17,7 +15,7 @@ declaration :: IParser D.SourceDecl
 declaration =
   choice
     [ D.Comment <$> Help.docComment
-    , D.Decl <$> addLocation (implementation <|> interface <|> typerules <|> typeDecl <|> infixDecl <|> port <|> sibling <|> definition)
+    , D.Decl <$> addLocation (implementation <|> interface <|> typeDecl <|> infixDecl <|> port <|> sibling <|> definition)
     ]
 
 
@@ -26,7 +24,7 @@ declaration =
 definition :: IParser D.SourceDecl'
 definition =
   D.Definition
-    <$> (Expr.typeAnnotation <|> Expr.definition)
+    <$> (Expr.typeAnnotation <|> Expr.definition <|> Expr.typerule)
     <?> "a value definition"
 
 
@@ -103,70 +101,6 @@ sibling =
       forcedWS
       to <- (anyOp <|> qualifiedVar)
       return $ D.Sibling from to
-
-
-typeRuleFunc :: IParser [P.RawPattern]
-typeRuleFunc =
-  expecting "A function pattern" $
-  do
-    funcname <-addLocation $ P.Var <$> (var <|> parens symOp)
-    args <- spacePrefix (addLocation $ P.Var <$> lowVar)
-
-    return $ funcname : args
-
-
-subErrorTypeRule :: IParser R.SourceRule
-subErrorTypeRule = addLocation $
-  do
-    try (reserved "suberrors")
-    forcedWS
-    reserved "of"
-    forcedWS
-    v <- lowVar
-    return $ R.SubRule v
-
-constraintTypeRule :: IParser R.SourceRule
-constraintTypeRule = addLocation $
-  do
-    v <- lowVar
-    forcedWS
-    string "/="
-    forcedWS
-    tp <- Type.expr
-    whitespace
-    string ":"
-
-    explanation <- anyUntil $ simpleNewline <|> (eof >> return "\n")
-
-    return $ R.Constraint v tp explanation
-
-typeRuleConstr :: IParser R.SourceRule
-typeRuleConstr =
-  expecting "An error description" $
-  subErrorTypeRule <|> constraintTypeRule
-
-typerules :: IParser D.SourceDecl'
-typerules =
-  expecting "A description of errors" $
-  do
-      try (reserved "errors")
-      forcedWS
-      reserved "for"
-      forcedWS
-      pats <- typeRuleFunc
-      forcedWS
-      reserved "where"
-      forcedWS
-
-      Indent.withPos $
-        do
-          firstRule <- typeRuleConstr
-          otherRules <-
-              many $ do
-                try (whitespace >> Indent.checkIndent)
-                typeRuleConstr
-
-          return $ D.TypeRule pats (firstRule : otherRules)
 
 interface :: IParser D.SourceDecl'
 interface =
