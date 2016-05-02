@@ -373,7 +373,7 @@ checkTyperuletype' env rg typ =
     exists :: String -> a -> Result.ResultErr a
     exists s rs =
         case Map.lookup s (Env._values env) of
-            Nothing -> Result.errors [notFound rg (Map.keys $ Env._values env) s]
+            Nothing -> Result.errors [A.A rg $ CError.variable "parameter" s CError.ExposedUnknown (ErrorHelp.nearbyNames id s $ Map.keys $ Env._values env)]
             Just _ -> Result.ok rs
   in
       Result.foldl exists typ vars

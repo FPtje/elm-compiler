@@ -5,6 +5,7 @@ module Type.Environment
     , getType, freshDataScheme, ctorNames
     , addValues
     , instantiateType
+    , _rules
     )
     where
 
