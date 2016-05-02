@@ -151,7 +151,7 @@ data TrustFactor
     | Literal
     | Annotation
     | BuiltInVar
-    | CustomError
+    | CustomError Int
     | ModuleVar
     | TopLevelVar
     | LocalVar
@@ -382,7 +382,7 @@ trustValuation Pattern          = 200
 trustValuation Literal          = 800
 trustValuation Annotation       = 500
 trustValuation BuiltInVar       = 1000
-trustValuation CustomError      = 0 -- Lowest trust factor
+trustValuation (CustomError i)  = 10 - i -- Lowest trust factor
 trustValuation ModuleVar        = 700
 trustValuation TopLevelVar      = 400
 trustValuation LocalVar         = 300

@@ -208,17 +208,17 @@ applyCustomTypeRule
     -> [Canonical.Expr]
     -> Type
     -> [P.CanonicalPattern]
-    -> (Map.Map String Variable, TypeConstraint)
+    -> (Int, Map.Map String Variable, TypeConstraint) -- the int being the counter of the rules
     -> Rule.CanonicalRule
-    -> IO (Map.Map String Variable, TypeConstraint)
-applyCustomTypeRule env region f args tipe pats (varmap, constr) (A.A _ rule) =
+    -> IO (Int, Map.Map String Variable, TypeConstraint)
+applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.A _ rule) =
     case rule of
       Rule.SubRule var ->
         case V.toString var of
           "return" ->
             do
               let (Just returnVar) = Map.lookup "return" varmap
-              return (varmap, constr /\ CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType)
+              return (ruleNumber + 1, varmap, constr /\ CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType)
           name ->
             do
               let (Just argVar) = Map.lookup name varmap
@@ -229,7 +229,7 @@ applyCustomTypeRule env region f args tipe pats (varmap, constr) (A.A _ rule) =
               -- TODO: Is FunctionArity really not necessary or is that my imagination
               varConstr <- constrain env expr (ST.unqualified $ VarN argVar)
 
-              return (varmap, constr /\ varConstr)
+              return (ruleNumber + 1, varmap, constr /\ varConstr)
       Rule.Constraint lhs rhs expl ->
         do
           (vars, rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
@@ -241,7 +241,7 @@ applyCustomTypeRule env region f args tipe pats (varmap, constr) (A.A _ rule) =
                     Just var -> var
                     Nothing -> error $ "Houston... " ++ show (V.toString lhs)
 
-          return (varmap', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT CustomError)
+          return (ruleNumber + 1, varmap', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
   where
     findArgIndex :: V.Canonical -> [P.CanonicalPattern] -> Int -> Int
     findArgIndex var [] _ = error $ "Parameter " ++ V.toString var ++ " does not occur in parameter list!"
@@ -260,10 +260,9 @@ constrainOverriddenApp
 constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
     do
       varmap <- foldM mkVarFromString Map.empty (tail pats ++ [A.A undefined $ P.Var "return"])
-      (vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (varmap, CTrue) rules
+      (_, vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (0, varmap, CTrue) rules
 
-      -- TODO: Something with vars?
-      return rconstraints
+      return $ ex (Map.elems vars) rconstraints
   where
       mkVarFromString :: Map.Map String Variable -> P.CanonicalPattern -> IO (Map.Map String Variable)
       mkVarFromString varmap (A.A _ (P.Var name)) =
