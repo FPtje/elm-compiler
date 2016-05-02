@@ -2,6 +2,7 @@
 module Type.Constrain.Expression where
 
 import Control.Arrow (second)
+import Control.Monad (foldM)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
 
@@ -9,6 +10,7 @@ import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Literal as Lit
 import qualified AST.Pattern as P
+import qualified AST.Rule as Rule
 import qualified AST.Type as ST
 import qualified AST.Variable as V
 import qualified Reporting.Annotation as A
@@ -94,7 +96,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           let
             (f:args) = E.collectApps annotatedExpr
           in
-            constrainApp env region f args tipe
+            constrainApp' env region f args tipe
 
       E.If branches finally ->
           constrainIf env region branches finally tipe
@@ -181,22 +183,117 @@ constrainApp env region f args tipe =
       funcCon <- constrain env f (ST.unqualified $ VarN funcVar)
 
       (vars, argCons, numberOfArgsCons, argMatchCons, _, returnVar) <-
-          argConstraints env maybeName region (length args) funcVar 1 args
+          argConstraints env (maybeName f) region (length args) funcVar 1 args
 
       let returnCon =
-            CEqual (Error.Function maybeName) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType
+            CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType
 
       return $ ex (funcVar : vars) $
         CAnd (funcCon : argCons ++ numberOfArgsCons ++ argMatchCons ++ [returnCon])
+
+
+maybeName :: Canonical.Expr -> Maybe V.Canonical
+maybeName f =
+  case f of
+    A.A _ (E.Var canonicalName) ->
+        Just canonicalName
+
+    _ ->
+      Nothing
+
+applyCustomTypeRule
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [Canonical.Expr]
+    -> Type
+    -> [P.CanonicalPattern]
+    -> (Map.Map String Variable, TypeConstraint)
+    -> Rule.CanonicalRule
+    -> IO (Map.Map String Variable, TypeConstraint)
+applyCustomTypeRule env region f args tipe pats (varmap, constr) (A.A _ rule) =
+    case rule of
+      Rule.SubRule var ->
+        case V.toString var of
+          "return" ->
+            do
+              let (Just returnVar) = Map.lookup "return" varmap
+              return (varmap, constr /\ CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType)
+          name ->
+            do
+              let (Just argVar) = Map.lookup name varmap
+
+              let exprIx = findArgIndex var (tail pats) 0
+              let expr = args !! exprIx
+
+              -- TODO: Is FunctionArity really not necessary or is that my imagination
+              varConstr <- constrain env expr (ST.unqualified $ VarN argVar)
+
+              return (varmap, constr /\ varConstr)
+      Rule.Constraint lhs rhs expl ->
+        do
+          (vars, rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
+
+          let varmap' = Map.union varmap vars
+
+          let lhsT =
+                case Map.lookup (V.toString lhs) varmap of
+                    Just var -> var
+                    Nothing -> error $ "Houston... " ++ show (V.toString lhs)
+
+          return (varmap', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT CustomError)
   where
-    maybeName =
-      case f of
-        A.A _ (E.Var canonicalName) ->
-            Just canonicalName
+    findArgIndex :: V.Canonical -> [P.CanonicalPattern] -> Int -> Int
+    findArgIndex var [] _ = error $ "Parameter " ++ V.toString var ++ " does not occur in parameter list!"
+    findArgIndex var ((A.A _ (P.Var s)) : ps) i
+        | V.toString var == s = i
+        | otherwise = findArgIndex var ps (i + 1)
 
-        _ ->
-          Nothing
+constrainOverriddenApp
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [Canonical.Expr]
+    -> Type
+    -> Canonical.TypeRule
+    -> IO TypeConstraint
+constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
+    do
+      varmap <- foldM mkVarFromString Map.empty (tail pats ++ [A.A undefined $ P.Var "return"])
+      (vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (varmap, CTrue) rules
 
+      -- TODO: Something with vars?
+      return rconstraints
+  where
+      mkVarFromString :: Map.Map String Variable -> P.CanonicalPattern -> IO (Map.Map String Variable)
+      mkVarFromString varmap (A.A _ (P.Var name)) =
+        do
+          var <- mkVar Nothing
+
+          return $ Map.insert name var varmap
+
+constrainApp'
+    :: Env.Environment
+    -> R.Region
+    -> Canonical.Expr
+    -> [Canonical.Expr]
+    -> Type
+    -> IO TypeConstraint
+constrainApp' env region f@(A.A _ expr) args tipe =
+  case expr of
+    -- The thing applied is a variable that might have type rules
+    E.Var name ->
+      case Map.lookup (V.toString name) (Env._rules env) of
+          Nothing -> constrainApp env region f args tipe
+          Just rules ->
+            -- The amount of arguments given in the type application must match
+            -- the amount of arguments in the type rule
+            case [ rule | rule@(Canonical.TypeRule pats _) <- rules, length args == (length pats - 1) ] of
+              -- No fitting rules
+              [] -> constrainApp env region f args tipe
+              [rule] -> constrainOverriddenApp env region f args tipe rule
+              _ -> error "Multiple rules fit this thing. That shouldn't happen!"
+    _ -> constrainApp env region f args tipe
 
 argConstraints
     :: Env.Environment
@@ -535,10 +632,13 @@ constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interf
 
       let env' = Env.addValues env (zip qs flexiVars)
 
-      (vars, typ) <- Env.instantiateType env tipe Map.empty
-      (ifvars, iftyp) <- case interfaceType of
-            Nothing -> return ([], undefined)
+      (vars', typ) <- Env.instantiateType env tipe Map.empty
+      (ifvars', iftyp) <- case interfaceType of
+            Nothing -> return (Map.empty, undefined)
             Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
+
+      let ifvars = Map.elems ifvars'
+      let vars = Map.elems vars'
 
       mapM mkVarRigid ifvars
 
@@ -590,9 +690,11 @@ constrainUnannotatedDef env info qs patternRegion name expr interfaceType =
 
       let env' = Env.addValues env (zip qs rigidVars)
 
-      (ifvars, iftyp) <- case interfaceType of
-            Nothing -> return ([], undefined)
+      (ifvars', iftyp) <- case interfaceType of
+            Nothing -> return (Map.empty, undefined)
             Just (A.A _ tp) -> Env.instantiateType env tp Map.empty
+
+      let ifvars = Map.elems ifvars'
 
       mapM mkVarRigid ifvars
       con <- constrain env' expr tipe

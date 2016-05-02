@@ -109,10 +109,10 @@ canonicalizeValues
     -> IO [(String, ([T.Variable], T.Type))]
 canonicalizeValues env (moduleName, iface) =
     forM (Map.toList (iTypes iface)) $ \(name,tipe) ->
-        do  tipe' <- Env.instantiateType env tipe Map.empty
+        do  (vars, tipe') <- Env.instantiateType env tipe Map.empty
             return
               ( ModuleName.canonicalToString moduleName ++ "." ++ name
-              , tipe'
+              , (Map.elems vars, tipe')
               )
 
 

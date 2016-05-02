@@ -66,6 +66,7 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
+    | CustomError String
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
@@ -332,6 +333,18 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
               "But it is:"
               sibSuggestions
           )
+
+    CustomError explanation ->
+        report
+          Nothing
+          ("WIP error message. TODO. Explanation: " ++ explanation)
+          ( cmpHint
+            ("Expected type:")
+            "Actual type:"
+            sibSuggestions
+          )
+
+
 
     UnexpectedArg maybeName index _totalArgs region ->
         report

@@ -169,10 +169,10 @@ addValues env newValues =
 -- INSTANTIATE TYPES
 
 
-instantiateType :: Environment -> T.Canonical -> VarDict -> IO ([Variable], Type)
+instantiateType :: Environment -> T.Canonical -> VarDict -> IO (VarDict, Type)
 instantiateType env sourceType dict =
   do  (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
-      return (Map.elems dict', tipe)
+      return (dict', tipe)
 
 
 instantiator :: Environment -> T.Canonical -> State.StateT VarDict IO Type
