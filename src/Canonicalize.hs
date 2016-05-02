@@ -398,7 +398,7 @@ typerule env Nothing rule = error "Type should exist when there are type rules"
 typerule env (Just (A.A rg tp)) (Valid.TypeRule pats rules) =
     Result.map (pattern env) pats
       `Result.andThen` \pats' ->
-        let patEnv = foldr Env.addPattern env (tail pats) -- Don't include the function names
+        let patEnv = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
         in Result.map (typeRuleConstraint patEnv tp) rules
           `Result.andThen` \constrs ->
               Result.ok $ Canonical.TypeRule pats' constrs
