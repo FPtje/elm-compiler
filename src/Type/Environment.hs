@@ -16,6 +16,7 @@ import qualified Data.Set as Set
 
 import qualified AST.Type as T
 import qualified AST.Variable as V
+import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
 import Control.Arrow (second)
 import Type.Type
@@ -23,23 +24,26 @@ import Type.Type
 
 type TypeDict = Map.Map String Type
 type VarDict = Map.Map String Variable
+type RulesDict = Map.Map String [Canonical.TypeRule]
 
 
 data Environment = Environment
     { _constructor :: Map.Map String (IO (Int, [Variable], [TermN Variable], TermN Variable))
     , _types :: TypeDict
     , _value :: TypeDict
+    , _rules :: RulesDict
     }
 
 
-initialize :: [Module.CanonicalAdt] -> IO Environment
-initialize datatypes =
+initialize :: [Module.CanonicalAdt] -> RulesDict -> IO Environment
+initialize datatypes rules =
   do  types <- makeTypes datatypes
       let env =
             Environment
               { _constructor = Map.empty
               , _value = Map.empty
               , _types = types
+              , _rules = rules
               }
       return $ env { _constructor = makeConstructors env datatypes }
 

@@ -81,7 +81,7 @@ genConstraints
     -> Module.CanonicalModule
     -> IO (Map.Map String T.Type, T.TypeConstraint)
 genConstraints interfaces modul =
-  do  env <- Env.initialize (canonicalizeAdts interfaces modul)
+  do  env <- Env.initialize (canonicalizeAdts interfaces modul) (typeRules . body $ modul)
 
       ctors <-
           forM (Env.ctorNames env) $ \name ->

@@ -145,6 +145,9 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
           , implementations =
               [ (getMatchingIFace ifces i, i) | D.Impl i <- nakedDecls ]
 
+          , typeRules =
+              Map.fromList [ (name, rules) | D.Definition (Canonical.Definition _ (A.A _ (P.Var name)) _ _ _ rules) <- nakedDecls, not (null rules) ]
+
           , ports =
               [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
           }

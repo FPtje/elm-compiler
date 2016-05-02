@@ -86,6 +86,7 @@ data Body expr = Body
     , datatypes :: ADTs
     , interfaces :: [Interface.CanonicalInterface]
     , implementations :: [(Interface.CanonicalInterface, Interface.CanonicalImplementation)]
+    , typeRules :: Map.Map String [Canonical.TypeRule]
     , ports     :: [String]
     }
 
