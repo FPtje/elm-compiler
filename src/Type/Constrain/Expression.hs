@@ -236,12 +236,15 @@ applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.
 
           let varmap' = Map.union varmap vars
 
-          let lhsT =
-                case Map.lookup (V.toString lhs) varmap of
-                    Just var -> var
-                    Nothing -> error $ "Houston... " ++ show (V.toString lhs)
+          (lhsT, varmap'') <-
+                case Map.lookup (V.toString lhs) varmap' of
+                    Just var -> return (var, varmap')
+                    Nothing ->
+                      do
+                        var <- mkVar Nothing
+                        return (var, Map.insert (V.toString lhs) var varmap')
 
-          return (ruleNumber + 1, varmap', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
+          return (ruleNumber + 1, varmap'', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
   where
     findArgIndex :: V.Canonical -> [P.CanonicalPattern] -> Int -> Int
     findArgIndex var [] _ = error $ "Parameter " ++ V.toString var ++ " does not occur in parameter list!"
