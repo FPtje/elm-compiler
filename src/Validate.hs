@@ -160,7 +160,7 @@ defHelp comment (A.A region def) decls =
               | name == name'->
               do
                 pats' <- mapM validatePattern pats
-                let rule = Valid.TypeRule pats' (typeRuleHelp rules)
+                let rule = checkRule $ Valid.TypeRule pats' (typeRuleHelp rules)
 
                 typeRuledDef name tipe (rule : valids) rest
             D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr))))
@@ -199,6 +199,36 @@ defHelp comment (A.A region def) decls =
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
 
+-- Checks a rule
+-- For now inserts missing subrules
+checkRule
+    :: Valid.TypeRule
+    -> Valid.TypeRule
+checkRule (Valid.TypeRule pats rules) =
+  let
+    args :: [Pattern.RawPattern]
+    args = tail pats
+
+    ret :: Pattern.RawPattern
+    ret = A.A undefined (Pattern.Var "return")
+
+    ruleCoversPat :: Pattern.RawPattern -> Rule.ValidRule -> Bool
+    ruleCoversPat (A.A _ (Pattern.Var pat)) (A.A _ (Rule.SubRule (Var.Raw var))) = var == pat
+    ruleCoversPat _ _ = False
+
+    patIsCovered :: [Rule.ValidRule] -> Pattern.RawPattern -> Bool
+    patIsCovered rules pat = any (ruleCoversPat pat) rules
+
+    patToRule :: Pattern.RawPattern -> Rule.ValidRule
+    patToRule (A.A rg (Pattern.Var pat)) = A.A rg $ Rule.SubRule (Var.Raw pat)
+
+    missingArgs :: [Rule.ValidRule]
+    missingArgs = map patToRule . filter (patIsCovered rules) $ pats
+
+    missingRet :: [Rule.ValidRule]
+    missingRet = [patToRule ret | not (patIsCovered rules ret)]
+  in
+    Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
 
 -- VALIDATE PORTS IN DECLARATIONS
 
