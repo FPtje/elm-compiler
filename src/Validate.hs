@@ -217,13 +217,13 @@ checkRule (Valid.TypeRule pats rules) =
     ruleCoversPat _ _ = False
 
     patIsCovered :: [Rule.ValidRule] -> Pattern.RawPattern -> Bool
-    patIsCovered rules pat = any (ruleCoversPat pat) rules
+    patIsCovered ruls pat = any (ruleCoversPat pat) ruls
 
     patToRule :: Pattern.RawPattern -> Rule.ValidRule
     patToRule (A.A rg (Pattern.Var pat)) = A.A rg $ Rule.SubRule (Var.Raw pat)
 
     missingArgs :: [Rule.ValidRule]
-    missingArgs = map patToRule . filter (patIsCovered rules) $ pats
+    missingArgs = map patToRule . filter (patIsCovered rules) $ args
 
     missingRet :: [Rule.ValidRule]
     missingRet = [patToRule ret | not (patIsCovered rules ret)]
