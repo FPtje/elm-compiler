@@ -262,17 +262,32 @@ constrainOverriddenApp
     -> IO TypeConstraint
 constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
     do
-      varmap <- foldM mkVarFromString Map.empty (tail pats ++ [A.A undefined $ P.Var "return"])
+      argVars <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
+      varmap <- foldM mkVarFromString Map.empty (zip argVars $ tail pats ++ [A.A undefined $ P.Var "return"])
       (_, vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (0, varmap, CTrue) rules
 
-      return $ ex (Map.elems vars) rconstraints
-  where
-      mkVarFromString :: Map.Map String Variable -> P.CanonicalPattern -> IO (Map.Map String Variable)
-      mkVarFromString varmap (A.A _ (P.Var name)) =
-        do
-          var <- mkVar Nothing
+      (returnVars, returnConstrs) <- mkReturnTypeConstrs 1 (length args) (init argVars) (last argVars) rconstraints
 
+      return $ ex (Map.elems vars ++ returnVars) (rconstraints /\ returnConstrs)
+  where
+      mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
+      mkVarFromString varmap (var, A.A _ (P.Var name)) =
+        do
           return $ Map.insert name var varmap
+
+      mkReturnTypeConstrs :: Int -> Int -> [Variable] -> Variable -> TypeConstraint -> IO ([Variable], TypeConstraint)
+      mkReturnTypeConstrs _ _ [] retVar constr = return ([retVar], constr)
+      mkReturnTypeConstrs index totalArgs (t : ts) retVar constr =
+        do
+          localReturnVar <- mkVar Nothing
+          (rets, constr') <- mkReturnTypeConstrs (index + 1) totalArgs ts localReturnVar constr
+          return (localReturnVar : rets, constr' /\ CEqual
+            (Error.FunctionArity (maybeName f) index totalArgs region)
+            region
+            ((ST.unqualified $ VarN t) ==> (ST.unqualified $ VarN localReturnVar))
+            ((ST.unqualified $ VarN retVar))
+            FunctionArity)
+
 
 constrainApp'
     :: Env.Environment
