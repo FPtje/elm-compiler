@@ -308,9 +308,7 @@ typeRuleFunc =
 subErrorTypeRule :: IParser R.SourceRule
 subErrorTypeRule = addLocation $
   do
-    try (reserved "suberrors")
-    forcedWS
-    reserved "of"
+    try (reserved "constrain")
     forcedWS
     v <- lowVar
     return $ R.SubRule v
@@ -318,13 +316,16 @@ subErrorTypeRule = addLocation $
 constraintTypeRule :: IParser R.SourceRule
 constraintTypeRule = addLocation $
   do
+    reserved "unify"
+    forcedWS
     v <- lowVar
     forcedWS
-    string "/="
+    reserved "with"
     forcedWS
     tp <- Type.expr
-    whitespace
-    string ":"
+    forcedWS
+    reserved "because"
+    forcedWS
 
     explanation <- anyUntil $ simpleNewline <|> (eof >> return "\n")
 

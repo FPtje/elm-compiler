@@ -151,6 +151,25 @@ defHelp comment (A.A region def) decls =
   let addRest def' rest =
         (:) (A.A (region, comment) (D.Definition def'))
           <$> validateDecls Nothing rest
+
+      -- typeRuledDef :: [D.ValidDecl] -> [D.SourceDecl] -> Result.Result wrn ([D.ValidDecl], [D.SourceDecl])
+      typeRuledDef name _ _ [] = Result.throw region (Error.TypeWithoutDefinition name)
+      typeRuledDef name tipe valids (d : rest) =
+          case d of
+            D.Decl (A.A _ (D.Definition (A.A _ (Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules))))
+              | name == name'->
+              do
+                pats' <- mapM validatePattern pats
+                let rule = Valid.TypeRule pats' (typeRuleHelp rules)
+
+                typeRuledDef name tipe (rule : valids) rest
+            D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr))))
+              | name == name' ->
+              do
+                expr' <- expression expr
+                let def' = Valid.Definition pat expr' (Just tipe) valids
+                return (def', rest)
+            _ -> Result.throw region (Error.TypeWithoutDefinition name)
   in
   case def of
     Source.Definition pat expr ->
@@ -172,19 +191,10 @@ defHelp comment (A.A region def) decls =
                       checkDefinition def'
                       addRest def' rest
 
-          D.Decl (A.A _ (D.Definition (A.A _ (Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules)))) : rest
-              | name == name' ->
-                  case rest of
-                    D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name'')) expr)))) : rest'
-                        | name == name'' ->
-                            do
-                              pats' <- mapM validatePattern pats
-                              expr' <- expression expr
-                              let rule = Valid.TypeRule pats' (typeRuleHelp rules)
-                              let def' = Valid.Definition pat expr' (Just tipe) [rule]
-                              addRest def' rest'
-
-                    _ -> Result.throw region (Error.TypeWithoutDefinition name)
+          D.Decl (A.A _ (D.Definition (A.A _ (Source.TypeRule _ _)))) : _ ->
+              do
+                (def', rest) <- typeRuledDef name tipe [] decls
+                addRest def' rest
 
           _ ->
               Result.throw region (Error.TypeWithoutDefinition name)
