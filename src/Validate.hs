@@ -22,7 +22,6 @@ import qualified Reporting.Error.Syntax as Error
 import qualified Reporting.Region as R
 import qualified Reporting.Result as Result
 
-
 -- VALIDATE DECLARATIONS
 
 declarations
@@ -210,7 +209,7 @@ checkRule (Valid.TypeRule pats rules) =
     args = tail pats
 
     ret :: Pattern.RawPattern
-    ret = A.A undefined (Pattern.Var "return")
+    ret =  A.A undefined (Pattern.Var "return")
 
     ruleCoversPat :: Pattern.RawPattern -> Rule.ValidRule -> Bool
     ruleCoversPat (A.A _ (Pattern.Var pat)) (A.A _ (Rule.SubRule (Var.Raw var))) = var == pat
@@ -223,7 +222,7 @@ checkRule (Valid.TypeRule pats rules) =
     patToRule (A.A rg (Pattern.Var pat)) = A.A rg $ Rule.SubRule (Var.Raw pat)
 
     missingArgs :: [Rule.ValidRule]
-    missingArgs = map patToRule . filter (patIsCovered rules) $ args
+    missingArgs = map patToRule . filter (not . patIsCovered rules) $ args
 
     missingRet :: [Rule.ValidRule]
     missingRet = [patToRule ret | not (patIsCovered rules ret)]
