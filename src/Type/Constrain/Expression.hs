@@ -243,7 +243,7 @@ applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.
                         var <- mkVar Nothing
                         return (var, Map.insert (V.toString lhs) var varmap')
 
-          return (ruleNumber + 1, varmap'', constr /\ CEqual (Error.CustomError expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
+          return (ruleNumber + 1, varmap'', constr /\ CEqual (Error.CustomError (maybeName f) expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
   where
     findArgIndex :: V.Canonical -> [P.CanonicalPattern] -> Int -> Int
     findArgIndex var [] _ = error $ "Parameter " ++ V.toString var ++ " does not occur in parameter list!"

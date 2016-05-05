@@ -23,6 +23,7 @@ data Error
     | Export String [String]
     | DuplicateExport String
     | Port PortError
+    | TypeRuleVarInTypeAnnotation String
 
 
 
@@ -159,6 +160,12 @@ toReport localizer err =
               namingError
                 ("Cannot find " ++ var)
                 (Help.maybeYouWant suggestions)
+
+    TypeRuleVarInTypeAnnotation var ->
+        namingError
+          ("Type variable `" ++ var ++ "` appears in both the type annotation and a type rule.")
+          ("If you wish to refer to a type variable in an annotation, append an underscore and a number, like `" ++ var ++ "_1`.\n" ++
+            "If instead you wish to use a fresh type variable, use a name that does not appear in the type annotation.")
 
     Pattern patternError ->
         case patternError of

@@ -66,7 +66,7 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
-    | CustomError String
+    | CustomError (Maybe Var.Canonical) String
     | Function (Maybe Var.Canonical)
     | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
@@ -327,21 +327,21 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
     UnexpectedArg maybeName 1 1 region ->
         report
           (Just region)
-          ("The  argument to " ++ funcName maybeName ++ " is causing a mismatch.")
+          ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
               sibSuggestions
           )
 
-    CustomError explanation ->
+    CustomError maybeName explanation ->
         report
           Nothing
-          ("WIP error message. TODO. Explanation: " ++ explanation)
+          ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
           ( cmpHint
             ("Expected type:")
             "Actual type:"
-            sibSuggestions
+            (("The author of " ++ funcName maybeName ++ " gives the following explanation:" ++ explanation) : sibSuggestions)
           )
 
 

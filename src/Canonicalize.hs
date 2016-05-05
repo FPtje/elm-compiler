@@ -364,17 +364,26 @@ checkTyperuletype'
     :: Env.Environment
     -> Region.Region
     -> Type.Canonical'
+    -> Type.Canonical
     -> Result.ResultErr Type.Canonical'
-checkTyperuletype' env rg typ =
+checkTyperuletype' env rg typ annotation =
   let
     vars :: [String]
     vars = Type.collectVars' typ
 
+    varSet :: Set.Set String
+    varSet = Set.fromList (Type.collectVars annotation)
+
     exists :: String -> a -> Result.ResultErr a
     exists s rs =
-        case Map.lookup s (Env._values env) of
-            Nothing -> Result.errors [A.A rg $ CError.variable "parameter" s CError.ExposedUnknown (ErrorHelp.nearbyNames id s $ Map.keys $ Env._values env)]
-            Just _ -> Result.ok rs
+        if s `Set.member` varSet then
+          Result.errors [A.A rg $ CError.TypeRuleVarInTypeAnnotation s]
+        else if not ('_' `elem` s) then
+          Result.ok rs -- Fresh type variable
+        else
+          case Map.lookup s (Env._values env) of
+              Nothing -> Result.errors [A.A rg $ CError.variable "parameter" s CError.ExposedUnknown (ErrorHelp.nearbyNames id s $ Map.keys $ Env._values env)]
+              Just _ -> Result.ok rs
   in
       Result.foldl exists typ vars
 
@@ -389,13 +398,13 @@ typeRuleConstraint env tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) =
         `Result.andThen` \lhs' ->
             Canonicalize.tipe' env' rhs
               `Result.andThen` \rhs' ->
-                  checkTyperuletype' env' rg rhs'
+                  checkTyperuletype' env' rg rhs' tp
                     `Result.andThen` \rhs'' ->
                         Result.ok . A.A rg $ Rule.Constraint lhs' rhs'' expl
 
 typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
-typerule env Nothing rule = error "Type should exist when there are type rules"
-typerule env (Just (A.A rg tp)) (Valid.TypeRule pats rules) =
+typerule _ Nothing _ = error "Type annotation should exist when there are type rules"
+typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
     Result.map (pattern env) pats
       `Result.andThen` \pats' ->
         let patEnv = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
