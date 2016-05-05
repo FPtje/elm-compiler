@@ -78,7 +78,7 @@ constrain env annotatedExpr@(A.A region expression) tipe =
           constrainList env region exprs tipe
 
       E.Binop op leftExpr rightExpr ->
-          constrainBinop env region op leftExpr rightExpr tipe
+          constrainBinop' env region op leftExpr rightExpr tipe
 
       E.Lambda pattern body ->
           exists $ \argType ->
@@ -226,15 +226,14 @@ applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.
               let exprIx = findArgIndex var (tail pats) 0
               let expr = args !! exprIx
 
-              -- TODO: Is FunctionArity really not necessary or is that my imagination
               varConstr <- constrain env expr (ST.unqualified $ VarN argVar)
 
               return (ruleNumber + 1, varmap, constr /\ varConstr)
       Rule.Constraint lhs rhs expl ->
         do
-          (vars, rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
+          (varmap', rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
 
-          let varmap' = Map.union varmap vars
+          -- let varmap' = Map.union varmap vars
 
           (lhsT, varmap'') <-
                 case Map.lookup (V.toString lhs) varmap' of
@@ -262,13 +261,16 @@ constrainOverriddenApp
     -> IO TypeConstraint
 constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
     do
+      funcVar <- mkVar Nothing
+
       argVars <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
       varmap <- foldM mkVarFromString Map.empty (zip argVars $ tail pats ++ [A.A undefined $ P.Var "return"])
+
       (_, vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (0, varmap, CTrue) rules
 
-      (returnVars, returnConstrs) <- mkReturnTypeConstrs 1 (length args) (init argVars) (last argVars) rconstraints
+      (returnVars, returnConstrs) <- mkReturnTypeConstrs 1 (length args) (init argVars) funcVar rconstraints
 
-      return $ ex (Map.elems vars ++ returnVars) (rconstraints /\ returnConstrs)
+      return $ ex (funcVar : Map.elems vars ++ returnVars) returnConstrs
   where
       mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
       mkVarFromString varmap (var, A.A _ (P.Var name)) =
@@ -276,8 +278,8 @@ constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
           return $ Map.insert name var varmap
 
       mkReturnTypeConstrs :: Int -> Int -> [Variable] -> Variable -> TypeConstraint -> IO ([Variable], TypeConstraint)
-      mkReturnTypeConstrs _ _ [] retVar constr = return ([retVar], constr)
-      mkReturnTypeConstrs index totalArgs (t : ts) retVar constr =
+      mkReturnTypeConstrs _ _ [] _ constr = return ([], constr)
+      mkReturnTypeConstrs index totalArgs (t : ts) funcVar constr =
         do
           localReturnVar <- mkVar Nothing
           (rets, constr') <- mkReturnTypeConstrs (index + 1) totalArgs ts localReturnVar constr
@@ -285,7 +287,7 @@ constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
             (Error.FunctionArity (maybeName f) index totalArgs region)
             region
             ((ST.unqualified $ VarN t) ==> (ST.unqualified $ VarN localReturnVar))
-            ((ST.unqualified $ VarN retVar))
+            ((ST.unqualified $ VarN funcVar))
             FunctionArity)
 
 
@@ -364,7 +366,26 @@ argConstraints env name region totalArgs overallVar index args =
             )
 
 
-
+constrainBinop'
+    :: Env.Environment
+    -> R.Region
+    -> V.Canonical
+    -> Canonical.Expr
+    -> Canonical.Expr
+    -> Type
+    -> IO TypeConstraint
+constrainBinop' env region op leftExpr rightExpr tipe =
+    -- The thing applied is a variable that might have type rules
+    case Map.lookup (V.toString op) (Env._rules env) of
+        Nothing -> constrainBinop env region op leftExpr rightExpr tipe
+        Just rules ->
+          -- The amount of arguments given in the type application must match
+          -- the amount of arguments in the type rule
+          case [ rule | rule@(Canonical.TypeRule pats _) <- rules, (length pats - 1) == 2 ] of
+            -- No fitting rules
+            [] -> constrainBinop env region op leftExpr rightExpr tipe
+            [rule] -> constrainOverriddenApp env region (A.A region (E.Var op)) [leftExpr, rightExpr] tipe rule
+            _ -> error "Multiple rules fit this thing. That shouldn't happen!"
 
 -- CONSTRAIN BINOP
 

@@ -184,7 +184,7 @@ data Constraint a b
 instance (Show a, Show b) => Show (Constraint a b) where
   show CTrue = "CTrue"
   show CSaveEnv = "CSaveEnv"
-  show (CEqual h _ l r trust) = "CEqual " ++ (show h) ++ " {ltype: " ++ show l ++ ", rtype: " ++ show r ++ "}" ++  show trust
+  show (CEqual h _ l r trust) = "CEqual " ++ (show h) ++ {-" {ltype: " ++ show l ++ ", rtype: " ++ show r ++ "}" ++-}  show trust
   show (CAnd cs) = "CAnd {" ++ (concat . List.intersperse ", " . map show $ cs) ++ "}"
   show (CLet schs constr) = "CLet (" ++ show schs ++ ". CLetConstr: (" ++ show constr ++ "))"
   show (CInstance _ name val trust) = "CInstance " ++ name ++ " val: " ++ show val ++ show trust
