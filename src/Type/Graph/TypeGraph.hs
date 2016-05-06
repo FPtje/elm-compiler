@@ -394,9 +394,9 @@ updateFuncMap var grph = grph {funcMap = M.insert (Var.toString var) var (funcMa
 updatefuncMapHint :: Error.Hint -> TypeGraph a -> TypeGraph a
 updatefuncMapHint (Error.BinopLeft v _) grph = updateFuncMap v grph
 updatefuncMapHint (Error.BinopRight v _) grph = updateFuncMap v grph
-updatefuncMapHint (Error.UnexpectedArg (Just v) _ _ _) grph = updateFuncMap v grph
+updatefuncMapHint (Error.UnexpectedArg (Just v) _ _ _ _) grph = updateFuncMap v grph
 updatefuncMapHint (Error.FunctionArity (Just v) _ _ _) grph = updateFuncMap v grph
-updatefuncMapHint (Error.Function (Just v)) grph = updateFuncMap v grph
+updatefuncMapHint (Error.Function (Just v) _) grph = updateFuncMap v grph
 updatefuncMapHint _ grph = grph
 
 -- | Generate a type graph from a constraint

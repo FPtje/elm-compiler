@@ -2,7 +2,7 @@
 module Reporting.Error.Helpers
   ( (|>)
   , functionName, hintLink, stack, reflowParagraph
-  , commaSep, capitalize, ordinalize, drawCycle
+  , commaSep, capitalize, ordinalize, ordinalizeList, drawCycle
   , findPotentialTypos, vetTypos
   , nearbyNames, distance, maybeYouWant
   )
@@ -117,6 +117,16 @@ ordinalize number =
   in
     show number ++ ending
 
+ordinalizeList :: [Int] -> String
+ordinalizeList lst =
+  let
+    ordinalized :: [String]
+    ordinalized = map ordinalize lst
+  in
+    case ordinalized of
+      [] -> error "Ordinalizing empty list!"
+      [x] -> x
+      more -> (concat $ List.intersperse ", " (init more)) ++ " and " ++ last ordinalized
 
 
 drawCycle :: [String] -> Doc

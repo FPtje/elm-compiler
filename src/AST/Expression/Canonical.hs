@@ -8,6 +8,7 @@ import qualified AST.Rule as Rule
 import qualified AST.Variable as Var
 import qualified Reporting.Annotation as A
 import qualified Reporting.Region as R
+import qualified Data.Map as Map
 
 
 {-| Canonicalized expressions. All variables are fully resolved to the module
@@ -20,7 +21,7 @@ type Expr =
 type Expr' =
   General.Expr' R.Region Def Var.Canonical Type.Canonical'
 
-data TypeRule = TypeRule [Pattern.CanonicalPattern] [Rule.CanonicalRule]
+data TypeRule = TypeRule [Pattern.CanonicalPattern] [Rule.CanonicalRule] (Map.Map String Int)
     deriving (Show)
 
 data Def

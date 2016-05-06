@@ -47,6 +47,44 @@ addPattern pattern env =
   in
       addPatches patches env
 
+numberedTypeVars :: Type.Canonical -> Map.Map String Int
+numberedTypeVars tp =
+  let
+    collectSubType :: [String] -> Map.Map String Int -> [String] -> (Map.Map String Int, [String])
+    collectSubType [] mp res = (mp, res)
+    collectSubType (s : ss) mp res =
+      let
+        num = (Map.findWithDefault 0 s mp) + 1
+        mp' = Map.insert s num mp
+        s' = s ++ "_" ++ show num
+        (recMp, recRes) = collectSubType ss mp' res
+      in
+        (recMp, s' : recRes)
+
+    -- first map here being var counter, second map being numbered var to arg index mapping
+    collect :: Int -> Type.Canonical' -> Map.Map String Int -> (Map.Map String Int, Map.Map String Int)
+    collect argNr tipe varCountMp =
+        let
+          vars = Type.collectVars' tipe
+          (varCountMp', numberedVars) = collectSubType vars varCountMp []
+        in
+          (varCountMp', Map.fromList (map (flip (,) argNr) numberedVars))
+
+    rec :: Type.Canonical' -> Int -> Map.Map String Int -> Map.Map String Int -> Map.Map String Int
+    rec tipe argNr varCountMp argIndexMp =
+      case tipe of
+        Type.Lambda l r ->
+            let
+              (cCounts, cArgs) = collect argNr l varCountMp
+              recArgs = rec r (argNr + 1) cCounts cArgs
+            in
+              Map.union cArgs recArgs
+        _ ->
+          Map.union argIndexMp (snd $ collect argNr tipe varCountMp)
+
+  in
+    rec (Type.qtype tp) 0 Map.empty Map.empty
+
 
 addTypeRuleType :: Type.Canonical -> Environment -> Environment
 addTypeRuleType tp env =

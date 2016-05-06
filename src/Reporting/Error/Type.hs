@@ -66,9 +66,10 @@ data Hint
     | BinopLeft Var.Canonical Region.Region
     | BinopRight Var.Canonical Region.Region
     | Binop Var.Canonical
-    | CustomError (Maybe Var.Canonical) String
-    | Function (Maybe Var.Canonical)
-    | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region
+    | Function (Maybe Var.Canonical) (Maybe String)
+    | UnexpectedArg (Maybe Var.Canonical) Int Int Region.Region (Maybe String)
+    | ArgumentsMisMatch (Maybe Var.Canonical) [Int] Int Region.Region (Maybe String)
+    | ArgumentsReturn (Maybe Var.Canonical) [Int] Int Int Region.Region (Maybe String)
     | FunctionArity (Maybe Var.Canonical) Int Int Region.Region
     | BadTypeAnnotation String
     | BadMatchWithInterface String
@@ -163,6 +164,12 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
         ( Maybe.maybeToList (reasonToString =<< maybeReason)
           ++ map toHint extraHints
         )
+
+    addExplanation :: Maybe Var.Canonical -> Maybe String -> [String] -> [String]
+    addExplanation maybeName expl hints =
+        case expl of
+          Just e -> ("The author of " ++ funcName maybeName ++ " gives the following explanation:\n  " ++ e) : hints
+          Nothing -> hints
 
     sibSuggestions = map (
       \(bad, good) ->
@@ -313,7 +320,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
               sibSuggestions
           )
 
-    Function maybeName ->
+    Function maybeName maybeExpl ->
         report
           Nothing
           ( "The return type of " ++ funcName maybeName ++ " is being used in unexpected ways."
@@ -321,32 +328,20 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The function results in this type of value:"
               "Which is fine, but the surrounding context wants it to be:"
-              sibSuggestions
+              (addExplanation maybeName maybeExpl sibSuggestions)
           )
 
-    UnexpectedArg maybeName 1 1 region ->
+    UnexpectedArg maybeName 1 1 region maybeExpl ->
         report
           (Just region)
           ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
           ( cmpHint
               (Help.capitalize (funcName maybeName) ++ " is expecting the argument to be:")
               "But it is:"
-              sibSuggestions
+              (addExplanation maybeName maybeExpl sibSuggestions)
           )
 
-    CustomError maybeName explanation ->
-        report
-          Nothing
-          ("The argument to " ++ funcName maybeName ++ " is causing a mismatch.")
-          ( cmpHint
-            ("Expected type:")
-            "Actual type:"
-            (("The author of " ++ funcName maybeName ++ " gives the following explanation:" ++ explanation) : sibSuggestions)
-          )
-
-
-
-    UnexpectedArg maybeName index _totalArgs region ->
+    UnexpectedArg maybeName index _totalArgs region maybeExpl ->
         report
           (Just region)
           ( "The " ++ Help.ordinalize index ++ " argument to " ++ funcName maybeName
@@ -357,9 +352,11 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
                 ++ Help.ordinalize index ++ " argument to be:"
               )
               "But it is:"
-              ( if index == 1 then
+              ( addExplanation maybeName maybeExpl $
+                if index == 1 then
                   []
                 else
+
                   if null sibSuggestions then
                     [ "I always figure out the type of arguments from left to right. If an argument\
                       \ is acceptable when I check it, I assume it is \"correct\" in subsequent checks.\
@@ -369,6 +366,40 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
                   else
                     sibSuggestions
               )
+          )
+
+
+    ArgumentsMisMatch maybeName args errorArg region maybeExpl ->
+        report
+          (Just region)
+          ( "The " ++ Help.ordinalizeList args ++ " arguments of " ++ funcName maybeName
+            ++ " conflict with one another."
+          )
+          ( cmpHint
+              ( Help.capitalize (funcName maybeName) ++ " is expecting the "
+                ++ Help.ordinalize errorArg ++ " argument to be:"
+              )
+              "But it is:"
+              (addExplanation maybeName maybeExpl sibSuggestions)
+          )
+
+
+    ArgumentsReturn maybeName args lhsVar returnNr region maybeExpl ->
+        report
+          (Just region)
+          ( "The " ++ Help.ordinalizeList args ++ " argument(s) of " ++ funcName maybeName
+            ++ " are in conflict with the return type."
+          )
+          ( cmpHint
+              ( Help.capitalize (funcName maybeName) ++ " is expecting the "
+                ++
+                  if lhsVar == returnNr then
+                    "return value to be:"
+                  else
+                    Help.ordinalize lhsVar ++ " argument to be:"
+              )
+              "But it is:"
+              (addExplanation maybeName maybeExpl sibSuggestions)
           )
 
     FunctionArity maybeName 0 actual region ->
@@ -669,7 +700,7 @@ hintDoc =
 
 toHint :: String -> Doc
 toHint str =
-  fillSep (hintDoc : map text (words str))
+  fillSep (hintDoc : [text str])
 
 
 misspellingMessage :: [(String,String)] -> Maybe Doc

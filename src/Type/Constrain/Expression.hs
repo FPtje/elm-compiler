@@ -3,6 +3,7 @@ module Type.Constrain.Expression where
 
 import Control.Arrow (second)
 import Control.Monad (foldM)
+import Data.List (nub, sort)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
 
@@ -186,7 +187,7 @@ constrainApp env region f args tipe =
           argConstraints env (maybeName f) region (length args) funcVar 1 args
 
       let returnCon =
-            CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType
+            CEqual (Error.Function (maybeName f) Nothing) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType
 
       return $ ex (funcVar : vars) $
         CAnd (funcCon : argCons ++ numberOfArgsCons ++ argMatchCons ++ [returnCon])
@@ -201,6 +202,33 @@ maybeName f =
     _ ->
       Nothing
 
+-- | Figures out which type error to throw when a type rule constraint is broken
+typeRuleError
+    :: R.Region
+    -> Maybe V.Canonical
+    -> Rule.CanonicalRule'
+    -> Map.Map String Int
+    -> Error.Hint
+typeRuleError rg mName (Rule.Constraint lhs rhs explanation) varMap =
+  let
+    Just lhsVar' = Map.lookup (V.toString lhs) varMap
+    lhsVar = lhsVar' + 1
+    rhsVars = [ argNr + 1 | var <- ST.collectVars' rhs, let Just argNr = Map.lookup var varMap ]
+
+    returnNr :: Int
+    (Just returnNr') = Map.lookup "return" varMap
+    returnNr = returnNr' + 1
+
+    vars :: [Int]
+    vars = sort . nub $ (lhsVar : rhsVars)
+
+  in
+    case (returnNr `elem` vars, length vars) of
+      (True, 1) -> Error.Function mName (Just explanation)
+      (True, _) -> Error.ArgumentsReturn mName (init vars) lhsVar returnNr rg (Just explanation)
+      (False, 1) -> Error.UnexpectedArg mName (head vars) returnNr rg (Just explanation)
+      (False, _) -> Error.ArgumentsMisMatch mName vars lhsVar rg (Just explanation)
+
 applyCustomTypeRule
     :: Env.Environment
     -> R.Region
@@ -208,17 +236,18 @@ applyCustomTypeRule
     -> [Canonical.Expr]
     -> Type
     -> [P.CanonicalPattern]
+    -> Map.Map String Int -- Type variable to related argument/return value
     -> (Int, Map.Map String Variable, TypeConstraint) -- the int being the counter of the rules
     -> Rule.CanonicalRule
     -> IO (Int, Map.Map String Variable, TypeConstraint)
-applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.A _ rule) =
+applyCustomTypeRule env region f args tipe pats varNumbers (ruleNumber, varmap, constr) (A.A _ rule) =
     case rule of
       Rule.SubRule var ->
         case V.toString var of
           "return" ->
             do
               let (Just returnVar) = Map.lookup "return" varmap
-              return (ruleNumber + 1, varmap, constr /\ CEqual (Error.Function (maybeName f)) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType)
+              return (ruleNumber + 1, varmap, constr /\ CEqual (Error.Function (maybeName f) Nothing) region (ST.unqualified $ VarN returnVar) tipe FuncReturnType)
           name ->
             do
               let (Just argVar) = Map.lookup name varmap
@@ -229,7 +258,7 @@ applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.
               varConstr <- constrain env expr (ST.unqualified $ VarN argVar)
 
               return (ruleNumber + 1, varmap, constr /\ varConstr)
-      Rule.Constraint lhs rhs expl ->
+      Rule.Constraint lhs rhs _ ->
         do
           (varmap', rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
 
@@ -243,7 +272,7 @@ applyCustomTypeRule env region f args tipe pats (ruleNumber, varmap, constr) (A.
                         var <- mkVar Nothing
                         return (var, Map.insert (V.toString lhs) var varmap')
 
-          return (ruleNumber + 1, varmap'', constr /\ CEqual (Error.CustomError (maybeName f) expl) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
+          return (ruleNumber + 1, varmap'', constr /\ CEqual (typeRuleError region (maybeName f) rule varNumbers) region (ST.unqualified $ VarN lhsT) rhsT (CustomError ruleNumber))
   where
     findArgIndex :: V.Canonical -> [P.CanonicalPattern] -> Int -> Int
     findArgIndex var [] _ = error $ "Parameter " ++ V.toString var ++ " does not occur in parameter list!"
@@ -259,14 +288,14 @@ constrainOverriddenApp
     -> Type
     -> Canonical.TypeRule
     -> IO TypeConstraint
-constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules) =
+constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules argMap) =
     do
       funcVar <- mkVar Nothing
 
       argVars <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
       varmap <- foldM mkVarFromString Map.empty (zip argVars $ tail pats ++ [A.A undefined $ P.Var "return"])
 
-      (_, vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats) (0, varmap, CTrue) rules
+      (_, vars, rconstraints) <- foldM (applyCustomTypeRule env region f args tipe pats argMap) (0, varmap, CTrue) rules
 
       (returnVars, returnConstrs) <- mkReturnTypeConstrs 1 (length args) (init argVars) funcVar rconstraints
 
@@ -307,7 +336,7 @@ constrainApp' env region f@(A.A _ expr) args tipe =
           Just rules ->
             -- The amount of arguments given in the type application must match
             -- the amount of arguments in the type rule
-            case [ rule | rule@(Canonical.TypeRule pats _) <- rules, length args == (length pats - 1) ] of
+            case [ rule | rule@(Canonical.TypeRule pats _ _) <- rules, length args == (length pats - 1) ] of
               -- No fitting rules
               [] -> constrainApp env region f args tipe
               [rule] -> constrainOverriddenApp env region f args tipe rule
@@ -350,7 +379,7 @@ argConstraints env name region totalArgs overallVar index args =
 
           let argMatchCon =
                 CEqual
-                  (Error.UnexpectedArg name index totalArgs subregion)
+                  (Error.UnexpectedArg name index totalArgs subregion Nothing)
                   region
                   (ST.unqualified $ VarN argIndexVar)
                   (ST.unqualified $ VarN argVar)
@@ -381,7 +410,7 @@ constrainBinop' env region op leftExpr rightExpr tipe =
         Just rules ->
           -- The amount of arguments given in the type application must match
           -- the amount of arguments in the type rule
-          case [ rule | rule@(Canonical.TypeRule pats _) <- rules, (length pats - 1) == 2 ] of
+          case [ rule | rule@(Canonical.TypeRule pats _ _) <- rules, (length pats - 1) == 2 ] of
             -- No fitting rules
             [] -> constrainBinop env region op leftExpr rightExpr tipe
             [rule] -> constrainOverriddenApp env region (A.A region (E.Var op)) [leftExpr, rightExpr] tipe rule

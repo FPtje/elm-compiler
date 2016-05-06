@@ -387,6 +387,49 @@ checkTyperuletype' env rg typ annotation =
   in
       Result.foldl exists typ vars
 
+varArgMappingFromRules
+  :: [Rule.CanonicalRule]
+  -> Map.Map String Int
+  -> Map.Map String Int
+varArgMappingFromRules [] mp = mp
+varArgMappingFromRules ((A.A _ (Rule.SubRule {})) : rs) mp = varArgMappingFromRules rs mp
+varArgMappingFromRules (r@(A.A _ rule) : rs) mp =
+  let
+    vars :: [String]
+    vars = Type.collectVars' $ Rule.rhs rule
+
+    insertIgnore :: Ord k => a -> Map.Map k a -> k -> Map.Map k a
+    insertIgnore a mp' k =
+      case Map.lookup k mp' of
+        Just _ -> mp'
+        Nothing -> Map.insert k a mp'
+  in
+    case Map.lookup (Var.toString (Rule.lhs rule)) mp of
+      Just argNr -> varArgMappingFromRules rs (foldl (insertIgnore argNr) mp vars)
+      Nothing -> varArgMappingFromRules (rs ++ [r]) mp
+
+-- | Defines a mapping between individual type rules and the parameters/return value they reason about
+typeRuleVarArgMapping
+    :: [P.CanonicalPattern]
+    -> [Rule.CanonicalRule]
+    -> Type.Canonical
+    -> Map.Map String Int
+typeRuleVarArgMapping pats rules tipe =
+  let
+    patToString :: P.CanonicalPattern -> String
+    patToString (A.A _ (P.Var s)) = s
+
+    addPatToMap :: (Int, Map.Map String Int) -> P.CanonicalPattern -> (Int, Map.Map String Int)
+    addPatToMap (argNr, mp) pat = (argNr + 1, Map.insert (patToString pat) argNr mp)
+
+    mapFromPats :: Map.Map String Int
+    mapFromPats = snd $ foldl addPatToMap (0, Map.singleton "return" (length pats - 1)) (tail pats)
+
+    initialMap :: Map.Map String Int
+    initialMap = Map.union mapFromPats $ Env.numberedTypeVars tipe
+  in
+    varArgMappingFromRules rules initialMap
+
 typeRuleConstraint :: Env.Environment -> Type.Canonical -> Rule.ValidRule -> Result.Result (A.Located CError.Error) Rule.CanonicalRule
 typeRuleConstraint env _ (A.A rg (Rule.SubRule (Var.Raw var))) = A.A rg . Rule.SubRule <$> Canonicalize.variable rg env var
 typeRuleConstraint env tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) =
@@ -410,7 +453,7 @@ typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
         let patEnv = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
         in Result.map (typeRuleConstraint patEnv tp) rules
           `Result.andThen` \constrs ->
-              Result.ok $ Canonical.TypeRule pats' constrs
+              Result.ok $ Canonical.TypeRule pats' constrs (typeRuleVarArgMapping pats' constrs tp)
 
 definition
     :: Env.Environment
