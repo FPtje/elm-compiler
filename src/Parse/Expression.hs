@@ -323,11 +323,12 @@ constraintTypeRule = addLocation $
     reserved "with"
     forcedWS
     tp <- Type.expr
-    forcedWS
-    reserved "because"
-    forcedWS
 
-    explanation <- anyUntil $ simpleNewline <|> (eof >> return "\n")
+    explanation <- optionMaybe $ do
+        try (forcedWS >> reserved "because")
+        forcedWS
+
+        anyUntil $ simpleNewline <|> (eof >> return "")
 
     return $ R.Constraint v tp explanation
 

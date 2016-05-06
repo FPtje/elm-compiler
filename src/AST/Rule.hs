@@ -6,7 +6,7 @@ import qualified Reporting.Annotation as A
 
 data TypeRule' var tp
     = SubRule var
-    | Constraint { lhs :: var, rhs :: tp, explanation :: String }
+    | Constraint { lhs :: var, rhs :: tp, explanation :: Maybe String }
     deriving (Show)
 
 type TypeRule var tp = A.Located (TypeRule' var tp)

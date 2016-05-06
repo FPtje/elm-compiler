@@ -224,10 +224,10 @@ typeRuleError rg mName (Rule.Constraint lhs rhs explanation) varMap =
 
   in
     case (returnNr `elem` vars, length vars) of
-      (True, 1) -> Error.Function mName (Just explanation)
-      (True, _) -> Error.ArgumentsReturn mName (init vars) lhsVar returnNr rg (Just explanation)
-      (False, 1) -> Error.UnexpectedArg mName (head vars) returnNr rg (Just explanation)
-      (False, _) -> Error.ArgumentsMisMatch mName vars lhsVar rg (Just explanation)
+      (True, 1) -> Error.Function mName explanation
+      (True, _) -> Error.ArgumentsReturn mName (init vars) lhsVar returnNr rg explanation
+      (False, 1) -> Error.UnexpectedArg mName (head vars) returnNr rg explanation
+      (False, _) -> Error.ArgumentsMisMatch mName vars lhsVar rg explanation
 
 applyCustomTypeRule
     :: Env.Environment
