@@ -275,7 +275,7 @@ replaceErrors sibs constrs grph =
 
 -- | Throw an error about a missing type class
 throwMissingImplementationError :: TG.TypeGraph T.TypeConstraint -> TG.SubstitutionError T.TypeConstraint -> TS.Solver ()
-throwMissingImplementationError grph (TG.MissingImplementation vid classref tp) = TS.addError (TG.bestVertexRegion grph vid) $ Error.NoImplementation classref tp
+throwMissingImplementationError grph (TG.MissingImplementation vid classref tp expl) = TS.addError (TG.bestVertexRegion grph vid) $ Error.NoImplementation classref tp expl
 
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =

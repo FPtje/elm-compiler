@@ -5,6 +5,7 @@ module Type.Environment
     , getType, freshDataScheme, ctorNames
     , addValues
     , instantiateType
+    , instantiateExplainedType
     , _rules
     )
     where
@@ -21,7 +22,6 @@ import qualified AST.Variable as V
 import qualified AST.Expression.Canonical as Canonical
 import qualified AST.Module as Module
 import Type.Type
-
 
 type TypeDict = Map.Map String Type
 type VarDict = Map.Map String Variable
@@ -120,8 +120,8 @@ ctorToType env (name, (tvars, ctors)) =
 
     go :: (V.Canonical, [T.Canonical']) -> State.StateT VarDict IO ([TermN Variable], TermN Variable)
     go (_, args) =
-      do  types <- mapM (instantiator env . T.unqualified) args
-          returnType <- instantiator env (T.unqualified $ T.App (T.Type name) (map T.Var tvars))
+      do  types <- mapM (instantiator env Nothing . T.unqualified) args
+          returnType <- instantiator env Nothing (T.unqualified $ T.App (T.Type name) (map T.Var tvars))
           return (types, returnType)
 
 
@@ -171,20 +171,35 @@ addValues env newValues =
 
 instantiateType :: Environment -> T.Canonical -> VarDict -> IO (VarDict, Type)
 instantiateType env sourceType dict =
-  do  (tipe, dict') <- State.runStateT (instantiator env sourceType) dict
+  do  (tipe, dict') <- State.runStateT (instantiator env Nothing sourceType) dict
+      return (dict', tipe)
+
+instantiateExplainedType :: Environment -> T.Canonical -> VarDict -> Maybe String -> IO (VarDict, Type)
+instantiateExplainedType env sourceType dict expl =
+  do
+      (tipe, dict') <- State.runStateT (instantiator env expl sourceType) dict
       return (dict', tipe)
 
 
-instantiator :: Environment -> T.Canonical -> State.StateT VarDict IO Type
-instantiator env sourceType@(T.QT stquals _) =
+instantiator :: Environment -> Maybe String -> T.Canonical-> State.StateT VarDict IO Type
+instantiator env expl sourceType@(T.QT stquals _) =
     let
+      addExplanation var mp =
+        case expl of
+          Just e -> Map.insert var e mp
+          Nothing -> mp
+
       addQual (T.Qualifier cls var) =
         do
-          tp <- instantiator env (T.unqualified var)
+          tp <- instantiator env expl (T.unqualified var)
           case tp of
             VarN variable ->
               State.liftIO $ do
-                UF.modifyDescriptor variable (\d -> d {_qualifiers = Set.insert cls (_qualifiers d)})
+                UF.modifyDescriptor variable (
+                    \d -> d
+                    { _qualifiers = Set.insert cls (_qualifiers d)
+                    , _qualifierExplanations = addExplanation cls (_qualifierExplanations d)
+                    })
             _ -> error "interface system only supports variables at the moment"
     in
       do

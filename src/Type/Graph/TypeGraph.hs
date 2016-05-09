@@ -29,8 +29,6 @@ import Type.Unify (ExtensionStructure (..))
 
 import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
 
-import Debug.Trace
-
 
 -- | Representation of a type graph
 data TypeGraph info = TypeGraph
@@ -197,7 +195,8 @@ addContentGraph var content alias grph =
         desc <- liftIO $ UF.descriptor var
         let unique = varNumber grph
         let vertexId = fromMaybe unique (T._typegraphid desc)
-        let quals = map BS.PInterface . S.toList . T._qualifiers $ desc
+        let qualExplMap = T._qualifierExplanations desc
+        let quals = map (\v -> BS.PInterface v (M.lookup v qualExplMap)) . S.toList . T._qualifiers $ desc
 
         case content of
             T.Structure t ->
@@ -684,7 +683,7 @@ childrenInGroupOf i graph =
 data SubstitutionError info =
       InfiniteType BS.VertexId (P.Path info)
     | InconsistentType (EG.EquivalenceGroup info) [(BS.VertexId, BS.VertexId)]
-    | MissingImplementation BS.VertexId Var.Canonical AT.Canonical'
+    | MissingImplementation BS.VertexId Var.Canonical AT.Canonical' (Maybe String)
     deriving (Show)
 
 findInfiniteTypes :: forall info . TypeGraph info -> [SubstitutionError info]
@@ -837,16 +836,16 @@ findMissingImplementations grph =
 
         -- The implementation predicates that live within a certain group
         predicates :: EG.EquivalenceGroup info -> [BS.Predicate]
-        predicates grp = [ p | (_, (BS.VVar ps, _)) <- EG.vertices grp, p@(BS.PInterface _) <- ps ]
+        predicates grp = [ p | (_, (BS.VVar ps, _)) <- EG.vertices grp, p@(BS.PInterface _ _) <- ps ]
 
-        propagateDown :: BS.VertexId -> AT.Canonical' -> (BS.VertexId, BS.VertexInfo) -> AT.Qualifier' Var.Canonical AT.Canonical' -> [SubstitutionError info]
-        propagateDown root tp vrtx@(_, (inf, _)) qual@(AT.Qualifier classref classvar)
-            | tp == classvar = checkPredicate root vrtx (BS.PInterface classref)
+        propagateDown :: BS.VertexId -> AT.Canonical' -> (BS.VertexId, BS.VertexInfo) -> Maybe String -> AT.Qualifier' Var.Canonical AT.Canonical' -> [SubstitutionError info]
+        propagateDown root tp vrtx@(_, (inf, _)) expl qual@(AT.Qualifier classref classvar)
+            | tp == classvar = checkPredicate root vrtx (BS.PInterface classref expl)
             | otherwise =
                 case (tp, inf) of
                     -- One application left
-                    (AT.App _ [vr], BS.VApp _ r) -> propagateDown root vr (r, fromJust $ getVertex r grph) qual
-                    (AT.App _ [vr], _) -> propagateDown root vr vrtx qual
+                    (AT.App _ [vr], BS.VApp _ r) -> propagateDown root vr (r, fromJust $ getVertex r grph) expl qual
+                    (AT.App _ [vr], _) -> propagateDown root vr vrtx expl qual
                     -- multiple applications
                     (AT.App x rs, BS.VApp l r) ->
                         let
@@ -856,26 +855,26 @@ findMissingImplementations grph =
                             rinf :: BS.VertexInfo
                             rinf = fromJust $ getVertex r grph
                         in
-                            propagateDown root (AT.App x (init rs)) (l, linf) qual ++ propagateDown root (AT.App x [last rs]) (r, rinf) qual
+                            propagateDown root (AT.App x (init rs)) (l, linf) expl qual ++ propagateDown root (AT.App x [last rs]) (r, rinf) expl qual
                     (_, _) -> [] -- TODO: functions or something haha
 
         -- | Root being the root of the app tree where it started propagating down the qualifiers
         checkPredicate :: BS.VertexId -> (BS.VertexId, BS.VertexInfo) -> BS.Predicate -> [SubstitutionError info]
-        checkPredicate root vrtx@(vid, (inf, _)) (BS.PInterface pdc) =
+        checkPredicate root vrtx@(vid, (inf, _)) (BS.PInterface pdc expl) =
             case inf of
                 BS.VVar _ -> []
                 BS.VCon nm _ ->
                     case U.findImplementation impls pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph) of
                         Just _ -> []
-                        Nothing -> [MissingImplementation root pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph)]
+                        Nothing -> [MissingImplementation root pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph) expl]
                 BS.VApp l r ->
                     let
                         tp :: AT.Canonical'
                         tp = AT.qtype $ reconstructInfiniteType vid S.empty grph
                     in
                         case U.findImplementation impls pdc tp of
-                            Just (_, impl) -> concatMap (propagateDown root (Interface.impltype impl) vrtx) (Interface.implquals impl)
-                            Nothing -> [MissingImplementation root pdc tp]
+                            Just (_, impl) -> concatMap (propagateDown root (Interface.impltype impl) vrtx expl) (Interface.implquals impl)
+                            Nothing -> [MissingImplementation root pdc tp expl]
 
         findInGroup :: EG.EquivalenceGroup info -> [SubstitutionError info]
         findInGroup grp =

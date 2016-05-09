@@ -182,14 +182,14 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = Set.empty -- Set.fromList [name | T.Qualifier name _ <- quals]
+                  , _qualifiers = Set.empty
+                  , _qualifierExplanations = Map.empty
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
             register variable
 
     VarN v ->
-        -- liftIO $ UF.modifyDescriptor v (\desc -> desc { _qualifiers = Set.union (_qualifiers desc) $ Set.fromList [name | T.Qualifier name _ <- quals] }) >>
         return v
 
     TermN term1 ->
@@ -201,7 +201,8 @@ flattenHelp aliasDict termN =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = Set.empty -- Set.fromList [name | T.Qualifier name _ <- quals]
+                  , _qualifiers = Set.empty
+                  , _qualifierExplanations = Map.empty
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
@@ -250,6 +251,7 @@ makeCopyHelp descriptor alreadyCopiedMark variable =
                 , _rank = maxRank pool
                 , _mark = noMark
                 , _qualifiers = _qualifiers descriptor
+                , _qualifierExplanations = _qualifierExplanations descriptor
                 , _copy = Nothing
                 , _typegraphid = Nothing
                 , _typegraphCopyId = Nothing
@@ -331,6 +333,7 @@ restore alreadyCopiedMark variable =
                   , _rank = noRank
                   , _mark = noMark
                   , _qualifiers = _qualifiers desc
+                  , _qualifierExplanations = _qualifierExplanations desc
                   , _copy = Nothing
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing

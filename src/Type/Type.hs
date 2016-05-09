@@ -88,6 +88,7 @@ data Descriptor = Descriptor
     , _mark :: Int
     , _copy :: Maybe Variable
     , _qualifiers :: Set.Set Var.Canonical
+    , _qualifierExplanations :: Map.Map Var.Canonical String
     , _typegraphid :: Maybe Int
     , _typegraphCopyId :: Maybe Int
     }
@@ -413,6 +414,7 @@ mkDescriptor content =
     , _mark = noMark
     , _copy = Nothing
     , _qualifiers = Set.empty
+    , _qualifierExplanations = Map.empty
     , _typegraphid = Nothing
     , _typegraphCopyId = Nothing
     }

@@ -259,9 +259,9 @@ applyCustomTypeRule env region f args tipe pats varNumbers (ruleNumber, varmap, 
               varConstr <- constrain env expr (VarN argVar)
 
               return (ruleNumber + 1, varmap, constr /\ varConstr)
-      Rule.Constraint lhs rhs _ ->
+      Rule.Constraint lhs rhs expl ->
         do
-          (varmap', rhsT) <- Env.instantiateType env rhs varmap
+          (varmap', rhsT) <- Env.instantiateExplainedType env rhs varmap expl
 
           -- let varmap' = Map.union varmap vars
 
