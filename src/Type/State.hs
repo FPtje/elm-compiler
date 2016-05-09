@@ -167,7 +167,7 @@ flatten term =
 
 
 flattenHelp :: Map.Map String Variable -> Type -> Solver Variable
-flattenHelp aliasDict (T.QT quals termN) =
+flattenHelp aliasDict termN =
   case termN of
     PlaceHolder name ->
         return (aliasDict ! name)
@@ -182,14 +182,14 @@ flattenHelp aliasDict (T.QT quals termN) =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = Set.fromList [name | T.Qualifier name _ <- quals]
+                  , _qualifiers = Set.empty -- Set.fromList [name | T.Qualifier name _ <- quals]
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
             register variable
 
     VarN v ->
-        liftIO $ UF.modifyDescriptor v (\desc -> desc { _qualifiers = Set.union (_qualifiers desc) $ Set.fromList [name | T.Qualifier name _ <- quals] }) >>
+        -- liftIO $ UF.modifyDescriptor v (\desc -> desc { _qualifiers = Set.union (_qualifiers desc) $ Set.fromList [name | T.Qualifier name _ <- quals] }) >>
         return v
 
     TermN term1 ->
@@ -201,14 +201,14 @@ flattenHelp aliasDict (T.QT quals termN) =
                   , _rank = maxRank pool
                   , _mark = noMark
                   , _copy = Nothing
-                  , _qualifiers = Set.fromList [name | T.Qualifier name _ <- quals]
+                  , _qualifiers = Set.empty -- Set.fromList [name | T.Qualifier name _ <- quals]
                   , _typegraphid = Nothing
                   , _typegraphCopyId = Nothing
                   }
             register variable
 
 flattenHelp' :: Map.Map String Variable -> TermN Variable -> Solver Variable
-flattenHelp' aliasDict t1 = flattenHelp aliasDict (T.unqualified t1)
+flattenHelp' aliasDict t1 = flattenHelp aliasDict t1
 
 
 makeInstance :: Variable -> Solver Variable

@@ -24,7 +24,7 @@ import System.IO.Unsafe
 
 
 type Type =
-    T.QualifiedType Var.Canonical (TermN Variable) (TermN Variable)
+    TermN Variable
 
 
 type Variable =
@@ -213,17 +213,17 @@ infixr 9 ==>|
 
 
 (==>) :: Type -> Type -> Type
-(==>) (T.QT aquals a) (T.QT bquals b) =
-  T.QT (aquals ++ bquals) $ TermN (Fun1 a b)
+(==>) a b =
+  TermN (Fun1 a b)
 
 (==>|) :: TermN a -> TermN a -> TermN a
 (==>|) a b =
   TermN (Fun1 a b)
 
 
-(<||) :: Type -> Type -> Type
+{-(<||) :: Type -> Type -> Type
 (<||) (T.QT fq f) (T.QT aq a) =
-  T.QT (fq ++ aq) (f <| a)
+  T.QT (fq ++ aq) (f <| a)-}
 
 (<|) :: TermN a -> TermN a -> TermN a
 (<|) f a =
@@ -291,10 +291,10 @@ copyScheme mp scheme =
 
 
 copyType :: Map.Map Int Variable -> Type -> IO (Type, Map.Map Int Variable)
-copyType mp (T.QT qs tp) =
+copyType mp tp=
   do
     (newtp, newmp) <- copyType' mp tp
-    return (T.QT qs newtp, newmp)
+    return (newtp, newmp)
 
 copyType' :: Map.Map Int Variable -> TermN Variable -> IO (TermN Variable, Map.Map Int Variable)
 copyType' mp (PlaceHolder s) = return (PlaceHolder s, mp)
@@ -494,13 +494,13 @@ fl rqs constraint =
 exists :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 exists f =
   do  v <- mkVar Nothing
-      ex [v] <$> f (T.unqualified $ VarN v)
+      ex [v] <$> f (VarN v)
 
 
 existsNumber :: (Type -> IO TypeConstraint) -> IO TypeConstraint
 existsNumber f =
   do  v <- mkVar (Just Number)
-      ex [v] <$> f (T.unqualified $ VarN v)
+      ex [v] <$> f (VarN v)
 
 
 

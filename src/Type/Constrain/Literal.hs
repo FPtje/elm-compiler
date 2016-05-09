@@ -25,7 +25,7 @@ constrain env region literal tipe =
         case literal of
           L.IntNum _ ->
               ( "number"
-              , Type.unqualified . T.VarN <$> T.mkVar (Just T.Number)
+              , T.VarN <$> T.mkVar (Just T.Number)
               )
 
           L.FloatNum _ ->

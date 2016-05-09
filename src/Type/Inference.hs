@@ -86,7 +86,7 @@ genConstraints interfaces modul =
       ctors <-
           forM (Env.ctorNames env) $ \name ->
             do  (_, vars, args, result) <- Env.freshDataScheme env name
-                return (name, (vars, Type.unqualified $ foldr (T.==>|) result args))
+                return (name, (vars, foldr (T.==>|) result args))
 
       importedVars <-
           mapM (canonicalizeValues env) (Map.toList interfaces)
@@ -99,7 +99,7 @@ genConstraints interfaces modul =
       fvar <- T.mkVar Nothing
 
       constraint <-
-          TcExpr.constrain env (program (body modul)) (Type.unqualified $ T.VarN fvar)
+          TcExpr.constrain env (program (body modul)) (T.VarN fvar)
 
       return (header, environ constraint)
 

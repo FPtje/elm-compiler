@@ -26,7 +26,7 @@ constrain env (A.A region pattern) tipe =
       CEqual (Error.Pattern patternError) region leftType rightType Pattern
 
     rvar v =
-      A.A region (Type.unqualified (VarN v))
+      A.A region (VarN v)
   in
   case pattern of
     P.Anything ->
@@ -42,7 +42,7 @@ constrain env (A.A region pattern) tipe =
                 { typeEnv = Map.singleton name (rvar variable)
                 , vars = [variable]
                 , typeConstraint =
-                    equal (Error.PVar name) (Type.unqualified $ VarN variable) tipe
+                    equal (Error.PVar name) (VarN variable) tipe
                 }
 
     P.Alias name p ->
@@ -52,7 +52,7 @@ constrain env (A.A region pattern) tipe =
               { typeEnv = Map.insert name (rvar variable) (typeEnv fragment)
               , vars = variable : vars fragment
               , typeConstraint =
-                  equal (Error.PAlias name) (Type.unqualified $ VarN variable) tipe
+                  equal (Error.PAlias name) (VarN variable) tipe
                   /\ typeConstraint fragment
               }
 
@@ -62,13 +62,13 @@ constrain env (A.A region pattern) tipe =
             (_kind, cvars, args, result) <-
                 Env.freshDataScheme env stringName
 
-            fragList <- Monad.zipWithM (constrain env) patterns (map Type.unqualified args)
+            fragList <- Monad.zipWithM (constrain env) patterns args
             let fragment = joinFragments fragList
             return $ fragment
                 { vars = cvars ++ vars fragment
                 , typeConstraint =
                     typeConstraint fragment
-                    /\ equal (Error.PData stringName) tipe (Type.unqualified result)
+                    /\ equal (Error.PData stringName) tipe result
                 }
 
     P.Record fields ->
@@ -79,10 +79,10 @@ constrain env (A.A region pattern) tipe =
                   Map.fromList (map (second rvar) pairs)
 
             let unannotatedTenv =
-                  Map.map (Type.qtype . A.drop) tenv
+                  Map.map A.drop tenv
 
             con <- exists $ \t ->
-              return (equal Error.PRecord tipe (Type.unqualified $ record unannotatedTenv (Type.qtype t)))
+              return (equal Error.PRecord tipe (record unannotatedTenv t))
 
             return $ Fragment
                 { typeEnv = tenv

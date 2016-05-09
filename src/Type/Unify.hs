@@ -19,7 +19,6 @@ import Data.Maybe (listToMaybe)
 
 -- KICK OFF UNIFICATION
 
-import Debug.Trace
 
 unify :: Error.Hint -> R.Region -> Variable -> Variable -> TS.Solver ()
 unify hint region expected actual =
