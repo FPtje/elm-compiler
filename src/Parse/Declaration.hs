@@ -112,9 +112,10 @@ interface =
 
       forcedWS
       vr <- lowVar
-      forcedWS
 
-      quals <- Type.qualifiers True
+      quals <- Type.qualifiers
+
+      forcedWS
 
       reserved "where"
       forcedWS
@@ -142,9 +143,10 @@ implementation =
       forcedWS
 
       tp <- Type.expr
-      forcedWS
 
-      quals <- Type.qualifiers True
+      quals <- Type.qualifiers
+
+      forcedWS
 
       reserved "where"
       forcedWS

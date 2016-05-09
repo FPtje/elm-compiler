@@ -94,21 +94,21 @@ qualifier =
       vr <- lowVar
       return $ Type.Qualifier classnm vr
 
-qualifiers :: Bool -> IParser [Type.Qualifier' (A.Located String) String]
-qualifiers parseWhitespace =
+qualifiers :: IParser [Type.Qualifier' (A.Located String) String]
+qualifiers =
     option [] $
       do
-          try $ reserved "|"
+          try $ forcedWS >> reserved "|"
           forcedWS
           quals <- commaSep1 qualifier
-          when parseWhitespace (forcedWS >> return ())
+          -- when parseWhitespace (forcedWS >> return ())
           return quals
 
 annotatedExpr :: IParser Type.Raw
 annotatedExpr =
   do
     exp <- expr
-    quals <- qualifiers False
+    quals <- qualifiers
     return $ Type.QT quals exp
 
 expr :: IParser Type.Raw'
