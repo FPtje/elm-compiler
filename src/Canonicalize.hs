@@ -363,13 +363,13 @@ declToValue (A.A _ decl) =
 checkTyperuletype'
     :: Env.Environment
     -> Region.Region
-    -> Type.Canonical'
     -> Type.Canonical
-    -> Result.ResultErr Type.Canonical'
+    -> Type.Canonical
+    -> Result.ResultErr Type.Canonical
 checkTyperuletype' env rg typ annotation =
   let
     vars :: [String]
-    vars = Type.collectVars' typ
+    vars = Type.collectVars typ
 
     varSet :: Set.Set String
     varSet = Set.fromList (Type.collectVars annotation)
@@ -396,7 +396,7 @@ varArgMappingFromRules ((A.A _ (Rule.SubRule {})) : rs) mp = varArgMappingFromRu
 varArgMappingFromRules (r@(A.A _ rule) : rs) mp =
   let
     vars :: [String]
-    vars = Type.collectVars' $ Rule.rhs rule
+    vars = Type.collectVars $ Rule.rhs rule
 
     insertIgnore :: Ord k => a -> Map.Map k a -> k -> Map.Map k a
     insertIgnore a mp' k =
@@ -439,7 +439,7 @@ typeRuleConstraint env tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) =
 
       Canonicalize.variable rg env' lhs
         `Result.andThen` \lhs' ->
-            Canonicalize.tipe' env' rhs
+            Canonicalize.tipe env' rhs
               `Result.andThen` \rhs' ->
                   checkTyperuletype' env' rg rhs' tp
                     `Result.andThen` \rhs'' ->

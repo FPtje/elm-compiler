@@ -322,7 +322,7 @@ constraintTypeRule = addLocation $
     forcedWS
     reserved "with"
     forcedWS
-    tp <- Type.expr
+    tp <- Type.annotatedExpr
 
     explanation <- optionMaybe $ do
         try (forcedWS >> reserved "because")

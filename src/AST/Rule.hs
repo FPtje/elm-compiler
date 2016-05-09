@@ -11,11 +11,11 @@ data TypeRule' var tp
 
 type TypeRule var tp = A.Located (TypeRule' var tp)
 
-type SourceRule = TypeRule String Type.Raw'
-type SourceRule' = TypeRule' String Type.Raw'
+type SourceRule = TypeRule String Type.Raw
+type SourceRule' = TypeRule' String Type.Raw
 
-type ValidRule = TypeRule Var.Raw Type.Raw'
-type ValidRule' = TypeRule' Var.Raw Type.Raw'
+type ValidRule = TypeRule Var.Raw Type.Raw
+type ValidRule' = TypeRule' Var.Raw Type.Raw
 
-type CanonicalRule = TypeRule Var.Canonical Type.Canonical'
-type CanonicalRule' = TypeRule' Var.Canonical Type.Canonical'
+type CanonicalRule = TypeRule Var.Canonical Type.Canonical
+type CanonicalRule' = TypeRule' Var.Canonical Type.Canonical

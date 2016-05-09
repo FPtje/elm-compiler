@@ -176,12 +176,7 @@ instantiateType env sourceType dict =
 
 
 instantiator :: Environment -> T.Canonical -> State.StateT VarDict IO Type
-instantiator env sourceType =
-    instantiatorHelp env Set.empty sourceType
-
-
-instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
-instantiatorHelp env aliasVars (T.QT stquals sourceType) =
+instantiator env sourceType@(T.QT stquals _) =
     let
       addQual (T.Qualifier cls var) =
         do
@@ -191,16 +186,17 @@ instantiatorHelp env aliasVars (T.QT stquals sourceType) =
               State.liftIO $ do
                 UF.modifyDescriptor variable (\d -> d {_qualifiers = Set.insert cls (_qualifiers d)})
             _ -> error "interface system only supports variables at the moment"
+    in
+      do
+        tipe <- instantiatorHelp env Set.empty sourceType
+        mapM_ addQual stquals
+        return tipe
 
 
-      go tp =
-        do
-          tipe <- instantiatorHelp env aliasVars . T.unqualified $ tp
-          mapM_ addQual stquals
-
-          return tipe
-
-        -- quals = mapM (\(T.Qualifier cls var) -> T.Qualifier cls . T.qtype <$> instantiator env (T.unqualified var)) stquals
+instantiatorHelp :: Environment -> Set.Set String -> T.Canonical -> State.StateT VarDict IO Type
+instantiatorHelp env aliasVars (T.QT _ sourceType) =
+    let
+      go = instantiatorHelp env aliasVars . T.unqualified
     in
     case sourceType of
       T.Lambda t1 t2 ->

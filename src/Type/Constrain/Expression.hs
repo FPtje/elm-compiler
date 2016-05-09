@@ -23,6 +23,7 @@ import qualified Type.Environment as Env
 import qualified Type.Fragment as Fragment
 import Type.Type hiding (Descriptor(..))
 
+
 constrain
     :: Env.Environment
     -> Canonical.Expr
@@ -213,7 +214,7 @@ typeRuleError rg mName (Rule.Constraint lhs rhs explanation) varMap =
   let
     Just lhsVar' = Map.lookup (V.toString lhs) varMap
     lhsVar = lhsVar' + 1
-    rhsVars = [ argNr + 1 | var <- ST.collectVars' rhs, let Just argNr = Map.lookup var varMap ]
+    rhsVars = [ argNr + 1 | var <- ST.collectVars rhs, let Just argNr = Map.lookup var varMap ]
 
     returnNr :: Int
     (Just returnNr') = Map.lookup "return" varMap
@@ -260,7 +261,7 @@ applyCustomTypeRule env region f args tipe pats varNumbers (ruleNumber, varmap, 
               return (ruleNumber + 1, varmap, constr /\ varConstr)
       Rule.Constraint lhs rhs _ ->
         do
-          (varmap', rhsT) <- Env.instantiateType env (ST.unqualified rhs) varmap
+          (varmap', rhsT) <- Env.instantiateType env rhs varmap
 
           -- let varmap' = Map.union varmap vars
 
