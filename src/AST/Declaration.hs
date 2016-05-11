@@ -54,11 +54,11 @@ data SourceDecl
 
 
 type ValidDecl =
-  A.Commented (Declaration' ValidPort Valid.Def Type.Raw' Valid.Expr String (A.Located Var.Raw) Source.Def Var.Raw)
+  A.Commented (Declaration' ValidPort Valid.Def Type.Raw' Valid.Expr String (A.Located Var.Raw) Interface.ValidInterfaceDecl Var.Raw)
 
 
 type CanonicalDecl =
-  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical' Canonical.Expr Var.Canonical Var.Canonical Canonical.InterfaceFunction Type.Canonical')
+  A.Commented (Declaration' CanonicalPort Canonical.Def Type.Canonical' Canonical.Expr Var.Canonical Var.Canonical Interface.CanonicalInterfaceDecl Type.Canonical')
 
 
 -- PORTS

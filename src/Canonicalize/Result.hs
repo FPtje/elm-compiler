@@ -5,6 +5,7 @@ import Prelude hiding (foldl, map)
 import qualified Control.Applicative as A
 import qualified Data.Functor as F
 import qualified Data.Set as Set
+import qualified Control.Monad as M
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Variable as Var
@@ -124,3 +125,8 @@ var variable =
   var' id variable
 
 
+instance M.Monad (Result e) where
+  return value =
+      ok value
+
+  (>>=) = andThen

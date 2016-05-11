@@ -44,7 +44,7 @@ data Raw''
     | RType Var.Raw
     | RApp Raw' [Raw']
     | RRecord [(String, Raw')] (Maybe Raw')
-    deriving (Eq, Ord)
+    deriving (Eq, Ord, Show)
 
 
 type Canonical =

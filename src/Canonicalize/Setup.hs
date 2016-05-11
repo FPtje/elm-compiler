@@ -346,7 +346,7 @@ declToPatches moduleName (A.A (region,_) decl) =
         in
           ( Nothing
           , [Env.Interface newClass (Var.fromModule moduleName newClass, ifc)] ++
-            [topLevel Env.Value name | (A.A _ (Source.TypeAnnotation name _)) <- decls ]
+            [topLevel Env.Value name | (A.A _ (Interface.IFType name _ _)) <- decls ]
           )
 
     D.Impl impl@(Interface.Implementation _ _ tipe _) ->

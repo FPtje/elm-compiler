@@ -146,12 +146,21 @@ moduleHelp importDict interfaces modul@(Module.Module _ _ comment exports _ decl
               [ (getMatchingIFace ifces i, i) | D.Impl i <- nakedDecls ]
 
           , typeRules =
-              Map.fromList [ (name, rules) | D.Definition (Canonical.Definition _ (A.A _ (P.Var name)) _ _ _ rules) <- nakedDecls, not (null rules) ]
+              Map.fromList $ [ (name, rules) | D.Definition (Canonical.Definition _ (A.A _ (P.Var name)) _ _ _ rules) <- nakedDecls, not (null rules) ]  ++ interfaceRules ifces
 
           , ports =
               [ E.portName impl | D.Port (D.CanonicalPort impl) <- nakedDecls ]
           }
 
+
+interfaceRules :: [Interface.CanonicalInterface] -> [(String, [Canonical.TypeRule])]
+interfaceRules ifcs =
+  let
+    ifrule :: Interface.CanonicalInterface -> [(String, [Canonical.TypeRule])]
+    ifrule ifc = [ (Var.toString name, rules) | A.A _ (Interface.IFType name _ rules) <- Interface.decls ifc]
+
+  in
+    concatMap ifrule ifcs
 
 getMatchingIFace :: [Interface.CanonicalInterface]
                -> Interface.CanonicalImplementation
@@ -447,13 +456,14 @@ typeRuleConstraint tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) (env, rs
 typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
 typerule _ Nothing _ = error "Type annotation should exist when there are type rules"
 typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
-    Result.map (pattern env) pats
-      `Result.andThen` \pats' ->
-        let env' = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
-            env'' = Env.addTypeRuleType tp env'
-        in Result.foldl (typeRuleConstraint tp) (env'', []) rules
-          `Result.andThen` \(_, constrs) ->
-              Result.ok $ Canonical.TypeRule pats' constrs (typeRuleVarArgMapping pats' constrs tp)
+  do
+    pats' <- mapM (pattern env) pats
+    let env' = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
+    let env'' = Env.addTypeRuleType tp env'
+    (_, constrs) <- Result.foldl (typeRuleConstraint tp) (env'', []) rules
+    let constrs' = reverse constrs
+
+    Result.ok $ Canonical.TypeRule pats' constrs' (typeRuleVarArgMapping pats' constrs' tp)
 
 definition
     :: Env.Environment
@@ -567,7 +577,7 @@ insertInterfaceType
 insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@(A.A drg (P.Var name)) expr typ _ rules) =
   let
     (ifvar, interface) = Map.findWithDefault (error "Interface doesn't exist, this check was already made somewhere") classref (Env._interfaces env)
-    typeAnns = [A.A rg tpe | A.A rg (Source.TypeAnnotation nm tpe) <- Interface.decls interface, nm == name]
+    typeAnns = [A.A rg tpe | A.A rg (Interface.IFType nm tpe _) <- Interface.decls interface, nm == name]
     (A.A tprg typeAnn) = if null typeAnns then error "No fitting definition in type class!" else head typeAnns -- TODO: throw proper error message
     Var.Raw interfaceVar = Interface.interfacevar interface
   in
@@ -579,13 +589,14 @@ insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@
 interfaceDeclaration
     :: ModuleName.Canonical
     -> Env.Environment
-    -> Source.Def
-    -> Result.ResultErr (Canonical.InterfaceFunction)
-interfaceDeclaration _ _ (A.A _ (Source.Definition {})) = error "Interface declarations should not hold definitions"
-interfaceDeclaration modul env (A.A rg (Source.TypeAnnotation nm tipe)) =
-    Canonicalize.tipe env tipe
-      `Result.andThen`
-        \newtipe -> Result.ok $ Canonical.InterfaceFunction (Var.topLevel modul nm) (A.A rg newtipe) -- Var.Canonical
+    -> Interface.ValidInterfaceDecl
+    -> Result.ResultErr Interface.CanonicalInterfaceDecl
+interfaceDeclaration modul env (A.A rg (Interface.IFType nm tipe rules)) =
+  do
+    newtipe <- Canonicalize.tipe env tipe
+    newrules <- Result.map (typerule env (Just $ A.A rg $ newtipe)) rules
+
+    Result.ok . A.A rg $ Interface.IFType (Var.topLevel modul nm) (A.A rg newtipe) newrules
 
 
 qualifier

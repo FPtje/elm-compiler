@@ -30,4 +30,5 @@ data Def'
     = Definition Pattern.RawPattern Expr
     | TypeAnnotation String Type.Raw
     | TypeRule [Pattern.RawPattern] [Rule.SourceRule]
+    deriving (Show)
 

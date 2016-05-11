@@ -39,10 +39,10 @@ toDefs moduleName (A.A (region,_) decl) =
                 tbody = T.App (T.Type (typeVar name)) (map T.Var tvars)
                 body = loc . E.Data ctor $ map (loc . E.localVar) vars
             in
-                [ definition ctor (buildFunction body vars) region (T.unqualified (foldr T.Lambda tbody tipes)) ]
+                [ definition ctor (buildFunction body vars) region (T.unqualified (foldr T.Lambda tbody tipes)) [] ]
 
     D.TypeAlias name tvars tipe@(T.Record fields Nothing) ->
-        [ definition name (buildFunction record vars) region (T.unqualified (foldr T.Lambda result args)) ]
+        [ definition name (buildFunction record vars) region (T.unqualified (foldr T.Lambda result args)) [] ]
       where
         result =
           T.Aliased (typeVar name) (zip tvars (map T.Var tvars)) (T.Holey tipe)
@@ -66,13 +66,13 @@ toDefs moduleName (A.A (region,_) decl) =
         in
         case impl of
           E.In name tipe ->
-              [ definition name body region (T.unqualified $ T.getPortType tipe) ]
+              [ definition name body region (T.unqualified $ T.getPortType tipe) [] ]
 
           E.Out name _expr tipe ->
-              [ definition name body region (T.unqualified $ T.getPortType tipe) ]
+              [ definition name body region (T.unqualified $ T.getPortType tipe) [] ]
 
           E.Task name _expr tipe ->
-              [ definition name body region (T.unqualified $ T.getPortType tipe) ]
+              [ definition name body region (T.unqualified $ T.getPortType tipe) [] ]
 
     D.IFace ifc ->
       map (interfaceToDecl ifc) (Interface.decls ifc)
@@ -95,10 +95,10 @@ changeName impl (Canonical.Definition facts (A.A rg (P.Var nm)) expr ann clstp@(
 
 interfaceToDecl
     :: Interface.CanonicalInterface
-    -> Canonical.InterfaceFunction
+    -> Interface.CanonicalInterfaceDecl
     -> Canonical.Def
-interfaceToDecl ifc (Canonical.InterfaceFunction name (A.A rg tp)) =
-    definition (Var.name name) (A.A rg (E.Var name)) rg (T.addQualifiers tp [T.Qualifier (Interface.classname ifc) (Interface.interfacevar ifc)])
+interfaceToDecl ifc (A.A _ (Interface.IFType name (A.A rg tp) rules)) =
+    definition (Var.name name) (A.A rg (E.Var name)) rg (T.addQualifiers tp [T.Qualifier (Interface.classname ifc) (Interface.interfacevar ifc)]) rules
 
 
 infiniteArgs :: [String]
@@ -114,12 +114,12 @@ buildFunction body@(A.A ann _) vars =
       (map (A.A ann . P.Var) vars)
 
 
-definition :: String -> Canonical.Expr -> R.Region -> T.Canonical -> Canonical.Def
-definition name expr@(A.A ann _) region tipe =
+definition :: String -> Canonical.Expr -> R.Region -> T.Canonical -> [Canonical.TypeRule] -> Canonical.Def
+definition name expr@(A.A ann _) region tipe rules =
   Canonical.Definition
     Canonical.dummyFacts
     (A.A ann (P.Var name))
     expr
     (Just (A.A region tipe))
     Nothing
-    []
+    rules

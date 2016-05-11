@@ -36,8 +36,8 @@ data Facts = Facts
 instance Show Facts where
     show _ = "Facts"
 
-data InterfaceFunction = InterfaceFunction Var.Canonical (A.Located Type.Canonical)
-    deriving (Show)
+-- data InterfaceFunction = InterfaceFunction Var.Canonical (A.Located Type.Canonical)
+--     deriving (Show)
 
 dummyFacts :: Facts
 dummyFacts =

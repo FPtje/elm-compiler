@@ -106,10 +106,44 @@ typeRuleHelp rs = [A.A rg (toValid r) | (A.A rg r) <- rs]
     toValid constr = constr { Rule.lhs = Var.Raw (Rule.lhs constr) }
 
 
+validateIFaceDecls :: [Source.Def] -> Result.Result wrn Error.Error [Interface.ValidInterfaceDecl]
+validateIFaceDecls [] = Result.ok []
+validateIFaceDecls (A.A region def : defs) =
+  let
+    -- collectRules :: String -> Type.Raw -> [Source.Def] -> Result .. (Interface.ValidInterfaceDecl, [Source.Def])
+    collectRules _ [] = Result.ok ([], [])
+    collectRules name defs'@(A.A _ def' : rest) =
+      case def' of
+        Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules ->
+          if name == name' then
+            do
+              pats' <- mapM validatePattern pats
+              let rule = checkRule $ Valid.TypeRule pats' (typeRuleHelp rules)
+
+              (otherRules, rest') <- collectRules name rest
+              Result.ok (rule : otherRules, rest')
+          else
+            Result.throw region (Error.TypeRuleNotBetweenTypeAndDef name) -- TODO: Better, interface specific error
+
+        _ -> Result.ok ([], defs')
+  in
+    case def of
+      Source.TypeRule ((A.A _ (Pattern.Var name)) : _) _ ->
+          Result.throw region (Error.TypeRuleNotBetweenTypeAndDef name) -- TODO: Better, interface specific error
+
+      Source.TypeAnnotation name tipe ->
+        do
+          (rules, rest) <- collectRules name defs
+          otherDefs <- validateIFaceDecls rest
+
+          Result.ok $ A.A region (Interface.IFType name tipe rules) : otherDefs
+
+
+
 ifaceHelp
     :: R.Region
-    -> Interface.Interface' (A.Located String) String Source.Def
-    -> Result.Result wrn Error.Error (Interface.Interface' (A.Located Var.Raw) Var.Raw Source.Def)
+    -> Interface.SourceInterface
+    -> Result.Result wrn Error.Error Interface.ValidInterface
 ifaceHelp region (Interface.Interface quals (A.A rg classNm) var decls) =
   do
     newQuals <- mapM qualifierHelp quals
@@ -120,8 +154,9 @@ ifaceHelp region (Interface.Interface quals (A.A rg classNm) var decls) =
     let errs = map (\(Type.Qualifier (A.A _ cls) var') -> Error.MessyTypeVarsInInterface classNm cls var' var) badQuals
     mapM_ (Result.throw region) errs
 
+    newDecls <- validateIFaceDecls decls
 
-    return $ Interface.Interface newQuals (A.A rg $ Var.Raw classNm) (Var.Raw var) decls
+    return $ Interface.Interface newQuals (A.A rg $ Var.Raw classNm) (Var.Raw var) newDecls
 
 implHelp
     :: Maybe String

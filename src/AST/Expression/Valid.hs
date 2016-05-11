@@ -21,6 +21,7 @@ type Expr' =
   General.Expr' R.Region Def Var.Raw Type.Raw'
 
 data TypeRule = TypeRule [Pattern.RawPattern] [Rule.ValidRule]
+    deriving (Show)
 
 data Def
     = Definition Pattern.RawPattern Expr (Maybe Type.Raw) [TypeRule]

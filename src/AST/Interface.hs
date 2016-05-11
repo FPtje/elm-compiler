@@ -25,20 +25,34 @@ data Implementation' classref var tipe def
         }
     deriving (Show)
 
+
+data InterfaceDecl' pat tipe tiperule
+    = IFType pat tipe [tiperule]
+    deriving (Show)
+
+type InterfaceDecl pat tipe tiperule
+    = A.Located (InterfaceDecl' pat tipe tiperule)
+
+type ValidInterfaceDecl
+    = InterfaceDecl String Type.Raw Valid.TypeRule
+
+type CanonicalInterfaceDecl
+    = InterfaceDecl Var.Canonical (A.Located Type.Canonical) Canonical.TypeRule
+
 type SourceInterface
-    = Interface' String String Source.Def'
+    = Interface' (A.Located String) String Source.Def
 
 type SourceImplementation
     = Implementation' String String Type.Raw Source.Def'
 
 type ValidInterface
-    = Interface' (A.Located Var.Raw) Var.Raw Source.Def
+    = Interface' (A.Located Var.Raw) Var.Raw ValidInterfaceDecl
 
 type ValidImplementation
     = Implementation' (A.Located Var.Raw) Var.Raw Type.Raw' Valid.Def
 
 type CanonicalInterface
-    = Interface' Var.Canonical Type.Canonical' Canonical.InterfaceFunction
+    = Interface' Var.Canonical Type.Canonical' CanonicalInterfaceDecl
 
 type CanonicalImplementation
     = Implementation' Var.Canonical Type.Canonical' Type.Canonical' Canonical.Def

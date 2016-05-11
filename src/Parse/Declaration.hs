@@ -122,11 +122,11 @@ interface =
 
       Indent.withPos $
         do
-          firstTp <- Expr.typeAnnotation
+          firstTp <- Expr.typeAnnotation <|> Expr.typerule
           otherTps <-
               many $ do
                 try (whitespace >> Indent.checkIndent)
-                Expr.typeAnnotation
+                Expr.typeAnnotation <|> Expr.typerule
 
           return . D.IFace $ IF.Interface quals ifName vr (firstTp : otherTps)
 
