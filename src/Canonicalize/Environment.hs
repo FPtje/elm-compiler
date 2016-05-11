@@ -105,6 +105,13 @@ addTypeRuleType tp env =
   in
     addPatches (collectPatches Map.empty vars) env
 
+addTypeVars :: Type.Canonical -> Environment -> Environment
+addTypeVars tp env =
+  let
+    vars = Type.collectVars tp
+    toPatch s = Value s (Var.local s)
+  in
+    addPatches (map toPatch vars) env
 
 -- PATCHES
 

@@ -430,29 +430,29 @@ typeRuleVarArgMapping pats rules tipe =
   in
     varArgMappingFromRules rules initialMap
 
-typeRuleConstraint :: Env.Environment -> Type.Canonical -> Rule.ValidRule -> Result.Result (A.Located CError.Error) Rule.CanonicalRule
-typeRuleConstraint env _ (A.A rg (Rule.SubRule (Var.Raw var))) = A.A rg . Rule.SubRule <$> Canonicalize.variable rg env var
-typeRuleConstraint env tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) =
-    let
-      env' = Env.addTypeRuleType tp env
-    in
-
-      Canonicalize.variable rg env' lhs
+typeRuleConstraint :: Type.Canonical -> Rule.ValidRule  -> (Env.Environment, [Rule.CanonicalRule])-> Result.Result (A.Located CError.Error) (Env.Environment, [Rule.CanonicalRule])
+typeRuleConstraint _ (A.A rg (Rule.SubRule (Var.Raw var))) (env, rs) =
+  Canonicalize.variable rg env var
+    `Result.andThen` \v ->
+        Result.ok (env, A.A rg (Rule.SubRule v) : rs )
+typeRuleConstraint tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) (env, rs) =
+      Canonicalize.variable rg env lhs
         `Result.andThen` \lhs' ->
-            Canonicalize.tipe env' rhs
+            Canonicalize.tipe env rhs
               `Result.andThen` \rhs' ->
-                  checkTyperuletype' env' rg rhs' tp
+                  checkTyperuletype' env rg rhs' tp
                     `Result.andThen` \rhs'' ->
-                        Result.ok . A.A rg $ Rule.Constraint lhs' rhs'' expl
+                        Result.ok (Env.addTypeVars rhs'' env, A.A rg (Rule.Constraint lhs' rhs'' expl) : rs)
 
 typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
 typerule _ Nothing _ = error "Type annotation should exist when there are type rules"
 typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
     Result.map (pattern env) pats
       `Result.andThen` \pats' ->
-        let patEnv = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
-        in Result.map (typeRuleConstraint patEnv tp) rules
-          `Result.andThen` \constrs ->
+        let env' = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
+            env'' = Env.addTypeRuleType tp env'
+        in Result.foldl (typeRuleConstraint tp) (env'', []) rules
+          `Result.andThen` \(_, constrs) ->
               Result.ok $ Canonical.TypeRule pats' constrs (typeRuleVarArgMapping pats' constrs tp)
 
 definition
