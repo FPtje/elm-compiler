@@ -693,7 +693,7 @@ constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr m
   case (pattern, maybeTipe) of
     (P.Var name, Just (A.A typeRegion tipe)) ->
         constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interfaceType >>=
-        constrainRules env name tipe typeRegion rules
+        constrainRules env tipe typeRegion rules
 
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env info qs patternRegion name expr interfaceType
@@ -703,20 +703,19 @@ constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr m
 
 constrainRule
     :: Env.Environment
-    -> String
     -> ST.Canonical
     -> R.Region
     -> TypeConstraint
     -> Canonical.TypeRule
     -> IO TypeConstraint
-constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
+constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
   let
     lambdas :: [ST.Canonical']
     lambdas = ST.collectLambdas tipeAnn
 
     mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
-    mkVarFromString varmap (var, A.A _ (P.Var name)) =
-      return $ Map.insert name var varmap
+    mkVarFromString varmap (var, A.A _ (P.Var name')) =
+      return $ Map.insert name' var varmap
 
     -- In partial functions, the "return" refers to the rest of the type annotation
     -- This builds that last bit of the type annotation
@@ -756,6 +755,13 @@ constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs
       -> Rule.CanonicalRule
       -> IO (Int, Map.Map String Variable, TypeConstraint)
     constrainSubrule x (A.A _ (Rule.SubRule _)) = return x
+    constrainSubrule (ruleNr, varmap, constr') (A.A rg (Rule.Qualifier (ST.Qualifier classNm vartp) _)) =
+      do
+        (varmap', vartp') <- Env.instantiateType env (ST.unqualified vartp) varmap
+        var <- mkQualifiedVar [classNm]
+
+
+        return (ruleNr + 1, varmap', constr' /\ CEqual Error.TypeRuleMismatch rg vartp' (VarN var) (CustomError ruleNr))
     constrainSubrule (ruleNr, varmap, constr') (A.A rg (Rule.Constraint lhs rhs _)) =
       do
         (varmap', rhsT) <- Env.instantiateType env rhs varmap
@@ -794,15 +800,14 @@ constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs
 
 constrainRules
     :: Env.Environment
-    -> String
     -> ST.Canonical
     -> R.Region
     -> [Canonical.TypeRule]
     -> Info
     -> IO Info
-constrainRules env name tipeAnn tipeAnnRg rules info =
+constrainRules env tipeAnn tipeAnnRg rules info =
   do
-    lets <- foldM (constrainRule env name tipeAnn tipeAnnRg) CTrue rules
+    lets <- foldM (constrainRule env tipeAnn tipeAnnRg) CTrue rules
     return info { iC1 = lets /\ iC1 info }
 
 constrainAnnotatedDef
