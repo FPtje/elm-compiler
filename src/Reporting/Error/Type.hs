@@ -80,6 +80,9 @@ data Hint
     | Range
     | Lambda
     | Record
+
+    | TypeRuleArgument String
+    | TypeRuleReturn
     deriving (Eq, Show)
 
 
@@ -537,6 +540,26 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHint
               "The record has type:"
               "But you are trying to use it as:"
+              []
+          )
+
+    TypeRuleArgument name ->
+        report
+          Nothing
+          ("Argument " ++ show name ++ " of the type rule does not match the argument in the type annotation.")
+          ( cmpHint
+              "The type rule argument has type:"
+              "But the argument in the type annotation has this type:"
+              []
+          )
+
+    TypeRuleReturn ->
+        report
+          Nothing
+          "The return type of this type rule does not match the return type of the type annotation."
+          ( cmpHint
+              "The return in the type rule has type:"
+              "But the return in the type annotation has this type:"
               []
           )
 

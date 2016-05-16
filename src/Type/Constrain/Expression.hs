@@ -326,8 +326,7 @@ constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules arg
   where
       mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
       mkVarFromString varmap (var, A.A _ (P.Var name)) =
-        do
-          return $ Map.insert name var varmap
+        return $ Map.insert name var varmap
 
       mkReturnTypeConstrs :: Int -> Int -> [Variable] -> Variable -> TypeConstraint -> IO ([Variable], TypeConstraint)
       mkReturnTypeConstrs _ _ [] _ constr = return ([], constr)
@@ -688,12 +687,13 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType _) =
+constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType rules) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of
     (P.Var name, Just (A.A typeRegion tipe)) ->
-        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interfaceType
+        constrainAnnotatedDef env info qs patternRegion typeRegion name expr tipe interfaceType >>=
+        constrainRules env name tipe typeRegion rules
 
     (P.Var name, Nothing) ->
         constrainUnannotatedDef env info qs patternRegion name expr interfaceType
@@ -701,6 +701,87 @@ constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr m
     _ ->
         error "canonical definitions must not have complex patterns as names in the contstraint generation phase"
 
+constrainRule
+    :: Env.Environment
+    -> String
+    -> ST.Canonical
+    -> R.Region
+    -> TypeConstraint
+    -> Canonical.TypeRule
+    -> IO TypeConstraint
+constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
+  let
+    lambdas :: [ST.Canonical']
+    lambdas = ST.collectLambdas tipeAnn
+
+    mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
+    mkVarFromString varmap (var, A.A _ (P.Var name)) =
+      return $ Map.insert name var varmap
+
+    -- In partial functions, the "return" refers to the rest of the type annotation
+    -- This builds that last bit of the type annotation
+    instantiateRestFunc :: [ST.Canonical'] -> Map.Map String Variable -> IO (Map.Map String Variable, Type)
+    instantiateRestFunc [t] varmap = Env.instantiateType env (ST.unqualified t) varmap
+    instantiateRestFunc (t : ts) varmap =
+      do
+        (varmap', t') <- Env.instantiateType env (ST.unqualified t) varmap
+        (varmap'', recTp) <- instantiateRestFunc ts varmap'
+
+        return (varmap'', t' ==> recTp)
+
+    -- Create constraints between the variables of the arguments and the type annotation
+    matchVarsTypeAnn
+      :: [P.CanonicalPattern]
+      -> [Variable]
+      -> [ST.Canonical']
+      -> Map.Map String Variable
+      -> IO (Map.Map String Variable, TypeConstraint)
+    matchVarsTypeAnn _ [returnVar] tipes varmap =
+      do
+        (varmap', restFunc) <- instantiateRestFunc tipes varmap
+        let constr' = CEqual Error.TypeRuleReturn tipeAnnRg (VarN returnVar) restFunc (CustomError (-1000))
+
+        return (varmap', constr')
+    matchVarsTypeAnn (A.A _ (P.Var argName) : ps) (v : vs) (t : ts) varmap =
+      do
+        (varmap', tp) <- Env.instantiateType env (ST.unqualified t) varmap
+
+        (recVarmap, recConstr) <- matchVarsTypeAnn ps vs ts varmap'
+
+        return (recVarmap, CEqual (Error.TypeRuleArgument argName) tipeAnnRg (VarN v) tp (CustomError (-1000)) /\ recConstr)
+  in
+    do
+      argVars <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
+      varmap <- foldM mkVarFromString Map.empty (zip argVars $ tail pats ++ [A.A undefined $ P.Var "return"])
+
+      (varmap', typeAnnConstr) <- matchVarsTypeAnn (tail pats) argVars lambdas varmap
+
+      -- type annotation vars must be rigid
+      let typeAnnVars = Map.elems $ Map.difference varmap' varmap
+      mapM_ mkVarRigid typeAnnVars
+
+      let scheme =
+            Scheme
+              { _rigidQuantifiers = typeAnnVars
+              , _flexibleQuantifiers = []
+              , _constraint = CTrue
+              , _header = Map.empty
+              }
+
+      return $ CLet [scheme] (typeAnnConstr /\ constr)
+
+constrainRules
+    :: Env.Environment
+    -> String
+    -> ST.Canonical
+    -> R.Region
+    -> [Canonical.TypeRule]
+    -> Info
+    -> IO Info
+constrainRules env name tipeAnn tipeAnnRg rules info =
+  do
+    lets <- foldM (constrainRule env name tipeAnn tipeAnnRg) CTrue rules
+    return info { iC1 = lets /\ iC1 info }
 
 constrainAnnotatedDef
     :: Env.Environment
