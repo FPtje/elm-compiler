@@ -103,6 +103,7 @@ typeRuleHelp rs = [A.A rg (toValid r) | (A.A rg r) <- rs]
   where
     toValid :: Rule.SourceRule' -> Rule.ValidRule'
     toValid (Rule.SubRule var) = Rule.SubRule (Var.Raw var)
+    toValid (Rule.Qualifier (Type.Qualifier (A.A crg classNm) var) expl) = Rule.Qualifier (Type.Qualifier (A.A crg $ Var.Raw classNm) (Var.Raw var)) expl
     toValid constr = constr { Rule.lhs = Var.Raw (Rule.lhs constr) }
 
 

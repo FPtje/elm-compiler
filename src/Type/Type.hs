@@ -429,6 +429,13 @@ mkVar :: Maybe Super -> IO Variable
 mkVar maybeSuper =
   UF.fresh $ mkDescriptor (Var Flex maybeSuper Nothing)
 
+mkQualifiedVar :: [Var.Canonical] -> IO Variable
+mkQualifiedVar quals =
+  do
+    var <- mkVar Nothing
+    UF.modifyDescriptor var (\d -> d { _qualifiers = Set.fromList quals })
+    return var
+
 
 mkNamedVar :: String -> IO Variable
 mkNamedVar name =

@@ -313,6 +313,22 @@ subErrorTypeRule = addLocation $
     v <- lowVar
     return $ R.SubRule v
 
+
+qualifierRule :: IParser R.SourceRule
+qualifierRule = addLocation $
+  do
+    try (reserved "check")
+    forcedWS
+    qual <- Type.qualifier
+
+    explanation <- optionMaybe $ do
+        try (forcedWS >> reserved "because")
+        forcedWS
+
+        anyUntil $ simpleNewline <|> (eof >> return "")
+
+    return $ R.Qualifier qual explanation
+
 constraintTypeRule :: IParser R.SourceRule
 constraintTypeRule = addLocation $
   do
@@ -335,7 +351,7 @@ constraintTypeRule = addLocation $
 typeRuleConstr :: IParser R.SourceRule
 typeRuleConstr =
   expecting "An error description" $
-  subErrorTypeRule <|> constraintTypeRule
+  subErrorTypeRule <|> constraintTypeRule <|> qualifierRule
 
 typerule :: IParser Source.Def
 typerule = addLocation $

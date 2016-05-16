@@ -6,6 +6,7 @@ import Control.Monad (foldM)
 import Data.List (nub, sort)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
+import qualified Data.UnionFind.IO as UF
 
 import qualified AST.Expression.General as E
 import qualified AST.Expression.Canonical as Canonical
@@ -21,7 +22,7 @@ import qualified Type.Constrain.Literal as Literal
 import qualified Type.Constrain.Pattern as Pattern
 import qualified Type.Environment as Env
 import qualified Type.Fragment as Fragment
-import Type.Type hiding (Descriptor(..))
+import Type.Type
 
 
 constrain
@@ -210,6 +211,16 @@ typeRuleError
     -> Rule.CanonicalRule'
     -> Map.Map String Int
     -> Error.Hint
+typeRuleError rg mName (Rule.Qualifier (ST.Qualifier _ (ST.Var var)) explanation) varMap =
+  let
+    Just var' = Map.lookup var varMap
+
+    returnNr :: Int
+    (Just returnNr') = Map.lookup "return" varMap
+    returnNr = returnNr' + 1
+  in
+    Error.UnexpectedArg mName (var' + 1) returnNr rg explanation
+
 typeRuleError rg mName (Rule.Constraint lhs rhs explanation) varMap =
   let
     Just lhsVar' = Map.lookup (V.toString lhs) varMap
@@ -259,6 +270,17 @@ applyCustomTypeRule env region f args tipe pats varNumbers (ruleNumber, varmap, 
               varConstr <- constrain env expr (VarN argVar)
 
               return (ruleNumber + 1, varmap, constr /\ varConstr)
+      Rule.Qualifier (ST.Qualifier classNm vartp) expl ->
+        do
+          (varmap', vartp') <- Env.instantiateExplainedType env (ST.unqualified vartp) varmap expl
+          var <- mkQualifiedVar [classNm]
+
+          case expl of
+            Nothing -> return ()
+            Just e ->
+                UF.modifyDescriptor var (\d -> d { _qualifierExplanations = Map.singleton classNm e })
+
+          return (ruleNumber + 1, varmap', constr /\ CEqual (typeRuleError region (maybeName f) rule varNumbers) region vartp' (VarN var) (CustomError ruleNumber))
       Rule.Constraint lhs rhs expl ->
         do
           (varmap', rhsT) <- Env.instantiateExplainedType env rhs varmap expl
@@ -666,7 +688,7 @@ data Info = Info
 
 
 constrainDef :: Env.Environment -> Info -> Canonical.Def -> IO Info
-constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType rules) =
+constrainDef env info (Canonical.Definition _ (A.A patternRegion pattern) expr maybeTipe interfaceType _) =
   let qs = [] -- should come from the def, but I'm not sure what would live there...
   in
   case (pattern, maybeTipe) of

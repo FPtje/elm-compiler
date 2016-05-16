@@ -32,7 +32,7 @@ reserveds =
     , "import", "as", "hiding", "exposing"
     , "port", "sibling", "resembles", "export", "foreign"
     , "interface", "describes", "implement", "for", "assuming"
-    , "errors", "constrain", "because", "unify", "with"
+    , "errors", "constrain", "because", "unify", "with", "check"
     , "perform"
     , "deriving"
     ]

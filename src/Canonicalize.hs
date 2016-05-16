@@ -396,11 +396,13 @@ checkTyperuletype' env rg typ annotation =
   in
       Result.foldl exists typ vars
 
+-- | mapping between the variables in rules and the parameters they reason about
 varArgMappingFromRules
   :: [Rule.CanonicalRule]
   -> Map.Map String Int
   -> Map.Map String Int
 varArgMappingFromRules [] mp = mp
+varArgMappingFromRules ((A.A _ (Rule.Qualifier {})) : rs) mp = varArgMappingFromRules rs mp
 varArgMappingFromRules ((A.A _ (Rule.SubRule {})) : rs) mp = varArgMappingFromRules rs mp
 varArgMappingFromRules (r@(A.A _ rule) : rs) mp =
   let
@@ -441,17 +443,20 @@ typeRuleVarArgMapping pats rules tipe =
 
 typeRuleConstraint :: Type.Canonical -> Rule.ValidRule  -> (Env.Environment, [Rule.CanonicalRule])-> Result.Result (A.Located CError.Error) (Env.Environment, [Rule.CanonicalRule])
 typeRuleConstraint _ (A.A rg (Rule.SubRule (Var.Raw var))) (env, rs) =
-  Canonicalize.variable rg env var
-    `Result.andThen` \v ->
-        Result.ok (env, A.A rg (Rule.SubRule v) : rs )
+  do
+    v <- Canonicalize.variable rg env var
+    Result.ok (env, A.A rg (Rule.SubRule v) : rs )
 typeRuleConstraint tp (A.A rg (Rule.Constraint (Var.Raw lhs) rhs expl)) (env, rs) =
-      Canonicalize.variable rg env lhs
-        `Result.andThen` \lhs' ->
-            Canonicalize.tipe env rhs
-              `Result.andThen` \rhs' ->
-                  checkTyperuletype' env rg rhs' tp
-                    `Result.andThen` \rhs'' ->
-                        Result.ok (Env.addTypeVars rhs'' env, A.A rg (Rule.Constraint lhs' rhs'' expl) : rs)
+  do
+    lhs' <- Canonicalize.variable rg env lhs
+    rhs' <- Canonicalize.tipe env rhs
+    rhs'' <- checkTyperuletype' env rg rhs' tp
+    Result.ok (Env.addTypeVars rhs'' env, A.A rg (Rule.Constraint lhs' rhs'' expl) : rs)
+typeRuleConstraint _ (A.A rg (Rule.Qualifier qual expl)) (env, rs) =
+  do
+    qual' <- Canonicalize.qualifier env qual
+
+    Result.ok $ (env, A.A rg (Rule.Qualifier qual' expl) : rs)
 
 typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
 typerule _ Nothing _ = error "Type annotation should exist when there are type rules"
