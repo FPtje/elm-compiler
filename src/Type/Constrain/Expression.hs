@@ -749,6 +749,25 @@ constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs
         (recVarmap, recConstr) <- matchVarsTypeAnn ps vs ts varmap'
 
         return (recVarmap, CEqual (Error.TypeRuleArgument argName) tipeAnnRg (VarN v) tp (CustomError (-1000)) /\ recConstr)
+
+    -- Constrain one custom constraint
+    constrainSubrule
+      :: (Int, Map.Map String Variable, TypeConstraint)
+      -> Rule.CanonicalRule
+      -> IO (Int, Map.Map String Variable, TypeConstraint)
+    constrainSubrule x (A.A _ (Rule.SubRule _)) = return x
+    constrainSubrule (ruleNr, varmap, constr') (A.A rg (Rule.Constraint lhs rhs _)) =
+      do
+        (varmap', rhsT) <- Env.instantiateType env rhs varmap
+        (lhsT, varmap'') <-
+          case Map.lookup (V.toString lhs) varmap' of
+              Just var -> return (var, varmap')
+              Nothing ->
+                do
+                  var <- mkVar Nothing
+                  return (var, Map.insert (V.toString lhs) var varmap')
+
+        return (ruleNr + 1, varmap'', constr' /\ CEqual Error.TypeRuleMismatch rg (VarN lhsT) rhsT (CustomError ruleNr))
   in
     do
       argVars <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
@@ -760,6 +779,9 @@ constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs
       let typeAnnVars = Map.elems $ Map.difference varmap' varmap
       mapM_ mkVarRigid typeAnnVars
 
+      -- Constrain the subrules
+      (_, _, trConstrs) <- foldM constrainSubrule (0, varmap', CTrue) constrs
+
       let scheme =
             Scheme
               { _rigidQuantifiers = typeAnnVars
@@ -768,7 +790,7 @@ constrainRule env name tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs
               , _header = Map.empty
               }
 
-      return $ CLet [scheme] (typeAnnConstr /\ constr)
+      return $ CLet [scheme] (typeAnnConstr /\ trConstrs /\ constr)
 
 constrainRules
     :: Env.Environment

@@ -83,6 +83,8 @@ data Hint
 
     | TypeRuleArgument String
     | TypeRuleReturn
+
+    | TypeRuleMismatch
     deriving (Eq, Show)
 
 
@@ -168,6 +170,10 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
         ( Maybe.maybeToList (reasonToString =<< maybeReason)
           ++ map toHint extraHints
         )
+
+    cmpHintNoReason leftWords rightWords extraHints =
+      comparisonHint localizer leftType rightType leftWords rightWords
+        ( map toHint extraHints )
 
     addExplanation :: Maybe Var.Canonical -> Maybe String -> [String] -> [String]
     addExplanation maybeName expl hints =
@@ -547,7 +553,7 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
         report
           Nothing
           ("Argument " ++ show name ++ " of the type rule does not match the argument in the type annotation.")
-          ( cmpHint
+          ( cmpHintNoReason
               "The type rule argument has type:"
               "But the argument in the type annotation has this type:"
               []
@@ -557,10 +563,20 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
         report
           Nothing
           "The return type of this type rule does not match the return type of the type annotation."
-          ( cmpHint
+          ( cmpHintNoReason
               "The return in the type rule has type:"
               "But the return in the type annotation has this type:"
               []
+          )
+
+    TypeRuleMismatch ->
+        report
+          Nothing
+          "The left hand side of this constraint does not match the right hand side."
+          ( cmpHintNoReason
+              "The left hand side has type:"
+              "But right hand side has this type:"
+              ["Note that the previous rules and the type annotation decide the types of the variables"]
           )
 
 
