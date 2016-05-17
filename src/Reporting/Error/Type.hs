@@ -51,6 +51,7 @@ data VarType
     | Appendable
     | CompAppend
     | Rigid (Maybe String)
+    | RigidQualifier [String]
     deriving (Show)
 
 
@@ -706,6 +707,8 @@ reasonToString reason =
     BadVar (Just CompAppend) _ ->
         go "Only strings and lists are both comparable and appendable."
 
+    BadVar (Just (RigidQualifier quals)) _ ->
+        go $ "BAD QUALIFIERS! " ++ show quals
     BadVar (Just (Rigid _)) (Just (Rigid _)) ->
         go doubleRigidError
 

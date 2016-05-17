@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Type.Unify (unify, atomMatchesSuper, ExtensionStructure (..), findImplementation) where
 
-import Control.Monad (zipWithM_)
+import Control.Monad (zipWithM_, when)
 import Control.Monad.Except (ExceptT, lift, liftIO, throwError, runExceptT)
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
@@ -114,6 +114,10 @@ badRigid :: Maybe String -> Error.Reason
 badRigid maybeName =
   Error.BadVar (Just (Error.Rigid maybeName)) Nothing
 
+badRigidQualifier :: Set.Set Var.Canonical -> Error.Reason
+badRigidQualifier quals =
+  Error.BadVar (Just (Error.RigidQualifier $ map Var.toString $ Set.toList quals)) Nothing
+
 
 badSuper :: Super -> Error.Reason
 badSuper super =
@@ -146,8 +150,23 @@ errorSuper super =
 
 
 merge :: Context -> Content -> Unify ()
-merge (Context _ first _ second _) content =
-  liftIO $ mergeHelp first second content
+merge context@(Context _ first firstDesc second secondDesc) content =
+  let
+    check rigidQuals otherQuals =
+      do
+        let diff = Set.difference otherQuals rigidQuals
+
+        when (not $ Set.null $ diff) $
+          mismatch context (Just (badRigidQualifier diff))
+  in
+    do
+      case (_content firstDesc, _content secondDesc) of
+        (Var Rigid _ _, _) -> check (_qualifiers firstDesc) (_qualifiers secondDesc)
+        (_, Var Rigid _ _) -> check (_qualifiers secondDesc) (_qualifiers firstDesc)
+        _ -> return ()
+
+
+      liftIO $ mergeHelp first second content
 
 
 mergeHelp :: Variable -> Variable -> Content -> IO ()

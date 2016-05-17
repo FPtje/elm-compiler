@@ -713,6 +713,10 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
     lambdas :: [ST.Canonical']
     lambdas = ST.collectLambdas tipeAnn
 
+    -- Qualify a type with the qualifiers from the type annotation
+    qlf :: ST.Canonical' -> ST.Canonical
+    qlf tp = ST.QT (ST.qualifiers tipeAnn) tp
+
     mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
     mkVarFromString varmap (var, A.A _ (P.Var name')) =
       return $ Map.insert name' var varmap
@@ -720,10 +724,10 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
     -- In partial functions, the "return" refers to the rest of the type annotation
     -- This builds that last bit of the type annotation
     instantiateRestFunc :: [ST.Canonical'] -> Map.Map String Variable -> IO (Map.Map String Variable, Type)
-    instantiateRestFunc [t] varmap = Env.instantiateType env (ST.unqualified t) varmap
+    instantiateRestFunc [t] varmap = Env.instantiateType env (qlf t) varmap
     instantiateRestFunc (t : ts) varmap =
       do
-        (varmap', t') <- Env.instantiateType env (ST.unqualified t) varmap
+        (varmap', t') <- Env.instantiateType env (qlf t) varmap
         (varmap'', recTp) <- instantiateRestFunc ts varmap'
 
         return (varmap'', t' ==> recTp)
@@ -738,16 +742,16 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
     matchVarsTypeAnn _ [returnVar] tipes varmap =
       do
         (varmap', restFunc) <- instantiateRestFunc tipes varmap
-        let constr' = CEqual Error.TypeRuleReturn tipeAnnRg (VarN returnVar) restFunc (CustomError (-1000))
+        let constr' = CEqual Error.TypeRuleReturn tipeAnnRg restFunc (VarN returnVar) (CustomError (-1000))
 
         return (varmap', constr')
     matchVarsTypeAnn (A.A _ (P.Var argName) : ps) (v : vs) (t : ts) varmap =
       do
-        (varmap', tp) <- Env.instantiateType env (ST.unqualified t) varmap
+        (varmap', tp) <- Env.instantiateType env (qlf t) varmap
 
         (recVarmap, recConstr) <- matchVarsTypeAnn ps vs ts varmap'
 
-        return (recVarmap, CEqual (Error.TypeRuleArgument argName) tipeAnnRg (VarN v) tp (CustomError (-1000)) /\ recConstr)
+        return (recVarmap, CEqual (Error.TypeRuleArgument argName) tipeAnnRg tp (VarN v) (CustomError (-1000)) /\ recConstr)
 
     -- Constrain one custom constraint
     constrainSubrule
