@@ -369,6 +369,8 @@ declToValue (A.A _ decl) =
 
       _ -> []
 
+-- | Checks whether the type variables in the right hand sides
+-- of type rules are correct
 checkTyperuletype'
     :: Env.Environment
     -> Region.Region
@@ -468,7 +470,18 @@ typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
     (_, constrs) <- Result.foldl (typeRuleConstraint tp) (env'', []) rules
     let constrs' = reverse constrs
 
-    Result.ok $ Canonical.TypeRule pats' constrs' (typeRuleVarArgMapping pats' constrs' tp)
+    let toCheckRule :: Type.Qualifier' Var.Canonical Type.Canonical' -> Rule.CanonicalRule
+        toCheckRule (Type.Qualifier classNm (Type.Var name)) =
+          A.A (error "Rule should not have its region inspected") $
+            Rule.Qualifier (Type.Qualifier classNm (Type.Var $ name ++ "_1")) Nothing
+
+
+    -- Add "Check" rules for all qualifiers at the end
+    -- Even if they're already there in the type rules.
+    let qualChecks = map toCheckRule $ Type.qualifiers tp
+    let constrs'' = constrs' ++ qualChecks
+
+    Result.ok $ Canonical.TypeRule pats' constrs'' (typeRuleVarArgMapping pats' constrs'' tp)
 
 definition
     :: Env.Environment
@@ -526,7 +539,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
                               D.Port <$> Port.check region name (Just expr') tipe'
 
 
-      D.IFace (Interface.Interface quals (A.A rg (Var.Raw classref)) (Var.Raw var) decls) ->
+      D.IFace ifc@(Interface.Interface quals (A.A rg (Var.Raw classref)) (Var.Raw var) decls) ->
           let
             exists = Map.member classref (Env._interfaces env)
             Just (classnm, _) = Map.lookup classref (Env._interfaces env)
@@ -537,7 +550,7 @@ declaration modulname env (A.A ann@(region,_) decl) =
                 if (not exists) then
                   Result.errors [notFound rg (Map.keys . Env._interfaces $ env) classref]
                 else
-                  Result.map (interfaceDeclaration modulname env) decls
+                  Result.map (interfaceDeclaration classnm var modulname env) decls
                     `Result.andThen` \newDecls ->
                       Result.ok . D.IFace $ Interface.Interface newQuals classnm (Type.Var var) newDecls
 
@@ -592,16 +605,20 @@ insertInterfaceType env classref quals impltype (Canonical.Definition facts pat@
 
 
 interfaceDeclaration
-    :: ModuleName.Canonical
+    :: Var.Canonical
+    -> String
+    -> ModuleName.Canonical
     -> Env.Environment
     -> Interface.ValidInterfaceDecl
     -> Result.ResultErr Interface.CanonicalInterfaceDecl
-interfaceDeclaration modul env (A.A rg (Interface.IFType nm tipe rules)) =
+interfaceDeclaration ifcName var modul env (A.A rg (Interface.IFType nm tipe rules)) =
   do
     newtipe <- Canonicalize.tipe env tipe
-    newrules <- Result.map (typerule env (Just $ A.A rg $ newtipe)) rules
+    let classNm = (Var.topLevel modul nm)
+    let newtipe' = Type.addQualifiers newtipe [Type.Qualifier ifcName (Type.Var var)]
+    newrules <- Result.map (typerule env (Just $ A.A rg $ newtipe')) rules
 
-    Result.ok . A.A rg $ Interface.IFType (Var.topLevel modul nm) (A.A rg newtipe) newrules
+    Result.ok . A.A rg $ Interface.IFType classNm (A.A rg newtipe) newrules
 
 
 qualifier
