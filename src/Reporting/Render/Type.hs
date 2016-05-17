@@ -13,7 +13,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
-  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat
+  , lbrace, lparen, parens, rbrace, rparen, sep, text, vcat, punctuate
   )
 
 import qualified AST.Helpers as Help
@@ -374,36 +374,47 @@ flattenRecordHelp fields ext =
 
 -- TYPES TO DOCS
 
+docQualifier :: Localizer -> Type.Qualifier' Var.Canonical Type.Canonical' -> Doc
+docQualifier localizer (Type.Qualifier classNm (Type.Var var)) = varToDoc localizer classNm <+> text var
+
 
 docType :: Localizer -> Context -> Type.Canonical -> Doc
 docType localizer context tipe =
-  case Type.qtype tipe of
-    Type.Lambda _ _ ->
-        docLambda context (map (docType localizer Func . Type.unqualified) (Type.collectLambdas tipe))
+  let
+    addQuals :: Doc -> Doc
+    addQuals doc =
+      case Type.qualifiers tipe of
+        [] -> doc
+        xs -> doc <+> text "|" <+> cat (punctuate (text ", ") (map (docQualifier localizer) xs))
 
-    Type.Var x ->
-        text x
+  in addQuals $
+    case Type.qtype tipe of
+      Type.Lambda _ _ ->
+          docLambda context (map (docType localizer Func . Type.unqualified) (Type.collectLambdas tipe))
 
-    Type.Type name ->
-        varToDoc localizer name
+      Type.Var x ->
+          text x
 
-    Type.App (Type.Type name) args ->
-        docApp localizer context name args
+      Type.Type name ->
+          varToDoc localizer name
 
-    Type.App _ _ ->
-        error "type applications should start with a type atom"
+      Type.App (Type.Type name) args ->
+          docApp localizer context name args
 
-    Type.Record outerFields outerExt ->
-        let
-          (fields, ext) =
-            flattenRecordHelp outerFields outerExt
-        in
-          docRecord Full
-            (map (text *** docType localizer None . Type.unqualified) fields)
-            (fmap text ext)
+      Type.App _ _ ->
+          error "type applications should start with a type atom"
 
-    Type.Aliased name args _ ->
-        docApp localizer context name (map snd args)
+      Type.Record outerFields outerExt ->
+          let
+            (fields, ext) =
+              flattenRecordHelp outerFields outerExt
+          in
+            docRecord Full
+              (map (text *** docType localizer None . Type.unqualified) fields)
+              (fmap text ext)
+
+      Type.Aliased name args _ ->
+          docApp localizer context name (map snd args)
 
 
 
