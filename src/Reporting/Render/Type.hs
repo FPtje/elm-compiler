@@ -10,6 +10,7 @@ module Reporting.Render.Type
 
 import Control.Arrow ((***), first)
 import qualified Data.Map as Map
+import Data.List (nub)
 import qualified Data.Set as Set
 import Text.PrettyPrint.ANSI.Leijen
   ( Doc, (<+>), cat, colon, comma, dullyellow, equals, hang, hsep
@@ -33,12 +34,16 @@ toDoc localizer tipe =
 
 diffToDocs :: Localizer -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
 diffToDocs localizer leftType rightType =
-  case diff localizer None leftType rightType of
-    Same doc ->
-        (doc, doc)
+  let
+    addQualsL = docQualifiers localizer (Type.qualifiers leftType)
+    addQualsR = docQualifiers localizer (Type.qualifiers rightType)
+  in
+    case diff localizer None leftType rightType of
+      Same doc ->
+          (addQualsL doc, addQualsR doc)
 
-    Diff leftDoc rightDoc ->
-        (leftDoc, rightDoc)
+      Diff leftDoc rightDoc ->
+          (addQualsL leftDoc, addQualsR rightDoc)
 
 
 decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc
@@ -377,17 +382,15 @@ flattenRecordHelp fields ext =
 docQualifier :: Localizer -> Type.Qualifier' Var.Canonical Type.Canonical' -> Doc
 docQualifier localizer (Type.Qualifier classNm (Type.Var var)) = varToDoc localizer classNm <+> text var
 
+docQualifiers :: Localizer -> [Type.Qualifier' Var.Canonical Type.Canonical'] -> Doc -> Doc
+docQualifiers localizer quals doc =
+  case quals of
+    [] -> doc
+    xs -> doc <+> text "|" <+> cat (punctuate (text ", ") (map (docQualifier localizer) $ nub xs))
+
 
 docType :: Localizer -> Context -> Type.Canonical -> Doc
-docType localizer context tipe =
-  let
-    addQuals :: Doc -> Doc
-    addQuals doc =
-      case Type.qualifiers tipe of
-        [] -> doc
-        xs -> doc <+> text "|" <+> cat (punctuate (text ", ") (map (docQualifier localizer) xs))
-
-  in addQuals $
+docType localizer context tipe = docQualifiers localizer (Type.qualifiers tipe) $
     case Type.qtype tipe of
       Type.Lambda _ _ ->
           docLambda context (map (docType localizer Func . Type.unqualified) (Type.collectLambdas tipe))

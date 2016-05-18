@@ -15,8 +15,6 @@ import qualified Reporting.Region as Region
 import qualified Reporting.Render.Type as RenderType
 import qualified Reporting.Report as Report
 
-
-
 -- ERRORS
 
 
