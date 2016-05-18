@@ -814,7 +814,7 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
 
       let ruleRepresentedFunc = foldr1 (==>) $ map VarN argVars2
       (_, tipeAnnType) <- Env.instantiateType env tipeAnn Map.empty
-      let typeAnnConstr2 = CEqual Error.TypeRuleMismatch tipeAnnRg tipeAnnType ruleRepresentedFunc (CustomError (-1000))
+      let typeAnnConstr2 = CEqual Error.TypeRuleAnnotation tipeAnnRg ruleRepresentedFunc tipeAnnType (CustomError (-1000))
 
       let scheme2 =
             Scheme
