@@ -4,6 +4,7 @@ module Type.Constrain.Expression where
 import Control.Arrow (second)
 import Control.Monad (foldM)
 import Data.List (nub, sort)
+import Data.Maybe (catMaybes)
 import qualified Control.Monad as Monad
 import qualified Data.Map as Map
 import qualified Data.UnionFind.IO as UF
@@ -800,7 +801,31 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
               , _header = Map.empty
               }
 
-      return $ CLet [scheme] (typeAnnConstr /\ trConstrs /\ constr)
+      -- Second round of constraints
+      -- Used to check for missing qualifiers in type rules
+      argVars2 <- mapM (\_ -> mkVar Nothing) (tail pats ++ [A.A undefined $ P.Var "return"])
+      varmap2 <- foldM mkVarFromString Map.empty (zip argVars2 $ tail pats ++ [A.A undefined $ P.Var "return"])
+
+
+      (_, varmap2', trConstrs2) <- foldM constrainSubrule (0, varmap2, CTrue) constrs
+
+      let nrVars = [ v ++ "_1" | v <- nub $ ST.collectVars tipeAnn ]
+      let nrVariables = catMaybes $ map (flip Map.lookup varmap2') nrVars
+
+      let ruleRepresentedFunc = foldr1 (==>) $ map VarN argVars2
+      (_, tipeAnnType) <- Env.instantiateType env tipeAnn Map.empty
+      let typeAnnConstr2 = CEqual Error.TypeRuleMismatch tipeAnnRg tipeAnnType ruleRepresentedFunc (CustomError (-1000))
+
+      let scheme2 =
+            Scheme
+              { _rigidQuantifiers = nrVariables
+              , _flexibleQuantifiers = Map.elems varmap2'
+              , _constraint = trConstrs2
+              , _header = Map.empty
+              }
+
+
+      return $ CLet [scheme] (typeAnnConstr /\ trConstrs) /\ CLet [scheme2] (typeAnnConstr2 /\ constr)
 
 constrainRules
     :: Env.Environment

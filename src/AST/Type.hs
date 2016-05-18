@@ -6,7 +6,7 @@ module AST.Type
     , Port(..), getPortType
     , deepDealias, iteratedDealias, dealias
     , collectLambdas, collectLambdas'
-    , collectVars, collectVars'
+    , collectVars, collectVars', collectNumberedVars
     , tuple
     , substitute, substitute'
     , unqualified
@@ -223,6 +223,21 @@ collectVars' tipe =
 collectVars :: Canonical -> [String]
 collectVars = collectVars' . qtype
 
+collectNumberedVars :: Canonical -> [String]
+collectNumberedVars tp =
+  let
+    vars :: [String]
+    vars = collectVars tp
+
+    count :: ([String], Map.Map String Int) -> String -> ([String], Map.Map String Int)
+    count (res, mp) var =
+      let
+        nr :: Int
+        nr = Map.findWithDefault 0 var mp + 1
+      in
+        ((var ++ "_" ++ show nr) : res, Map.insert var nr mp)
+  in
+    fst $ foldl count ([], Map.empty) vars
 
 -- BINARY
 

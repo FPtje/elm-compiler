@@ -479,7 +479,7 @@ typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
     -- Add "Check" rules for all qualifiers at the end
     -- Even if they're already there in the type rules.
     let qualChecks = map toCheckRule $ Type.qualifiers tp
-    let constrs'' = constrs' ++ qualChecks
+    let constrs'' = constrs' -- ++ qualChecks
 
     Result.ok $ Canonical.TypeRule pats' constrs'' (typeRuleVarArgMapping pats' constrs'' tp)
 
