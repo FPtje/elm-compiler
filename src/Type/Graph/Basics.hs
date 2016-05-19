@@ -20,29 +20,32 @@ type VertexInfo = (VertexKind, Maybe Var.Canonical)
 -- | The types that a vertex can contain
 -- A simplification of the actual types
 data VertexKind =
-      VVar [Predicate]                                          -- ^ Type variable
+      VVar T.Flex [Predicate]                                   -- ^ Type variable
     | VCon String [Evidence]                                    -- ^ Type constructor
     | VApp VertexId VertexId                                    -- ^ Type application
     deriving (Show)
 
 -- Ignore predicates in VCons
 instance Eq VertexKind where
-    (VVar l) == (VVar r) = l == r
+    (VVar fl l) == (VVar fr r) = l == r && fl == fr
     (VCon l _) == (VCon r _) = l == r
     (VApp l r) == (VApp l' r') = l == l' && r == r'
     _ == _ = False
 
 instance Ord VertexKind where
-    compare (VVar l) (VVar r) = compare l r
+    compare (VVar fl l) (VVar fr r) =
+        case compare fl fr of
+            EQ -> compare l r
+            x -> x
     compare (VCon l _) (VCon r _) = compare l r
     compare (VApp l r) (VApp l' r') =
         case compare l l' of
             EQ -> compare r r'
             x -> x
-    compare (VVar _) (VCon _ _) = LT
-    compare (VCon _ _) (VVar _) = GT
-    compare (VVar _) (VApp _ _) = LT
-    compare (VApp _ _) (VVar _) = GT
+    compare (VVar _ _) (VCon _ _) = LT
+    compare (VCon _ _) (VVar _ _) = GT
+    compare (VVar _ _) (VApp _ _) = LT
+    compare (VApp _ _) (VVar _ _) = GT
     compare (VCon _ _) (VApp _ _) = LT
     compare (VApp _ _) (VCon _ _) = LT
 

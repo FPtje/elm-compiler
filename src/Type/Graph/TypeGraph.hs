@@ -23,7 +23,7 @@ import qualified Data.Set as S
 import qualified Data.Traversable as TR
 import Control.Monad.State (liftIO)
 import Control.Monad (foldM)
-import Data.List (nub)
+import Data.List (nub, sort)
 import Control.Applicative ((<|>))
 import Type.Unify (ExtensionStructure (..))
 
@@ -216,13 +216,13 @@ addContentGraph var content alias grph =
                     let evidence = [BS.Super super | super <- [T.Number, T.Comparable, T.Appendable, T.CompAppend], U.atomMatchesSuper super name] ++ quals
                     return (vid, incVarNumber . addVertex vid (BS.VCon (Var.toString name) evidence, alias) . updateFuncMap name $ grph)
 
-            T.Var _ msuper _ -> do
+            T.Var flex msuper _ -> do
                 let vid = BS.VertexId vertexId
                 liftIO $ UF.modifyDescriptor var (\d -> d { T._typegraphid = Just vertexId })
                 let exists = vertexExists vid grph
-                let predicates = maybe [] ((:[]) . BS.Super) msuper ++ quals
+                let predicates = sort $ maybe [] ((:[]) . BS.Super) msuper ++ quals
 
-                return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar predicates, alias) $ grph)
+                return (vid, if exists then grph else incVarNumber . addVertex vid (BS.VVar flex predicates, alias) $ grph)
             T.Alias als _ realtype -> addTermGraph realtype (Just als) grph
             -- pretend there is no error here, the type graph may come to a different conclusion as to where the error is
             T.Error original -> addContentGraph var original alias grph
@@ -752,7 +752,7 @@ reconstructInfiniteType vid infs grph = AT.unqualified $ -- TODO: qualified type
             Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
             Just (BS.VCon "Function" _, _) -> AT.Var "Function"
             Just (BS.VCon name _, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
-            Just (BS.VVar _, _) -> -- TODO: Represent qualified types in reconstructed type?
+            Just (BS.VVar _ _, _) -> -- TODO: Represent qualified types in reconstructed type?
                 case EG.typeOfGroup eg of
                     Right (vid', _) ->
                         if vid' == vid then
@@ -780,7 +780,8 @@ substituteVariable vid grph =
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
-        rec history vi (BS.VVar _, _)
+        rec history vi inf@(BS.VVar T.Rigid _, _) = Right (vi, inf)
+        rec history vi (BS.VVar _ _, _)
             | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
                 do
@@ -788,7 +789,7 @@ substituteVariable vid grph =
                     let present = S.insert vi history
 
                     case EG.typeOfGroup eg of
-                        Right (vi', vinfo@(BS.VVar _, _)) -> if vi == vi' then Right (vi, vinfo) else rec present vi' vinfo
+                        Right (vi', vinfo@(BS.VVar _ _, _)) -> if vi == vi' then Right (vi, vinfo) else rec present vi' vinfo
                         Right (_, tp) -> Right (vi, tp)
                         Left conflicts -> Left (InconsistentType eg conflicts)
 
@@ -836,7 +837,7 @@ findMissingImplementations grph =
 
         -- The implementation predicates that live within a certain group
         predicates :: EG.EquivalenceGroup info -> [BS.Predicate]
-        predicates grp = [ p | (_, (BS.VVar ps, _)) <- EG.vertices grp, p@(BS.PInterface _ _) <- ps ]
+        predicates grp = [ p | (_, (BS.VVar _ ps, _)) <- EG.vertices grp, p@(BS.PInterface _ _) <- ps ]
 
         propagateDown :: BS.VertexId -> AT.Canonical' -> (BS.VertexId, BS.VertexInfo) -> Maybe String -> AT.Qualifier' Var.Canonical AT.Canonical' -> [SubstitutionError info]
         propagateDown root tp vrtx@(_, (inf, _)) expl qual@(AT.Qualifier classref classvar)
@@ -862,7 +863,7 @@ findMissingImplementations grph =
         checkPredicate :: BS.VertexId -> (BS.VertexId, BS.VertexInfo) -> BS.Predicate -> [SubstitutionError info]
         checkPredicate root vrtx@(vid, (inf, _)) (BS.PInterface pdc expl) =
             case inf of
-                BS.VVar _ -> []
+                BS.VVar _ _ -> []
                 BS.VCon nm _ ->
                     case U.findImplementation impls pdc (AT.Type . fromJust . M.lookup nm $ funcMap grph) of
                         Just _ -> []

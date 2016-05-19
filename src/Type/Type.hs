@@ -107,7 +107,7 @@ data Content
 data Flex
     = Rigid
     | Flex
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 
 data Super

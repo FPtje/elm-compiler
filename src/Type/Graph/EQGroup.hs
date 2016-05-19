@@ -6,12 +6,12 @@ module Type.Graph.EQGroup where
 import qualified Type.Graph.Clique as CLQ
 import qualified Type.Graph.Basics as BS
 import qualified Type.Graph.Path as P
+import qualified Type.Type as T
 import qualified AST.Variable as Var
 import qualified Data.Map as M
 import Data.List (partition, nub)
 import Data.Maybe (listToMaybe, mapMaybe)
 import Control.Applicative ((<|>))
-
 
 -- | Equivalence groups
 data EquivalenceGroup info = EQGroup
@@ -176,6 +176,8 @@ typeOfGroup eqgroup
             ++ concat [cmbn lgrp rgrp | (lgrp, rgrp) <- pairs conflictGroups] -- Inconsistent types
             ++ evidenceLackingCons -- Constructors that have no evidence for required predicates
             ++ recordEvidence -- Records with different sets of fields
+            ++ rigidVarsConflicts -- Rigid variables containing different sets of predicates
+            ++ flexRigidConflicts -- Predicates that are in flex variables but not on rigid variables
 
 
         insert :: M.Map BS.VertexKind [BS.VertexId]
@@ -186,11 +188,26 @@ typeOfGroup eqgroup
         groupMap :: M.Map BS.VertexKind [BS.VertexId]
         groupMap = foldl insert M.empty allConstants
 
+        -- Conflicts between rigid variables containing different predicates
+        rigidVarsConflicts :: [(BS.VertexId, BS.VertexId)]
+        rigidVarsConflicts = [ (lid, rid) | (lid, (BS.VVar _ lpreds, _)) <- allRigids, (rid, (BS.VVar _ rpreds, _)) <- allRigids, lpreds /= rpreds ]
+
+        -- All the groups of different type applications, rigid variables and constants
         conflictGroups :: [[BS.VertexId]]
-        conflictGroups = map fst allApplies : (map snd . M.toList $ groupMap)
+        conflictGroups = map fst allRigids : map fst allApplies : (map snd . M.toList $ groupMap)
+
+        -- Conflicts between the predicates of rigid and flex variables
+        flexRigidConflicts :: [(BS.VertexId, BS.VertexId)]
+        flexRigidConflicts = [ (rid, fid) | (rid, rpreds) <- rigidPredicates, (fid, fpreds) <- flexPredicates, not $ all (`elem` rpreds) fpreds ]
+
+        flexPredicates :: [(BS.VertexId, [BS.Predicate])]
+        flexPredicates = [(vid, preds) | (vid, (BS.VVar T.Flex preds, _)) <- vertices eqgroup]
+
+        rigidPredicates :: [(BS.VertexId, [BS.Predicate])]
+        rigidPredicates = [(vid, preds) | (vid, (BS.VVar T.Rigid preds, _)) <- vertices eqgroup]
 
         allPredicates :: [(BS.VertexId, [BS.Predicate])]
-        allPredicates = [(vid, preds) | (vid, (BS.VVar preds@(_:_), _)) <- vertices eqgroup]
+        allPredicates = filter (\(_, ps) -> not $ null ps) $ rigidPredicates ++ flexPredicates
 
         evidenceLackingCons :: [(BS.VertexId, BS.VertexId)]
         evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ BS.matchEvidence preds evidence]
@@ -198,9 +215,10 @@ typeOfGroup eqgroup
         recordEvidence :: [(BS.VertexId, BS.VertexId)]
         recordEvidence = [(c1Id, c2Id) | (c1Id, (BS.VCon "1Record" [ev1], _)) <- allConstants, (c2Id, (BS.VCon "1Record" [ev2], _)) <- allConstants, c1Id /= c2Id, True, not $ BS.matchConsEvidence ev1 ev2]
 
-        allConstants, allApplies :: [(BS.VertexId, BS.VertexInfo)]
+        allConstants, allApplies, allRigids :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]
         allApplies    = [a | a@(_, (BS.VApp {}, _)) <- vertices eqgroup]
+        allRigids     = [a | a@(_, (BS.VVar T.Rigid _, _)) <- vertices eqgroup]
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info
