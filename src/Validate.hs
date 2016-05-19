@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall #-}
 module Validate (declarations) where
 
-import Control.Monad (foldM)
+import Control.Monad (foldM, when)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import qualified Data.Foldable as F
@@ -113,13 +113,13 @@ validateIFaceDecls (A.A region def : defs) =
   let
     -- collectRules :: String -> Type.Raw -> [Source.Def] -> Result .. (Interface.ValidInterfaceDecl, [Source.Def])
     collectRules _ [] = Result.ok ([], [])
-    collectRules name defs'@(A.A _ def' : rest) =
+    collectRules name defs'@(A.A rg def' : rest) =
       case def' of
         Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules ->
           if name == name' then
             do
               pats' <- mapM validatePattern pats
-              let rule = checkRule $ Valid.TypeRule pats' (typeRuleHelp rules)
+              rule <- checkRule rg $ Valid.TypeRule pats' (typeRuleHelp rules)
 
               (otherRules, rest') <- collectRules name rest
               Result.ok (rule : otherRules, rest')
@@ -191,11 +191,11 @@ defHelp comment (A.A region def) decls =
       typeRuledDef name _ _ [] = Result.throw region (Error.TypeWithoutDefinition name)
       typeRuledDef name tipe valids (d : rest) =
           case d of
-            D.Decl (A.A _ (D.Definition (A.A _ (Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules))))
+            D.Decl (A.A _ (D.Definition (A.A rg (Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules))))
               | name == name'->
               do
                 pats' <- mapM validatePattern pats
-                let rule = checkRule $ Valid.TypeRule pats' (typeRuleHelp rules)
+                rule <- checkRule rg $ Valid.TypeRule pats' (typeRuleHelp rules)
 
                 typeRuledDef name tipe (rule : valids) rest
             D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr))))
@@ -235,11 +235,13 @@ defHelp comment (A.A region def) decls =
               Result.throw region (Error.TypeWithoutDefinition name)
 
 -- Checks a rule
--- For now inserts missing subrules
+-- Inserts missing subrules
+-- Checks whether each argument of the function appears in the type rules
 checkRule
-    :: Valid.TypeRule
+    :: R.Region
     -> Valid.TypeRule
-checkRule (Valid.TypeRule pats rules) =
+    -> Result.Result wrn Error.Error Valid.TypeRule
+checkRule region (Valid.TypeRule pats rules) =
   let
     args :: [Pattern.RawPattern]
     args = tail pats
@@ -262,8 +264,19 @@ checkRule (Valid.TypeRule pats rules) =
 
     missingRet :: [Rule.ValidRule]
     missingRet = [patToRule ret | not (patIsCovered rules ret)]
+
+    leftHandSides :: Set.Set String
+    leftHandSides = Set.fromList [ var | A.A _ (Rule.Constraint (Var.Raw var) _ _) <- rules ]
+
+    missingArgsInConstraints :: [String]
+    missingArgsInConstraints =
+      [ arg | A.A _ (Pattern.Var arg) <- (ret : args), not $ Set.member arg leftHandSides ]
   in
-    Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
+    do
+      when (not $ null missingArgsInConstraints) $
+        Result.throw region (Error.TypeRuleMissingArgs missingArgsInConstraints)
+
+      return $ Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
 
 -- VALIDATE PORTS IN DECLARATIONS
 

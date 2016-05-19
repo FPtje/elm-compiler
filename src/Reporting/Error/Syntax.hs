@@ -19,6 +19,7 @@ data Error
     | TypeWithoutDefinition String
     | TypeRuleNotBetweenTypeAndDef String
     | TypeRuleNotTopLevel
+    | TypeRuleMissingArgs [String]
     | PortWithoutAnnotation String
     | UnexpectedPort
     | DuplicateFieldName String
@@ -116,6 +117,16 @@ toReport _localizer err =
           ( text $
               "Error rules customise the errors of functions for when they are used incorrectly.\n"
               ++ "It only makes sense for them to exist globally, because that is when other people use it."
+          )
+
+    TypeRuleMissingArgs args ->
+        Report.report
+          "MISSING UNIFY RULES"
+          Nothing
+          ("The set of type rules lacks rules about some arguments and/or the return type."
+          )
+          ( text $
+              (List.intercalate ", " (map (\c -> "'" ++ c ++ "'") args)) ++ " must appear at least once on the left hand side of a unify rule."
           )
 
     PortWithoutAnnotation portName ->
