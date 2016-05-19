@@ -4,6 +4,7 @@ module Reporting.Error.Canonicalize where
 import Control.Arrow (second)
 import qualified Data.Char as Char
 import Text.PrettyPrint.ANSI.Leijen (indent, text)
+import Data.List (intercalate)
 
 import qualified AST.Module.Name as ModuleName
 import qualified AST.Type as Type
@@ -24,6 +25,7 @@ data Error
     | DuplicateExport String
     | Port PortError
     | TypeRuleVarInTypeAnnotation String
+    | TypeRuleMissingVars [String]
 
 
 
@@ -166,6 +168,18 @@ toReport localizer err =
           ("Type variable `" ++ var ++ "` appears in both the type annotation and a type rule.")
           ("If you wish to refer to a type variable in an annotation, append an underscore and a number, like `" ++ var ++ "_1`.\n" ++
             "If instead you wish to use a fresh type variable, use a name that does not appear in the type annotation.")
+
+    TypeRuleMissingVars [var] ->
+        Report.report "MISSING TYPE VARIABLES IN RULES" Nothing
+          ("Type variable " ++ var ++ " does not appear in any of the right hand sides of the type rules.")
+          (text $
+            "This numbered type variables refers to the type variable in the type annotation.\n")
+
+    TypeRuleMissingVars vars ->
+        Report.report "MISSING TYPE VARIABLES IN RULES" Nothing
+          ("Type variables " ++ (intercalate ", " $ map (\c -> "'" ++ c ++ "'") vars) ++ " do not appear in any of the right hand sides of the type rules.")
+          (text $
+            "These numbered type variables refer to the type variables in the type annotation.\n")
 
     Pattern patternError ->
         case patternError of

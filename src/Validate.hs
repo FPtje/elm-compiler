@@ -119,7 +119,7 @@ validateIFaceDecls (A.A region def : defs) =
           if name == name' then
             do
               pats' <- mapM validatePattern pats
-              rule <- checkRule rg $ Valid.TypeRule pats' (typeRuleHelp rules)
+              rule <- checkRule $ A.A rg $ Valid.TypeRule pats' (typeRuleHelp rules)
 
               (otherRules, rest') <- collectRules name rest
               Result.ok (rule : otherRules, rest')
@@ -187,7 +187,6 @@ defHelp comment (A.A region def) decls =
         (:) (A.A (region, comment) (D.Definition def'))
           <$> validateDecls Nothing rest
 
-      -- typeRuledDef :: [D.ValidDecl] -> [D.SourceDecl] -> Result.Result wrn ([D.ValidDecl], [D.SourceDecl])
       typeRuledDef name _ _ [] = Result.throw region (Error.TypeWithoutDefinition name)
       typeRuledDef name tipe valids (d : rest) =
           case d of
@@ -195,7 +194,7 @@ defHelp comment (A.A region def) decls =
               | name == name'->
               do
                 pats' <- mapM validatePattern pats
-                rule <- checkRule rg $ Valid.TypeRule pats' (typeRuleHelp rules)
+                rule <- checkRule $ A.A rg $ Valid.TypeRule pats' (typeRuleHelp rules)
 
                 typeRuledDef name tipe (rule : valids) rest
             D.Decl (A.A _ (D.Definition (A.A _ (Source.Definition pat@(A.A _ (Pattern.Var name')) expr))))
@@ -238,10 +237,9 @@ defHelp comment (A.A region def) decls =
 -- Inserts missing subrules
 -- Checks whether each argument of the function appears in the type rules
 checkRule
-    :: R.Region
-    -> Valid.TypeRule
+    :: Valid.TypeRule
     -> Result.Result wrn Error.Error Valid.TypeRule
-checkRule region (Valid.TypeRule pats rules) =
+checkRule (A.A region (Valid.TypeRule pats rules)) =
   let
     args :: [Pattern.RawPattern]
     args = tail pats
@@ -276,7 +274,7 @@ checkRule region (Valid.TypeRule pats rules) =
       when (not $ null missingArgsInConstraints) $
         Result.throw region (Error.TypeRuleMissingArgs missingArgsInConstraints)
 
-      return $ Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
+      return $ A.A region $ Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
 
 -- VALIDATE PORTS IN DECLARATIONS
 

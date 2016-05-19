@@ -6,6 +6,7 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Set as Set
 import qualified Data.Traversable as T
 import qualified Data.Foldable as T
+import Control.Monad (when)
 
 import AST.Expression.General (Expr'(..), dummyLet)
 import AST.Module (Body(..))
@@ -462,7 +463,7 @@ typeRuleConstraint _ (A.A rg (Rule.Qualifier qual expl)) (env, rs) =
 
 typerule :: Env.Environment -> Maybe (A.Located Type.Canonical) -> Valid.TypeRule -> Result.Result (A.Located CError.Error) Canonical.TypeRule
 typerule _ Nothing _ = error "Type annotation should exist when there are type rules"
-typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
+typerule env (Just (A.A _ tp)) (A.A rg (Valid.TypeRule pats rules)) =
   do
     pats' <- mapM (pattern env) pats
     let env' = foldr Env.addPattern env (tail pats ++ [A.A undefined $ P.Var "return"]) -- Don't include the function names
@@ -470,18 +471,26 @@ typerule env (Just (A.A _ tp)) (Valid.TypeRule pats rules) =
     (_, constrs) <- Result.foldl (typeRuleConstraint tp) (env'', []) rules
     let constrs' = reverse constrs
 
-    let toCheckRule :: Type.Qualifier' Var.Canonical Type.Canonical' -> Rule.CanonicalRule
-        toCheckRule (Type.Qualifier classNm (Type.Var name)) =
-          A.A (error "Rule should not have its region inspected") $
-            Rule.Qualifier (Type.Qualifier classNm (Type.Var $ name ++ "_1")) Nothing
+    -- Check whether type variables in the signature appear in the rhs of the unify rules
+    let tpVars = Set.fromList $ Type.collectNumberedVars tp
+    let ruleVars = Set.fromList $ concat [ Type.collectVars rhs | A.A _ (Rule.Constraint _ rhs _) <- constrs' ]
+    let missingTpVars = Set.difference tpVars ruleVars
+
+    when (not $ Set.null missingTpVars) $
+      Result.err $ A.A rg $ CError.TypeRuleMissingVars $ Set.toList $ missingTpVars
+
+    -- let toCheckRule :: Type.Qualifier' Var.Canonical Type.Canonical' -> Rule.CanonicalRule
+    --     toCheckRule (Type.Qualifier classNm (Type.Var name)) =
+    --       A.A (error "Rule should not have its region inspected") $
+    --         Rule.Qualifier (Type.Qualifier classNm (Type.Var $ name ++ "_1")) Nothing
 
 
     -- Add "Check" rules for all qualifiers at the end
     -- Even if they're already there in the type rules.
-    let qualChecks = map toCheckRule $ Type.qualifiers tp
-    let constrs'' = constrs' -- ++ qualChecks
+    -- let qualChecks = map toCheckRule $ Type.qualifiers tp
+    -- let constrs'' = constrs' -- ++ qualChecks
 
-    Result.ok $ Canonical.TypeRule pats' constrs'' (typeRuleVarArgMapping pats' constrs'' tp)
+    Result.ok $ Canonical.TypeRule pats' constrs' (typeRuleVarArgMapping pats' constrs tp)
 
 definition
     :: Env.Environment
