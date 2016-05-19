@@ -158,7 +158,7 @@ typeOfGroup eqgroup
     | not (null combinations)  =  Left combinations -- pairs of vertices with different base types
     | not (null allConstants)  =  Right . head $ allConstants
     | not (null allApplies)    =  Right . head $ allApplies
-    | otherwise                =  Right . head . vertices $ eqgroup
+    | otherwise                =  Right reprVar
 
     where
         -- combine
@@ -188,6 +188,10 @@ typeOfGroup eqgroup
         groupMap :: M.Map BS.VertexKind [BS.VertexId]
         groupMap = foldl insert M.empty allConstants
 
+        -- A representative type variable
+        reprVar :: (BS.VertexId, BS.VertexInfo)
+        reprVar = head [ (vid, (BS.VVar rigid preds, x)) | (vid, (BS.VVar rigid _, x)) <- allRigids ++ allFlex, let preds = nub $ concatMap snd allPredicates ]
+
         -- Conflicts between rigid variables containing different predicates
         rigidVarsConflicts :: [(BS.VertexId, BS.VertexId)]
         rigidVarsConflicts = [ (lid, rid) | (lid, (BS.VVar _ lpreds, _)) <- allRigids, (rid, (BS.VVar _ rpreds, _)) <- allRigids, lpreds /= rpreds ]
@@ -215,10 +219,11 @@ typeOfGroup eqgroup
         recordEvidence :: [(BS.VertexId, BS.VertexId)]
         recordEvidence = [(c1Id, c2Id) | (c1Id, (BS.VCon "1Record" [ev1], _)) <- allConstants, (c2Id, (BS.VCon "1Record" [ev2], _)) <- allConstants, c1Id /= c2Id, True, not $ BS.matchConsEvidence ev1 ev2]
 
-        allConstants, allApplies, allRigids :: [(BS.VertexId, BS.VertexInfo)]
+        allConstants, allApplies, allRigids, allFlex :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]
         allApplies    = [a | a@(_, (BS.VApp {}, _)) <- vertices eqgroup]
         allRigids     = [a | a@(_, (BS.VVar T.Rigid _, _)) <- vertices eqgroup]
+        allFlex       = [a | a@(_, (BS.VVar T.Flex _, _)) <- vertices eqgroup]
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info

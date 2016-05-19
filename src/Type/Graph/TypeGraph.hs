@@ -736,31 +736,40 @@ findInfiniteTypes grph =
 
 -- | Try to reconstruct an infinite type to the best of the type graph's ability
 reconstructInfiniteType :: forall info . BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> AT.Canonical
-reconstructInfiniteType vid infs grph = AT.unqualified $ -- TODO: qualified types here:
+reconstructInfiniteType vid infs grph =
     let
         eg :: EG.EquivalenceGroup info
         eg = getVertexGroup vid grph
 
-        rec :: BS.VertexId -> AT.Canonical'
+        rec :: BS.VertexId -> AT.Canonical
         rec vid' =
             if vid' `S.member` infs then
-                AT.Var "∞"
+                AT.unqualified $ AT.Var "∞"
             else
-                AT.qtype $ reconstructInfiniteType vid' (S.insert vid' infs) grph
+                reconstructInfiniteType vid' (S.insert vid' infs) grph
     in
         case lookup vid (EG.vertices eg) of
-            Just (BS.VApp l r, _) -> flattenGraphType $ AT.App (rec l) [rec r]
-            Just (BS.VCon "Function" _, _) -> AT.Var "Function"
-            Just (BS.VCon name _, _) -> maybe (AT.Var name) AT.Type (M.lookup name . funcMap $ grph)
-            Just (BS.VVar _ _, _) -> -- TODO: Represent qualified types in reconstructed type?
+            Just (BS.VApp l r, _) ->
+                let
+                    (AT.QT lquals lt) = rec l
+                    (AT.QT rquals rt) = rec r
+                in
+                    AT.QT (lquals ++ rquals) $ flattenGraphType $ AT.App lt [rt]
+            Just (BS.VCon "Function" _, _) -> AT.unqualified $ AT.Var "Function"
+            Just (BS.VCon name _, _) -> maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
+            Just (BS.VVar _ _, _) ->
                 case EG.typeOfGroup eg of
-                    Right (vid', _) ->
-                        if vid' == vid then
-                            AT.Var ("a" ++ show (BS.unVertexId vid))
-                        else
-                            rec vid'
-                    Left _ -> AT.Var ("a" ++ show (BS.unVertexId vid))
-            Nothing -> AT.Var "?"
+                    Right (vid', (BS.VVar _ preds, _)) ->
+                        let
+                            varName = AT.Var $ "a" ++ show (BS.unVertexId vid)
+                            quals = [ AT.Qualifier nm varName | BS.PInterface nm _ <- preds ]
+                        in
+                            if vid' == vid then
+                                AT.QT quals varName
+                            else
+                                rec vid'
+                    Left _ -> AT.QT [] $ AT.Var ("a" ++ show (BS.unVertexId vid))
+            Nothing -> AT.unqualified $ AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph
 flattenGraphType :: AT.Canonical' -> AT.Canonical'
