@@ -761,13 +761,17 @@ reconstructInfiniteType' vid infs grph =
                     return $ AT.QT (lquals ++ rquals) $ flattenGraphType $ AT.App lt [rt]
             Just (BS.VCon "Function" _, _) -> return $ AT.unqualified $ AT.Var "Function"
             Just (BS.VCon name _, _) -> return $ maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
-            Just (BS.VVar _ preds', _) ->
+            Just (BS.VVar _ preds', originalName) ->
                 case EG.typeOfGroup eg of
                     Right (vid', (BS.VVar _ preds, _)) ->
                         do
                             let super = listToMaybe [ s | BS.Super s <- preds ]
                             varName <- T.getFreshName super -- AT.Var $ "a" ++ show (BS.unVertexId vid)
-                            let varName' = AT.Var varName
+                            let varName' =
+                                    case originalName of
+                                        Just x -> AT.Var $ Var.toString x
+                                        Nothing -> AT.Var varName
+
                             let quals = [ AT.Qualifier nm varName' | BS.PInterface nm _ <- preds ]
 
                             if vid' == vid then
@@ -778,7 +782,11 @@ reconstructInfiniteType' vid infs grph =
                         do
                             let super = listToMaybe [ s | BS.Super s <- preds' ]
                             varName <- T.getFreshName super
-                            return $ AT.QT [] $ AT.Var varName -- ("a" ++ show (BS.unVertexId vid))
+                            let varName' =
+                                    case originalName of
+                                        Just x -> AT.Var $ Var.toString x
+                                        Nothing -> AT.Var varName
+                            return $ AT.QT [] varName' -- ("a" ++ show (BS.unVertexId vid))
             Nothing -> return $ AT.unqualified $ AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph
