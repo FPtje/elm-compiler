@@ -21,7 +21,7 @@ import qualified Data.List as List
 import qualified Reporting.Annotation as A
 import qualified Data.Set as S
 import qualified Data.Traversable as TR
-import Control.Monad.State (liftIO)
+import Control.Monad.State (State, liftIO, evalState)
 import Control.Monad (foldM)
 import Data.List (nub, sort)
 import Control.Applicative ((<|>))
@@ -735,41 +735,51 @@ findInfiniteTypes grph =
         concat [rec vid app S.empty P.Empty | app@(vid, _) <- apps]
 
 -- | Try to reconstruct an infinite type to the best of the type graph's ability
-reconstructInfiniteType :: forall info . BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> AT.Canonical
-reconstructInfiniteType vid infs grph =
+reconstructInfiniteType :: BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> AT.Canonical
+reconstructInfiniteType vid infs grph = evalState (reconstructInfiniteType' vid infs grph) (T.makeNameState S.empty)
+
+-- | Try to reconstruct an infinite type to the best of the type graph's ability
+reconstructInfiniteType' :: forall info . BS.VertexId -> S.Set BS.VertexId -> TypeGraph info -> State T.NameState AT.Canonical
+reconstructInfiniteType' vid infs grph =
     let
         eg :: EG.EquivalenceGroup info
         eg = getVertexGroup vid grph
 
-        rec :: BS.VertexId -> AT.Canonical
+        rec :: BS.VertexId -> State T.NameState AT.Canonical
         rec vid' =
             if vid' `S.member` infs then
-                AT.unqualified $ AT.Var "∞"
+                return $ AT.unqualified $ AT.Var "∞"
             else
-                reconstructInfiniteType vid' (S.insert vid' infs) grph
+                reconstructInfiniteType' vid' (S.insert vid' infs) grph
     in
         case lookup vid (EG.vertices eg) of
             Just (BS.VApp l r, _) ->
-                let
-                    (AT.QT lquals lt) = rec l
-                    (AT.QT rquals rt) = rec r
-                in
-                    AT.QT (lquals ++ rquals) $ flattenGraphType $ AT.App lt [rt]
-            Just (BS.VCon "Function" _, _) -> AT.unqualified $ AT.Var "Function"
-            Just (BS.VCon name _, _) -> maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
-            Just (BS.VVar _ _, _) ->
+                do
+                    (AT.QT lquals lt) <- rec l
+                    (AT.QT rquals rt) <- rec r
+
+                    return $ AT.QT (lquals ++ rquals) $ flattenGraphType $ AT.App lt [rt]
+            Just (BS.VCon "Function" _, _) -> return $ AT.unqualified $ AT.Var "Function"
+            Just (BS.VCon name _, _) -> return $ maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
+            Just (BS.VVar _ preds', _) ->
                 case EG.typeOfGroup eg of
                     Right (vid', (BS.VVar _ preds, _)) ->
-                        let
-                            varName = AT.Var $ "a" ++ show (BS.unVertexId vid)
-                            quals = [ AT.Qualifier nm varName | BS.PInterface nm _ <- preds ]
-                        in
+                        do
+                            let super = listToMaybe [ s | BS.Super s <- preds ]
+                            varName <- T.getFreshName super -- AT.Var $ "a" ++ show (BS.unVertexId vid)
+                            let varName' = AT.Var varName
+                            let quals = [ AT.Qualifier nm varName' | BS.PInterface nm _ <- preds ]
+
                             if vid' == vid then
-                                AT.QT quals varName
-                            else
+                                return $ AT.QT quals varName'
+                             else
                                 rec vid'
-                    Left _ -> AT.QT [] $ AT.Var ("a" ++ show (BS.unVertexId vid))
-            Nothing -> AT.unqualified $ AT.Var "?"
+                    Left _ ->
+                        do
+                            let super = listToMaybe [ s | BS.Super s <- preds' ]
+                            varName <- T.getFreshName super
+                            return $ AT.QT [] $ AT.Var varName -- ("a" ++ show (BS.unVertexId vid))
+            Nothing -> return $ AT.unqualified $ AT.Var "?"
 
 -- | Flattens the type created by reconstructing the type of something in the type graph
 flattenGraphType :: AT.Canonical' -> AT.Canonical'
@@ -789,7 +799,7 @@ substituteVariable vid grph =
         -- Recursive variable substitution
         -- Keeps track of which type variables have been seen before (occurs check)
         rec :: S.Set BS.VertexId -> BS.VertexId -> BS.VertexInfo -> Either (SubstitutionError info) (BS.VertexId, BS.VertexInfo)
-        rec history vi inf@(BS.VVar T.Rigid _, _) = Right (vi, inf)
+        rec _ vi inf@(BS.VVar T.Rigid _, _) = Right (vi, inf)
         rec history vi (BS.VVar _ _, _)
             | vi `S.member` history = Left (InfiniteType vi P.Fail)
             | otherwise =
