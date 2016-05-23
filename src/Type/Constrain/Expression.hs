@@ -323,7 +323,7 @@ constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules arg
 
       (returnVars, returnConstrs) <- mkReturnTypeConstrs 1 (length args) (init argVars) funcVar rconstraints
 
-      return $ ex (funcVar : Map.elems vars ++ returnVars) returnConstrs
+      return returnConstrs
   where
       mkVarFromString :: Map.Map String Variable -> (Variable, P.CanonicalPattern) -> IO (Map.Map String Variable)
       mkVarFromString varmap (var, A.A _ (P.Var name)) =
