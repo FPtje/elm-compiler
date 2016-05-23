@@ -18,6 +18,7 @@ data Error
     | InfixDuplicate String
     | TypeWithoutDefinition String
     | TypeRuleNotBetweenTypeAndDef String
+    | TypeRuleDuplicate
     | TypeRuleNotTopLevel
     | TypeRuleMissingArgs [String]
     | TypeRuleDuplicateSubRule String
@@ -107,6 +108,19 @@ toReport _localizer err =
               ++ "errors for " ++ valueName ++ " ... where\n"
               ++ "    ...\n\n"
               ++ valueName ++ " = ..."
+          )
+
+    TypeRuleDuplicate ->
+        Report.report
+          "DUPLICATE SET OF ERRORS"
+          Nothing
+          ("Multiple sets of errors are defined for the same function with the same amount of arguments"
+          )
+          ( text $
+              "A function with n parameters can have n + 1 sets of errors. " ++
+              "One for when the function is given 0 arguments, one for when the function is given 1 argument etc.\n" ++
+              "One cannot make two sets of errors for a function with the same amount of arguments, " ++
+              "because then we wouldn't know which error to throw when the user does something wrong."
           )
 
     TypeRuleNotTopLevel ->

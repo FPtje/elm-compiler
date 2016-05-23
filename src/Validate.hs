@@ -111,9 +111,8 @@ validateIFaceDecls :: [Source.Def] -> Result.Result wrn Error.Error [Interface.V
 validateIFaceDecls [] = Result.ok []
 validateIFaceDecls (A.A region def : defs) =
   let
-    -- collectRules :: String -> Type.Raw -> [Source.Def] -> Result .. (Interface.ValidInterfaceDecl, [Source.Def])
-    collectRules _ [] = Result.ok ([], [])
-    collectRules name defs'@(A.A rg def' : rest) =
+    collectRules _ _ [] = Result.ok ([], [])
+    collectRules patCounts name defs'@(A.A rg def' : rest) =
       case def' of
         Source.TypeRule pats@((A.A _ (Pattern.Var name')) : _) rules ->
           if name == name' then
@@ -121,7 +120,10 @@ validateIFaceDecls (A.A region def : defs) =
               pats' <- mapM validatePattern pats
               rule <- checkRule $ A.A rg $ Valid.TypeRule pats' (typeRuleHelp rules)
 
-              (otherRules, rest') <- collectRules name rest
+              when (length pats' `Set.member` patCounts) $
+                Result.throw rg Error.TypeRuleDuplicate
+
+              (otherRules, rest') <- collectRules (Set.insert (length pats') patCounts) name rest
               Result.ok (rule : otherRules, rest')
           else
             Result.throw region (Error.TypeRuleNotBetweenTypeAndDef name) -- TODO: Better, interface specific error
@@ -134,7 +136,7 @@ validateIFaceDecls (A.A region def : defs) =
 
       Source.TypeAnnotation name tipe ->
         do
-          (rules, rest) <- collectRules name defs
+          (rules, rest) <- collectRules Set.empty name defs
           otherDefs <- validateIFaceDecls rest
 
           Result.ok $ A.A region (Interface.IFType name tipe rules) : otherDefs
