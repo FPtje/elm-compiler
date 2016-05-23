@@ -20,6 +20,7 @@ data Error
     | TypeRuleNotBetweenTypeAndDef String
     | TypeRuleNotTopLevel
     | TypeRuleMissingArgs [String]
+    | TypeRuleDuplicateSubRule String
     | PortWithoutAnnotation String
     | UnexpectedPort
     | DuplicateFieldName String
@@ -127,6 +128,16 @@ toReport _localizer err =
           )
           ( text $
               (List.intercalate ", " (map (\c -> "'" ++ c ++ "'") args)) ++ " must appear at least once on the left hand side of a unify rule."
+          )
+
+    TypeRuleDuplicateSubRule subrule ->
+        Report.report
+          "DUPLICATE CONSTRAIN RULES"
+          Nothing
+          ("The constrain rule for `" ++ subrule ++ "` is mentioned multiple times"
+          )
+          ( text $
+              "The arguments and return value need only be constrained once at most."
           )
 
     PortWithoutAnnotation portName ->

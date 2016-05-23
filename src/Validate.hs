@@ -269,10 +269,23 @@ checkRule (A.A region (Valid.TypeRule pats rules)) =
     missingArgsInConstraints :: [String]
     missingArgsInConstraints =
       [ arg | A.A _ (Pattern.Var arg) <- (ret : args), not $ Set.member arg leftHandSides ]
+
+
+    -- Check for duplicate subrules
+    allSubRules :: [(R.Region, String)]
+    allSubRules = [ (rg, var) | A.A rg (Rule.SubRule (Var.Raw var)) <- rules ]
+
+    getDuplicates :: (Set.Set String, [(R.Region, Error.Error)]) -> (R.Region, String) -> (Set.Set String, [(R.Region, Error.Error)])
+    getDuplicates (s, res) (rg, str) = (Set.insert str s, if str `Set.member` s then (rg, Error.TypeRuleDuplicateSubRule str) : res else res)
+
+    duplicates :: [(R.Region, Error.Error)]
+    duplicates = snd $ foldl getDuplicates (Set.empty, []) allSubRules
   in
     do
       when (not $ null missingArgsInConstraints) $
         Result.throw region (Error.TypeRuleMissingArgs missingArgsInConstraints)
+
+      mapM (uncurry Result.throw) duplicates
 
       return $ A.A region $ Valid.TypeRule pats (missingArgs ++ rules ++ missingRet)
 
