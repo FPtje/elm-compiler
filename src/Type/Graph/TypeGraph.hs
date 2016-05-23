@@ -778,6 +778,7 @@ reconstructInfiniteType' vid infs grph =
                                 return $ AT.QT quals varName'
                              else
                                 rec vid'
+                    Right (vid', _) -> rec vid'
                     Left _ ->
                         do
                             let super = listToMaybe [ s | BS.Super s <- preds' ]
