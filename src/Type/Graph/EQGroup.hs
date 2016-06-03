@@ -227,47 +227,47 @@ typeOfGroup eqgroup
 
 -- | All equality paths between two vertices.
 equalPaths :: BS.VertexId -> BS.VertexId -> EquivalenceGroup info -> P.Path info
-equalPaths start target eqgroup =
-    let
-        edgeList = edges eqgroup
+equalPaths start target eqgroup = P.Step (BS.EdgeId start target) P.Implied
+    -- let
+    --     edgeList = edges eqgroup
 
-        cliqueList :: [[CLQ.ParentChild]]
-        cliqueList = map CLQ.unclique . cliques $ eqgroup
+    --     cliqueList :: [[CLQ.ParentChild]]
+    --     cliqueList = map CLQ.unclique . cliques $ eqgroup
 
-        rec :: BS.VertexId -> ([(BS.EdgeId, info)], [[CLQ.ParentChild]]) -> P.Path info
-        rec v1 (es, cs)
-            | v1 == target = P.Empty -- Path to itself is empty
-            | otherwise =
-                let
-                    -- Edges from this vertex
-                    (edgesFrom, es') = partition (\(BS.EdgeId a _, _) -> v1 == a) es
-                    -- Edges to this vertex
-                    (edgesTo, es'') = partition (\(BS.EdgeId _ a, _) -> v1 == a) es'
+    --     rec :: BS.VertexId -> ([(BS.EdgeId, info)], [[CLQ.ParentChild]]) -> P.Path info
+    --     rec v1 (es, cs)
+    --         | v1 == target = P.Empty -- Path to itself is empty
+    --         | otherwise =
+    --             let
+    --                 -- Edges from this vertex
+    --                 (edgesFrom, es') = partition (\(BS.EdgeId a _, _) -> v1 == a) es
+    --                 -- Edges to this vertex
+    --                 (edgesTo, es'') = partition (\(BS.EdgeId _ a, _) -> v1 == a) es'
 
-                    -- The neighboring cliques of which v1 is a member
-                    (neighbourCliques, otherCliques) = partition ((v1 `elem`) . map CLQ.child) cs
-                    rest = (es'', otherCliques)
-                in
-                    P.choice $
+    --                 -- The neighboring cliques of which v1 is a member
+    --                 (neighbourCliques, otherCliques) = partition ((v1 `elem`) . map CLQ.child) cs
+    --                 rest = (es'', otherCliques)
+    --             in
+    --                 P.choice $
 
-                    -- Add steps to all edges coming from this node
-                    map (\(BS.EdgeId _ neighbour, info) ->
-                        P.Step (BS.EdgeId v1 neighbour) (P.Initial info)
-                        P.:+: rec neighbour rest) edgesFrom
+    --                 -- Add steps to all edges coming from this node
+    --                 map (\(BS.EdgeId _ neighbour, info) ->
+    --                     P.Step (BS.EdgeId v1 neighbour) (P.Initial info)
+    --                     P.:+: rec neighbour rest) edgesFrom
 
-                    -- Add steps to all edges going to this node
-                    ++ map (\(BS.EdgeId neighbour _, info) ->
-                        P.Step (BS.EdgeId neighbour v1) (P.Initial info)
-                        P.:+: rec neighbour rest) edgesTo
+    --                 -- Add steps to all edges going to this node
+    --                 ++ map (\(BS.EdgeId neighbour _, info) ->
+    --                     P.Step (BS.EdgeId neighbour v1) (P.Initial info)
+    --                     P.:+: rec neighbour rest) edgesTo
 
-                    -- Creates all implied edges
-                    ++ concatMap (\list ->
-                                  let (sources, others) = partition ((v1==) . CLQ.child) list
-                                      neighbours        = nub (map CLQ.child others)
-                                      f neighbour       = P.Step (BS.EdgeId v1 neighbour) P.Implied P.:+: rec neighbour rest
-                                  in if null sources
-                                       then []
-                                       else map f neighbours) neighbourCliques
-    in
-        P.simplify $
-        rec start (edgeList, cliqueList)
+    --                 -- Creates all implied edges
+    --                 ++ concatMap (\list ->
+    --                               let (sources, others) = partition ((v1==) . CLQ.child) list
+    --                                   neighbours        = nub (map CLQ.child others)
+    --                                   f neighbour       = P.Step (BS.EdgeId v1 neighbour) P.Implied P.:+: rec neighbour rest
+    --                               in if null sources
+    --                                    then []
+    --                                    else map f neighbours) neighbourCliques
+    -- in
+    --     P.simplify $
+    --     rec start (edgeList, cliqueList)

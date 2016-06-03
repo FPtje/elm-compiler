@@ -29,6 +29,8 @@ import Type.Unify (ExtensionStructure (..))
 
 import Data.Maybe (fromMaybe, fromJust, maybeToList, isJust, listToMaybe, catMaybes)
 
+import Debug.Trace
+
 
 -- | Representation of a type graph
 data TypeGraph info = TypeGraph
@@ -521,14 +523,132 @@ propagateRemoval i grph =
         else
             new
 
+
+
 -- | Replace implicit edges with their sets of children edges
-expandPath :: forall info . TypeGraph info -> P.Path info -> P.Path info
+expandPath :: forall info . Show info => TypeGraph info -> P.Path info -> P.Path info
 expandPath grph (l P.:|: r) = expandPath grph l P.:|: expandPath grph r
 expandPath grph (l P.:+: r) = expandPath grph l P.:+: expandPath grph r
-expandPath grph st@(P.Step eid P.Implied) = fst . fromMaybe (st, undefined) $ expandStep grph eid S.empty
+expandPath grph (P.Step (BS.EdgeId strt finish) P.Implied) =
+    let
+        ei = EI { start = strt, treeStack = [], path = P.Empty, lastSeen = BS.VertexId (-1)}
+    in
+        expandStep grph ei finish -- fst . fromMaybe (st, undefined) $ expandStep grph eid S.empty
 expandPath _     x = x
 
 
+-- try 2:
+data ExpansionIteration info =
+    EI
+    { start :: BS.VertexId
+    , treeStack :: [CLQ.ChildSide]
+    -- , seen :: S.Set BS.VertexId
+    , lastSeen :: BS.VertexId
+    , path :: P.Path info
+    }
+
+instance Show (ExpansionIteration info) where
+    show ei = "Start: " ++ show (start ei) ++ ", stack: " ++ show (treeStack ei)
+
+expandStep :: forall info . Show info => TypeGraph info -> ExpansionIteration info -> BS.VertexId -> P.Path info
+expandStep grph e finish
+    | start e == finish = path e
+    | otherwise =
+
+    let
+        grp ei = fromJust $ getGroupOf (start ei) grph
+        edges ei = EG.edges (grp ei)
+
+        initialEdgeSteps :: ExpansionIteration info -> [ExpansionIteration info]
+        initialEdgeSteps ei =
+            [ ei
+                { start = b
+                , path = path ei P.:+: (P.Step eid (P.Initial inf))
+                , lastSeen = start ei
+                }
+            |
+                (eid@(BS.EdgeId a b), inf) <- edges ei,
+                a == start ei,
+
+                lastSeen ei /= b
+            ]
+            ++
+            [ ei
+                { start = a
+                , path = path ei P.:+: P.Step eid (P.Initial inf)
+                , lastSeen = start ei
+                }
+            |
+                (eid@(BS.EdgeId a b), inf) <- edges ei,
+                b == start ei,
+
+                lastSeen ei /= a
+            ]
+
+        parentEdgeSteps :: ExpansionIteration info -> [ExpansionIteration info]
+        parentEdgeSteps ei =
+
+            [ ei
+                { start = CLQ.parent pc
+                , treeStack = CLQ.childSide pc : treeStack ei
+                , path = path ei P.:+: P.Step (BS.EdgeId (CLQ.child pc) (CLQ.parent pc)) (P.Parent (CLQ.childSide pc))
+                , lastSeen = start ei
+                }
+            |
+                -- Look for parents
+                clq <- EG.cliques (grp ei),
+                let mPc = CLQ.getParentChild (start ei) clq,
+                isJust mPc,
+                let pc = fromJust mPc,
+
+                lastSeen ei /= CLQ.parent pc
+            ]
+
+        childEdgeSteps :: ExpansionIteration info -> [ExpansionIteration info]
+        childEdgeSteps ei =
+            case (treeStack ei, getVertex (start ei) grph) of
+                (side : restStack, Just (BS.VApp l r, _)) ->
+                    [ ei
+                        { start = child
+                        , treeStack = restStack
+                        , path = path ei P.:+: P.Step (BS.EdgeId (start ei) child) (P.Child side)
+                        , lastSeen = start ei
+                        }
+                    |
+                        let child =
+                                case side of
+                                    CLQ.LeftChild -> l
+                                    CLQ.RightChild -> r,
+
+                        lastSeen ei /= child
+                    ]
+
+                _ -> []
+
+
+        rec :: [ExpansionIteration info] -> Either (P.Path info) [ExpansionIteration info]
+        rec eis =
+            let
+                nextIteration =
+                    concatMap initialEdgeSteps eis ++
+                    concatMap parentEdgeSteps eis ++
+                    concatMap childEdgeSteps eis
+
+                -- A path has been found when the finish has been reached and
+                -- the stack of times gone up the tree is empty
+                anySuccess =
+                    filter (\ei -> start ei == finish && null (treeStack ei)) nextIteration
+            in trace ("\n\nITERATION: " ++ show nextIteration) $
+                case anySuccess of
+                    [] -> rec nextIteration
+                    (x : _) -> Left $ path x
+
+    in
+        case rec [e] of
+            Left pth -> pth
+            Right _ -> error $ "This should be impossible, the function recurses on a Right"
+
+{-
 -- | When the expansion of an implicit edge (say (a, b)) fails,
 -- there might be a different pair of vertices (say (c, d))
 -- in the same equivalence group that are connected by an initial edge
@@ -669,7 +789,7 @@ expandStep grph eid@(BS.EdgeId l _) set
 
             EG.initialEdgePath eid grp <|>
                 expandParentStep grph eid newSet <|>
-                expandZeroSplitStep grph eid newSet
+                expandZeroSplitStep grph eid newSet-}
 
 -- | Finds all the children in the equivalence group that contains the given VertexId
 childrenInGroupOf :: BS.VertexId -> TypeGraph info -> ([CLQ.ParentChild], [CLQ.ParentChild])
