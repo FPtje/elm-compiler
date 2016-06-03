@@ -170,7 +170,7 @@ data TrustFactor
     | CaseBranches
     | ListValues
     | ListRange
-    | FunctionArity
+    | FunctionArity Int
     deriving (Eq, Ord, Show)
 
 data Constraint a b
@@ -401,7 +401,7 @@ trustValuation IfCondition      = 50
 trustValuation CaseBranches     = 100
 trustValuation ListValues       = 100
 trustValuation ListRange        = 50
-trustValuation FunctionArity    = 200
+trustValuation (FunctionArity i)    = 200 - i
 
 -- VARIABLE CREATION
 

@@ -340,7 +340,7 @@ constrainOverriddenApp env region f args tipe (Canonical.TypeRule pats rules arg
             region
             ((VarN t) ==> (VarN localReturnVar))
             ((VarN funcVar))
-            FunctionArity)
+            (FunctionArity index))
 
 
 constrainApp'
@@ -398,7 +398,7 @@ argConstraints env name region totalArgs overallVar index args =
                   region
                   ((VarN argIndexVar) ==> (VarN localReturnVar))
                   ((VarN overallVar))
-                  FunctionArity
+                  (FunctionArity (index - 1))
 
           let argMatchCon =
                 CEqual
