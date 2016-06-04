@@ -541,7 +541,7 @@ data ExpansionIteration info =
     EI
     { start :: BS.VertexId
     , treeStack :: [CLQ.ChildSide]
-    , seenParents :: S.Set BS.VertexId
+    , seenParents :: S.Set BS.EdgeId
     , lastSeen :: BS.VertexId
     , path :: P.Path info
     }
@@ -592,7 +592,7 @@ expandStep grph e finish
                 , treeStack = CLQ.childSide pc : treeStack ei
                 , path = path ei P.:+: P.Step (BS.EdgeId (CLQ.child pc) (CLQ.parent pc)) (P.Parent (CLQ.childSide pc))
                 , lastSeen = start ei
-                , seenParents = S.insert (CLQ.parent pc) $ seenParents ei
+                , seenParents = S.insert edge $ seenParents ei
                 }
             |
                 -- Look for parents
@@ -600,9 +600,10 @@ expandStep grph e finish
                 let mPc = CLQ.getParentChild (start ei) clq,
                 isJust mPc,
                 let pc = fromJust mPc,
+                let edge = BS.EdgeId (CLQ.child pc) (CLQ.parent pc),
 
                 lastSeen ei /= CLQ.parent pc,
-                not $ CLQ.parent pc `S.member` seenParents ei
+                not $ edge `S.member` seenParents ei
             ]
 
         childEdgeSteps :: ExpansionIteration info -> [ExpansionIteration info]
@@ -643,7 +644,7 @@ expandStep grph e finish
                 case (anySuccess, nextIteration) of
                     (_, []) -> Nothing -- No path exists
                     ([], _) -> rec nextIteration
-                    ((x : _), _) -> Just $ path x
+                    (xs, _) -> Just $ foldl1 (P.:|:) $ map path xs
 
     in
         rec [e]
