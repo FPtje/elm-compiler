@@ -529,11 +529,11 @@ propagateRemoval i grph =
 expandPath :: forall info . Show info => TypeGraph info -> P.Path info -> P.Path info
 expandPath grph (l P.:|: r) = expandPath grph l P.:|: expandPath grph r
 expandPath grph (l P.:+: r) = expandPath grph l P.:+: expandPath grph r
-expandPath grph (P.Step (BS.EdgeId strt finish) P.Implied) =
+expandPath grph st@(P.Step (BS.EdgeId strt finish) P.Implied) =
     let
-        ei = EI { start = strt, treeStack = [], path = P.Empty, lastSeen = BS.VertexId (-1)}
+        ei = EI { start = strt, treeStack = [], path = P.Empty, lastSeen = BS.VertexId (-1), seenParents = S.empty }
     in
-        expandStep grph ei finish -- fst . fromMaybe (st, undefined) $ expandStep grph eid S.empty
+        fromMaybe st $ expandStep grph ei finish -- fst . fromMaybe (st, undefined) $ expandStep grph eid S.empty
 expandPath _     x = x
 
 
@@ -542,7 +542,7 @@ data ExpansionIteration info =
     EI
     { start :: BS.VertexId
     , treeStack :: [CLQ.ChildSide]
-    -- , seen :: S.Set BS.VertexId
+    , seenParents :: S.Set BS.VertexId
     , lastSeen :: BS.VertexId
     , path :: P.Path info
     }
@@ -550,9 +550,9 @@ data ExpansionIteration info =
 instance Show (ExpansionIteration info) where
     show ei = "Start: " ++ show (start ei) ++ ", stack: " ++ show (treeStack ei)
 
-expandStep :: forall info . Show info => TypeGraph info -> ExpansionIteration info -> BS.VertexId -> P.Path info
+expandStep :: forall info . Show info => TypeGraph info -> ExpansionIteration info -> BS.VertexId -> Maybe (P.Path info)
 expandStep grph e finish
-    | start e == finish = path e
+    | start e == finish = Just P.Empty
     | otherwise =
 
     let
@@ -593,6 +593,7 @@ expandStep grph e finish
                 , treeStack = CLQ.childSide pc : treeStack ei
                 , path = path ei P.:+: P.Step (BS.EdgeId (CLQ.child pc) (CLQ.parent pc)) (P.Parent (CLQ.childSide pc))
                 , lastSeen = start ei
+                , seenParents = S.insert (CLQ.parent pc) $ seenParents ei
                 }
             |
                 -- Look for parents
@@ -601,7 +602,8 @@ expandStep grph e finish
                 isJust mPc,
                 let pc = fromJust mPc,
 
-                lastSeen ei /= CLQ.parent pc
+                lastSeen ei /= CLQ.parent pc,
+                not $ CLQ.parent pc `S.member` seenParents ei
             ]
 
         childEdgeSteps :: ExpansionIteration info -> [ExpansionIteration info]
@@ -626,7 +628,7 @@ expandStep grph e finish
                 _ -> []
 
 
-        rec :: [ExpansionIteration info] -> Either (P.Path info) [ExpansionIteration info]
+        rec :: [ExpansionIteration info] -> Maybe (P.Path info)
         rec eis =
             let
                 nextIteration =
@@ -639,14 +641,13 @@ expandStep grph e finish
                 anySuccess =
                     filter (\ei -> start ei == finish && null (treeStack ei)) nextIteration
             in trace ("\n\nITERATION: " ++ show nextIteration) $
-                case anySuccess of
-                    [] -> rec nextIteration
-                    (x : _) -> Left $ path x
+                case (anySuccess, nextIteration) of
+                    (_, []) -> trace ("\n\n\n\nNO PATH EXISTS!") $ Nothing -- No path exists
+                    ([], _) -> rec nextIteration
+                    ((x : _), _) -> Just $ path x
 
     in
-        case rec [e] of
-            Left pth -> pth
-            Right _ -> error $ "This should be impossible, the function recurses on a Right"
+        rec [e]
 
 {-
 -- | When the expansion of an implicit edge (say (a, b)) fails,

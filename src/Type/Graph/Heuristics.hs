@@ -280,23 +280,19 @@ throwMissingImplementationError grph (TG.MissingImplementation vid classref tp e
 applyHeuristics :: TG.TypeGraph T.TypeConstraint -> TS.Solver ()
 applyHeuristics grph =
     do
-        trace ("APPLYING HEURISTICS!! ") $ return ()
         let grphErrs = TG.getErrors grph
 
         let inconsistentPaths = concatMap TG.inconsistentTypesPaths grphErrs
         let expandedPaths = map (TG.expandPath grph) inconsistentPaths
-        trace ("APPLYING HEURISTICS!! 2") $ return ()
 
         -- Apply filter heuristics
         let errorPathShare = map fst $ typePathShare 0.6 expandedPaths
         let sortTrusted = trustFactor 800 errorPathShare
         let missingImplementations = [err | err@(TG.MissingImplementation {}) <- grphErrs]
-        trace ("APPLYING HEURISTICS!! 3") $ return ()
 
         let infiniteRoots = infinitePathRoots grphErrs grph
         let infiniteShare = S.fromList $ infinitePathShare grphErrs
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
-        trace ("APPLYING HEURISTICS!! 4") $ return ()
 
         trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
         --trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()

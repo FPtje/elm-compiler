@@ -66,11 +66,12 @@ data TermN a
     deriving (Eq)
 
 instance Show a => Show (TermN a) where
-    -- show _ = "TermN"
-    show (PlaceHolder s) = "PlaceHolder " ++ s
-    show (AliasN v _ t) = "AliasN " ++ show v ++ " term: " ++ show t
-    show (VarN a) = "VarN " ++ show a
-    show (TermN t1) = "TermN " ++ show t1
+    show _ = "TermN"
+    -- Don't show infinite types with this code:
+    -- show (PlaceHolder s) = "PlaceHolder " ++ s
+    -- show (AliasN v _ t) = "AliasN " ++ show v ++ " term: " ++ show t
+    -- show (VarN a) = "VarN " ++ show a
+    -- show (TermN t1) = "TermN " ++ show t1
 
 
 record :: Map.Map String (TermN a) -> TermN a -> TermN a
