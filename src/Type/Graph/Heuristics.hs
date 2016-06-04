@@ -294,10 +294,10 @@ applyHeuristics grph =
         let infiniteShare = S.fromList $ infinitePathShare grphErrs
         let reconstr = reconstructInfiniteTypes infiniteShare infiniteRoots grph
 
-        trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
+        -- trace ("\n\nGRAPH:\n" ++ show grph) $ return ()
         --trace ("\n\nERRORS IN GRAPH\n" ++ show grphErrs) $ return ()
-        trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
-        trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
+        -- trace ("\n\nInconsistent paths: \n" ++ show inconsistentPaths) $ return ()
+        -- trace ("\n\n\nAND NOW FOR THE EXPANDED PATHS!!!\n" ++ show expandedPaths) $ return ()
         --trace ("\n\nShare in error paths: \n" ++ show (typePathShare 0 expandedPaths)) $ return ()
         --trace ("\n\nAfter trusted: \n" ++ show sortTrusted) $ return ()
 
