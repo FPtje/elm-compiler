@@ -107,8 +107,6 @@ matchConsEvidence (RecordMembers str1 mp1) (RecordMembers str2 mp2) =
         -- elements of the right map not appearing in the left
         sameKeysR :: Bool
         sameKeysR = M.null (M.difference mp2 mp1)
-
-        anus a b = trace (a ++ show b) b
     in
         -- If the left record contains things that the right record doesn't
         -- AND the right record is not polymorphic in extra members
