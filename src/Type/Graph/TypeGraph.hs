@@ -271,7 +271,7 @@ addTermGraphStructure vertexId (T.Record1 members extends) alias grph = do
     (memberMap, grph1) <- addRecordraph (M.toList members) grph
 
     -- Add the record that this record extends
-    (vid, grph2) <- addTermGraph extends alias grph1 -- TODO: merge extend members
+    (vid, grph2) <- addTermGraph extends alias grph1
 
     -- Grab the members of the record this record extends
     let extInfo = getVertex vid grph2
