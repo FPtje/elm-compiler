@@ -101,12 +101,19 @@ consistent ps =
 matchConsEvidence :: Evidence -> Evidence -> Bool
 matchConsEvidence (RecordMembers str1 mp1) (RecordMembers str2 mp2) =
     let
-        sameKeys :: Bool
-        sameKeys = M.null (M.difference mp1 mp2) && M.null (M.difference mp2 mp1)
-    in
-        case (sameKeys, str1, str2) of
-            (True, _, _) -> True
-            (_, Empty, _) -> False
-            (_, _, Empty) -> False
-            _ -> True
+        sameKeysL :: Bool
+        sameKeysL = M.null (M.difference mp1 mp2)
 
+        -- elements of the right map not appearing in the left
+        sameKeysR :: Bool
+        sameKeysR = M.null (M.difference mp2 mp1)
+
+        anus a b = trace (a ++ show b) b
+    in
+        -- If the left record contains things that the right record doesn't
+        -- AND the right record is not polymorphic in extra members
+        -- OR otherwise, it's false.
+        case (sameKeysL, sameKeysR, str1, str2) of
+            (False, _, _, Empty) -> False
+            (_, False, Empty, _) -> False
+            _ -> True

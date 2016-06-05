@@ -217,7 +217,7 @@ typeOfGroup eqgroup
         evidenceLackingCons = [(cId, vId) | (cId, (BS.VCon _ evidence, _)) <- allConstants, (vId, preds) <- allPredicates, not . null $ BS.matchEvidence preds evidence]
 
         recordEvidence :: [(BS.VertexId, BS.VertexId)]
-        recordEvidence = [(c1Id, c2Id) | (c1Id, (BS.VCon "1Record" [ev1], _)) <- allConstants, (c2Id, (BS.VCon "1Record" [ev2], _)) <- allConstants, c1Id /= c2Id, True, not $ BS.matchConsEvidence ev1 ev2]
+        recordEvidence = [(c1Id, c2Id) | (c1Id, (BS.VCon "1Record" [ev1], _)) <- allConstants, (c2Id, (BS.VCon "1Record" [ev2], _)) <- allConstants, c1Id < c2Id, not $ BS.matchConsEvidence ev1 ev2]
 
         allConstants, allApplies, allRigids, allFlex :: [(BS.VertexId, BS.VertexInfo)]
         allConstants  = [c | c@(_, (BS.VCon _ _, _)) <- vertices eqgroup]
