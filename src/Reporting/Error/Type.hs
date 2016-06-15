@@ -85,6 +85,7 @@ data Hint
     | TypeRuleAnnotation
 
     | TypeRuleMismatch
+    | TypeRuleQualifierMismatch
     deriving (Eq, Show)
 
 
@@ -576,6 +577,16 @@ mismatchToReport localizer (MismatchInfo hint leftType rightType maybeReason sib
           ( cmpHintNoReason
               "The left hand side has type:"
               "But right hand side has this type:"
+              ["Note that the previous rules and the type annotation decide the types of the variables"]
+          )
+
+    TypeRuleQualifierMismatch ->
+        report
+          Nothing
+          "The qualifier in this constraint does not exist in the type annotation."
+          ( cmpHintNoReason
+              "The type annotation describes this type:"
+              "But the type rule describes this type:"
               ["Note that the previous rules and the type annotation decide the types of the variables"]
           )
 

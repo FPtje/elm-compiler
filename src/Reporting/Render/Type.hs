@@ -35,15 +35,15 @@ toDoc localizer tipe =
 diffToDocs :: Localizer -> Type.Canonical -> Type.Canonical -> (Doc,Doc)
 diffToDocs localizer leftType rightType =
   let
-    addQualsL = docQualifiers localizer (Type.qualifiers leftType)
-    addQualsR = docQualifiers localizer (Type.qualifiers rightType)
+    addQualsL = docQualifiers localizer (nub $ Type.qualifiers leftType)
+    addQualsR = docQualifiers localizer (nub $ Type.qualifiers rightType)
   in
     case diff localizer None leftType rightType of
       Same doc ->
           (addQualsL doc, addQualsR doc)
 
       Diff leftDoc rightDoc ->
-          (addQualsL leftDoc, addQualsR rightDoc)
+          (leftDoc, rightDoc)
 
 
 decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc

@@ -766,7 +766,7 @@ constrainRule env tipeAnn tipeAnnRg constr (Canonical.TypeRule pats constrs _) =
         var <- mkQualifiedVar [classNm]
 
 
-        return (ruleNr + 1, varmap', constr' /\ CEqual Error.TypeRuleMismatch rg vartp' (VarN var) (CustomError ruleNr))
+        return (ruleNr + 1, varmap', constr' /\ CEqual Error.TypeRuleQualifierMismatch rg vartp' (VarN var) (CustomError ruleNr))
     constrainSubrule (ruleNr, varmap, constr') (A.A rg (Rule.Constraint lhs rhs _)) =
       do
         (varmap', rhsT) <- Env.instantiateType env rhs varmap
