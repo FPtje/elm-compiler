@@ -402,7 +402,7 @@ trustValuation IfCondition      = 50
 trustValuation CaseBranches     = 100
 trustValuation ListValues       = 100
 trustValuation ListRange        = 50
-trustValuation (FunctionArity i)    = 200 - i
+trustValuation (FunctionArity i)    = 800 - i
 
 -- VARIABLE CREATION
 
@@ -637,6 +637,7 @@ data NameState = NameState
     , _comparablePrimes :: Int
     , _appendablePrimes :: Int
     , _compAppendPrimes :: Int
+    , _vertexNames :: Map.Map Int String
     }
 
 
@@ -652,7 +653,7 @@ makeNameState usedNames =
     freeNames =
       filter (\name -> Set.notMember name usedNames) allNames
   in
-    NameState freeNames 0 0 0 0
+    NameState freeNames 0 0 0 0 Map.empty
 
 
 getFreshName :: (Monad m) => Maybe Super -> StateT NameState m String
@@ -683,7 +684,21 @@ getFreshName maybeSuper =
             State.modify (\state -> state { _compAppendPrimes = primes + 1 })
             return ("compappend" ++ replicate primes '\'')
 
+addVertexName :: Monad m => Int -> String -> StateT NameState m ()
+addVertexName i s = State.modify (\state -> state { _vertexNames = Map.insert i s (_vertexNames state) })
 
+getVertexName :: Monad m => Int -> Maybe Super -> StateT NameState m String
+getVertexName i msuper =
+  do
+    state <- State.gets _vertexNames
+
+    case Map.lookup i state of
+      Just x -> return x
+      Nothing ->
+        do
+          name <- getFreshName msuper
+          addVertexName i name
+          return name
 
 -- GET ALL VARIABLE NAMES
 

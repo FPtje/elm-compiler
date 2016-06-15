@@ -764,7 +764,7 @@ reconstructInfiniteType' vid infs grph =
                     Right (vid', (BS.VVar _ preds, _)) ->
                         do
                             let super = listToMaybe [ s | BS.Super s <- preds ]
-                            varName <- T.getFreshName super -- AT.Var $ "a" ++ show (BS.unVertexId vid)
+                            varName <- T.getVertexName (BS.unVertexId vid') super -- AT.Var $ "a" ++ show (BS.unVertexId vid)
                             let varName' =
                                     case originalName of
                                         Just x -> AT.Var $ Var.toString x
@@ -780,7 +780,7 @@ reconstructInfiniteType' vid infs grph =
                     Left _ ->
                         do
                             let super = listToMaybe [ s | BS.Super s <- preds' ]
-                            varName <- T.getFreshName super
+                            varName <- T.getVertexName (BS.unVertexId vid) super
                             let varName' =
                                     case originalName of
                                         Just x -> AT.Var $ Var.toString x

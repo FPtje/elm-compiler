@@ -325,6 +325,6 @@ applyHeuristics grph =
             throwErrorFromInfinite reconstr
             TS.updateTypeGraphErrs
 
-        when (not (null missingImplementations)) $ do
+        when (not (null missingImplementations) && null sortTrusted && null infiniteRoots) $ do
             mapM_ (throwMissingImplementationError grph) missingImplementations
             TS.updateTypeGraphErrs
