@@ -151,6 +151,11 @@ initialEdgePath eid@(BS.EdgeId l r) grp =
             pth <- P.simplify <$> rec edgeMap l P.Empty
             return (pth, M.singleton eid pth)
 
+-- | All predicates that exist in an equality group
+allpreds :: EquivalenceGroup info -> [BS.Evidence]
+allpreds grp =
+    nub $ concat [ preds | (_, (BS.VVar _ preds, _)) <- vertices grp ]
+
 -- | Returns the type of a group in the form in which it is stored
 -- Will give the conflicting vertices when a type conflict is found
 typeOfGroup :: EquivalenceGroup info -> Either [(BS.VertexId, BS.VertexId)] (BS.VertexId, BS.VertexInfo)

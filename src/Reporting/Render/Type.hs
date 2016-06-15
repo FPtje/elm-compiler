@@ -43,7 +43,7 @@ diffToDocs localizer leftType rightType =
           (addQualsL doc, addQualsR doc)
 
       Diff leftDoc rightDoc ->
-          (leftDoc, rightDoc)
+          (addQualsL leftDoc, addQualsR rightDoc)
 
 
 decl :: Localizer -> String -> [String] -> [(String, [Type.Canonical])] -> Doc
