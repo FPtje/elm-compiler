@@ -739,6 +739,16 @@ reconstructInfiniteType' vid infs grph =
 
                     return $ AT.QT (lquals ++ rquals) $ flattenGraphType $ AT.App lt [rt]
             Just (BS.VCon "Function" _, _) -> return $ AT.unqualified $ AT.Var "Function"
+            Just (BS.VCon "1EmptyRecord" _, _) -> return $ AT.unqualified $ AT.Record [] Nothing
+            Just (BS.VCon "1Record" evidence, _) ->
+                do
+                    let (_, members) = head [ (e, ms) | (BS.RecordMembers e ms) <- evidence ]
+                    let (memNames, memVertices) = unzip $ M.toList members
+                    memTypes <- mapM (\v -> reconstructInfiniteType' v infs grph) memVertices
+                    let memTypes' = map AT.qtype memTypes
+                    let memQuals = concatMap AT.qualifiers memTypes
+
+                    return $ AT.QT memQuals $ AT.Record (zip memNames memTypes') Nothing -- TODO: based
             Just (BS.VCon name _, _) -> return $ maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
             Just (BS.VVar _ preds', originalName) ->
                 case EG.typeOfGroup eg of
