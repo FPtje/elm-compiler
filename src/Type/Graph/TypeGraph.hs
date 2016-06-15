@@ -278,14 +278,16 @@ addTermGraphStructure vertexId (T.Record1 members extends) alias grph = do
 
     let finalMembers =
             case extInfo of
-                Just (BS.VCon "1Record" [BS.RecordMembers str mbs], _) -> BS.RecordMembers str (M.union mbs memberMap)
+                Just (BS.VCon "1Record" ((BS.RecordMembers str mbs) : _), _) -> BS.RecordMembers str (M.union mbs memberMap)
                 Just (BS.VCon "1EmptyRecord" _, _) -> BS.RecordMembers Empty memberMap
 
                 -- TODO: Alias
                 _ -> BS.RecordMembers Extension memberMap
 
+    let extendsEvidence = BS.RecordExtends vid
+
     -- Add record constructor
-    let grph3 = addVertex recordVid (BS.VCon "1Record" [finalMembers], Nothing) $ grph2
+    let grph3 = addVertex recordVid (BS.VCon "1Record" [finalMembers, extendsEvidence], Nothing) $ grph2
 
     return (recordVid, grph3)
 
@@ -332,8 +334,8 @@ trickleDownRecordEquality l r info grph =
         case (lval, rval) of
             (Just lgrp, Just rgrp) ->
                 let
-                    lrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers _ members], _)) <- EG.vertices lgrp]
-                    rrecs = M.unions [members | (_, (BS.VCon "1Record" [BS.RecordMembers _ members], _)) <- EG.vertices rgrp]
+                    lrecs = M.unions [members | (_, (BS.VCon "1Record" ((BS.RecordMembers _ members) : _), _)) <- EG.vertices lgrp]
+                    rrecs = M.unions [members | (_, (BS.VCon "1Record" ((BS.RecordMembers _ members) : _), _)) <- EG.vertices rgrp]
                 in
                     linkQualifiers lrecs rrecs info grph
             _ -> error "trickleDownRecordEquality: Error in finding groups I just added"
@@ -742,13 +744,20 @@ reconstructInfiniteType' vid infs grph =
             Just (BS.VCon "1EmptyRecord" _, _) -> return $ AT.unqualified $ AT.Record [] Nothing
             Just (BS.VCon "1Record" evidence, _) ->
                 do
-                    let (_, members) = head [ (e, ms) | (BS.RecordMembers e ms) <- evidence ]
+                    let members = head [ ms | (BS.RecordMembers _ ms) <- evidence ]
                     let (memNames, memVertices) = unzip $ M.toList members
                     memTypes <- mapM (\v -> reconstructInfiniteType' v infs grph) memVertices
                     let memTypes' = map AT.qtype memTypes
                     let memQuals = concatMap AT.qualifiers memTypes
 
-                    return $ AT.QT memQuals $ AT.Record (zip memNames memTypes') Nothing -- TODO: based
+                    let extends = head [ v | (BS.RecordExtends v) <- evidence ]
+                    extends' <- reconstructInfiniteType' extends infs grph
+                    let extendsTp =
+                            case AT.qtype extends' of
+                                AT.Var _ -> Nothing
+                                x -> Just x
+
+                    return $ AT.QT memQuals $ AT.Record (zip memNames memTypes') extendsTp
             Just (BS.VCon name _, _) -> return $ maybe (AT.unqualified $ AT.Var name) (AT.unqualified . AT.Type) (M.lookup name . funcMap $ grph)
             Just (BS.VVar _ preds', originalName) ->
                 case EG.typeOfGroup eg of
