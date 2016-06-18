@@ -290,7 +290,7 @@ propagateQualifierAtom explMap atomName var classref =
     let tipe = T.Type atomName
 
     case findImplementation impls classref tipe of
-      Just _ -> return ()
+      Just _ -> liftIO $ UF.modifyDescriptor var (\desc -> desc { _qualifiers = Set.empty })
       Nothing -> noimplementation classref tipe var (Map.lookup classref explMap)
 
 children :: Variable -> Unify [Variable]

@@ -381,6 +381,7 @@ flattenRecordHelp fields ext =
 
 docQualifier :: Localizer -> Type.Qualifier' Var.Canonical Type.Canonical' -> Doc
 docQualifier localizer (Type.Qualifier classNm (Type.Var var)) = varToDoc localizer classNm <+> text var
+docQualifier localizer (Type.Qualifier classNm x) = varToDoc localizer classNm <+> docType localizer None (Type.unqualified x)
 
 docQualifiers :: Localizer -> [Type.Qualifier' Var.Canonical Type.Canonical'] -> Doc -> Doc
 docQualifiers localizer quals doc =
